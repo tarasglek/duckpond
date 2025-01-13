@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 )
 
 type QueryResponse struct {
@@ -23,6 +25,17 @@ type QueryResponse struct {
 }
 
 func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
+	// First serialize and log the query
+	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
+	var serializedJSON string
+	err := db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	if err != nil {
+		log.Printf("Failed to serialize query: %v\nQuery: %s", err, query)
+	} else {
+		log.Printf("Serialized query: %s", serializedJSON)
+	}
+
+	// Then execute the original query
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
