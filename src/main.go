@@ -25,7 +25,7 @@ func main() {
 	defer db.Close()
 
 	// Load JSON extension
-	if _, err := db.Exec("LOAD json;"); err != nil {
+	if _, err := db.Exec("INSTALL json;LOAD json;"); err != nil {
 		log.Fatalf("Failed to load JSON extension: %v", err)
 	}
 
