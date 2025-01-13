@@ -12,29 +12,37 @@ import (
 )
 
 func main() {
-	// Add port flag
 	port := flag.Int("port", 8080, "port to listen on")
 	flag.Parse()
 
-	db, _ := sql.Open("duckdb", "")
+	db, err := sql.Open("duckdb", "")
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
 
-	db.Exec(`CREATE TABLE person (id INTEGER, name VARCHAR)`)
-	db.Exec(`INSERT INTO person VALUES (42, 'John')`)
+	// Initialize sample data
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS person (id INTEGER, name VARCHAR)`); err != nil {
+		log.Fatalf("Failed to create table: %v", err)
+	}
+	if _, err := db.Exec(`INSERT OR IGNORE INTO person VALUES (42, 'John')`); err != nil {
+		log.Fatalf("Failed to insert data: %v", err)
+	}
 
-	var (
-		id   int
-		name string
-	)
-	row := db.QueryRow(`SELECT id, name FROM person`)
-	_ = row.Scan(&id, &name)
-	fmt.Println("id:", id, "name:", name)
-
-	// Serve the print on port 8080 as a http server
+	// Register endpoints
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var (
+			id   int
+			name string
+		)
+		row := db.QueryRow(`SELECT id, name FROM person`)
+		_ = row.Scan(&id, &name)
 		fmt.Fprintf(w, "id: %d, name: %s\n", id, name)
 	})
 
-	// Update ListenAndServe with port flag and error handling
+	http.HandleFunc("/query", QueryHandler(db))
+
+	// Start server
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Starting server on %s", addr)
 	if err := http.ListenAndServe(addr, nil); err != nil {
