@@ -25,20 +25,9 @@ func main() {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS person (id INTEGER, name VARCHAR)`); err != nil {
 		log.Fatalf("Failed to create table: %v", err)
 	}
-	if _, err := db.Exec(`INSERT OR IGNORE INTO person VALUES (42, 'John')`); err != nil {
-		log.Fatalf("Failed to insert data: %v", err)
-	}
-
-	// Register endpoints
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		var (
-			id   int
-			name string
-		)
-		row := db.QueryRow(`SELECT id, name FROM person`)
-		_ = row.Scan(&id, &name)
-		fmt.Fprintf(w, "id: %d, name: %s\n", id, name)
-	})
+	// if _, err := db.Exec(`INSERT OR IGNORE INTO person VALUES (42, 'John')`); err != nil {
+		// log.Fatalf("Failed to insert data: %v", err)
+	// }
 
 	http.HandleFunc("/query", QueryHandler(db))
 
