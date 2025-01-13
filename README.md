@@ -1,20 +1,30 @@
-# DuckDB using Go SDK
+# Serverless DB based on duckdb + S3
 
-[DuckDB](https://duckdb.org) is an in-process SQL OLAP database management system, in your Go project.
+## Inspired by icedb
+  [icedb](https://github.com/danthegoodman1/icedb/) is fantastic.
+  
+  It cleverly uses timestamped json log files to keep track of parquet files, merge them, delete them.
 
-To run DuckDB on Unikraft Cloud, first [install the `kraft` CLI tool](https://unikraft.org/docs/cli).
-Then clone this examples repository and `cd` into this directory, and invoke:
+  icebase makes following improvements:
+  - Interface is entirely via an HTTP API using standard duckdb select, insert, create table statements
+  - No S3 list operations, instead the plan is to use a single log file that keeps getting replaced(or appended to if using newer s3 features)
+  - icedb requires separate configuration for every table, we handle this via `create table`
+  - icedb def
 
-```console
-kraft cloud deploy --metro fra0 -p 443:8080 .
-```
+## Partitioning
 
-The command will build and deploy the files under `src/`.
+We will be able to specify partion algo via SQL as part of create table.
 
-After deploying, you can query the service using the provided URL.
+Eg here is an example of how to use 2 columns to create partition func:
 
-## Learn more
-
-- [DuckDB's Go driver](https://duckdb.org/docs/api/go)
-- [Unikraft Cloud's Documentation](https://unikraft.cloud/docs/)
-- [Building `Dockerfile` Images with `Buildkit`](https://unikraft.org/guides/building-dockerfile-images-with-buildkit)
+```sql
+  WITH temp_data AS (
+     SELECT 123 AS user_id, 1698765432000 AS ts
+ )
+ SELECT
+     'u=' || user_id || '/d=' || strftime(
+         to_timestamp(ts / 1000),
+         '%Y-%m-%d'
+     ) AS partition_path
+ FROM temp_data;
+```  
