@@ -2,13 +2,20 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 
 	_ "github.com/marcboeker/go-duckdb"
 )
 
 func main() {
+	// Add port flag
+	port := flag.Int("port", 8080, "port to listen on")
+	flag.Parse()
+
 	db, _ := sql.Open("duckdb", "")
 
 	db.Exec(`CREATE TABLE person (id INTEGER, name VARCHAR)`)
@@ -24,7 +31,14 @@ func main() {
 
 	// Serve the print on port 8080 as a http server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "id: %d, name: %s", id, name)
+		fmt.Fprintf(w, "id: %d, name: %s\n", id, name)
 	})
-	http.ListenAndServe(":8080", nil)
+
+	// Update ListenAndServe with port flag and error handling
+	addr := fmt.Sprintf(":%d", *port)
+	log.Printf("Starting server on %s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Printf("Error starting server: %v", err)
+		os.Exit(1)
+	}
 }
