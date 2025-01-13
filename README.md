@@ -48,7 +48,7 @@ We don't like to manage infra. Initially plan to deploy on https://unikraft.clou
 It cleverly uses timestamped json log files to index parquet files, merge them, delete them and crutially to provide time-travel "snapshots"
 
 icebase diverges in following ways from icedb principles:
-- Interface is entirely via an HTTP API using standard duckdb select, insert, create table statements
+- Interface is entirely via an HTTP API using standard duckdb select, insert, create table statements. This is enabled by duckdb [json_serialize_sql](https://duckdb.org/docs/data/json/sql_to_and_from_json.html).
 - No python/go/js exposed, everything via duckdb primitives
 - No S3 list operations, instead the plan is to use a single log file that keeps getting replaced(or appended to if using newer s3 features)
 - icedb requires separate configuration for every table, icebase has a single global configuration and tracks `create table` params internally
