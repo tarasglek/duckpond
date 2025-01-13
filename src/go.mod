@@ -3,7 +3,7 @@ module github.com/tarasglek/icebase
 go 1.21.1
 
 require (
-	github.com/coolaj86/uuidv7 v0.0.0-20231010144851-5c5a5b5b5b5b
+	github.com/coolaj86/uuidv7 v1.0.1
 	github.com/marcboeker/go-duckdb v1.5.4
 )
 
