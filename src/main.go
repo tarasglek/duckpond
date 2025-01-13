@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/coolaj86/uuidv7"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
@@ -18,6 +19,10 @@ func main() {
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
 	flag.Parse()
 
+	// Print UUIDv7 on startup
+	startupUUID := uuidv7.New()
+	log.Printf("Starting icebase with UUID: %s", startupUUID.String())
+
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
@@ -25,7 +30,7 @@ func main() {
 	defer db.Close()
 
 	// Load JSON extension
-	if _, err := db.Exec("INSTALL json;LOAD json;"); err != nil {
+	if _, err := db.Exec("LOAD json;"); err != nil {
 		log.Fatalf("Failed to load JSON extension: %v", err)
 	}
 
