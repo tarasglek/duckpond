@@ -79,6 +79,31 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 	return &response, nil
 }
 
+// Core function to handle POST requests
+func PostEndpoint(db *sql.DB, endpoint string, body io.Reader) (string, error) {
+	switch endpoint {
+	case "/query":
+		query, err := io.ReadAll(body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read request body: %w", err)
+		}
+
+		response, err := ExecuteQuery(db, string(query))
+		if err != nil {
+			return "", fmt.Errorf("query execution failed: %w", err)
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+
+		return string(jsonData), nil
+	default:
+		return "", fmt.Errorf("unknown endpoint: %s", endpoint)
+	}
+}
+
 func QueryHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -86,24 +111,13 @@ func QueryHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
-
-		query := string(body)
-		response, err := ExecuteQuery(db, query)
+		jsonResponse, err := PostEndpoint(db, r.URL.Path, r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
-			return
-		}
+		w.Write([]byte(jsonResponse))
 	}
 }
