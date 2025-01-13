@@ -45,7 +45,7 @@ We don't like to manage infra. Initially plan to deploy on https://unikraft.clou
 ## S3 backend inspired by icedb
 [icedb](https://github.com/danthegoodman1/icedb/) is fantastic.
 
-It cleverly uses timestamped json log files to index parquet files, merge them, delete them.
+It cleverly uses timestamped json log files to index parquet files, merge them, delete them and crutially to provide time-travel "snapshots"
 
 icebase diverges in following ways from icedb principles:
 - Interface is entirely via an HTTP API using standard duckdb select, insert, create table statements
