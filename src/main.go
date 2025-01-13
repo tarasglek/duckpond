@@ -39,7 +39,6 @@ func main() {
 	log.Printf("Starting server on %s", addr)
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Printf("Error starting server: %v", err)
-		fmt.Println("\nUsage:")
 		flag.Usage()
 		os.Exit(1)
 	}
