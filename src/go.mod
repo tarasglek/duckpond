@@ -1,4 +1,4 @@
-module github.com/kraftcloud/examples/duckdb-go
+module github.com/tarasglek/icebase
 
 go 1.21.1
 

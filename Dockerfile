@@ -9,11 +9,11 @@ RUN set -xe; \
       -buildmode=pie \
       -ldflags "-linkmode external -extldflags -static-pie" \
       -tags netgo \
-      -o /server /src/... \
+      -o /icebase /src/... \
     ;
 
 FROM scratch
 
-COPY --from=build /server /server
+COPY --from=build /icebase /icebase
 COPY --from=build /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/
 COPY --from=build /lib64/ld-linux-x86-64.so.2 /lib64/
