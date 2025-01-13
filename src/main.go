@@ -24,6 +24,11 @@ func main() {
 	}
 	defer db.Close()
 
+	// Load JSON extension
+	if _, err := db.Exec("LOAD json;"); err != nil {
+		log.Fatalf("Failed to load JSON extension: %v", err)
+	}
+
 	// If -post flag is provided, act as CLI client
 	if *postEndpoint != "" {
 		// Read from stdin
