@@ -22,17 +22,16 @@ func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[s
 	}
 	return filtered
 }
-	"bytes"
-	"database/sql"
-	"encoding/json"
-	"io"
-	"net/http"
-	"os"
-	"path/filepath"
-	"testing"
 
-	"github.com/stretchr/testify/assert"
-)
+func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
+	filtered := make(map[string]interface{})
+	for key := range expectedJSON {
+		if val, exists := responseJSON[key]; exists {
+			filtered[key] = val
+		}
+	}
+	return filtered
+}
 
 func TestHTTPExtension(t *testing.T) {
 	// Start DuckDB with HTTP server
