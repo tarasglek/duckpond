@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coolaj86/uuidv7"
+	"github.com/google/uuid"
 	"github.com/marcboeker/go-duckdb"
 	_ "github.com/marcboeker/go-duckdb"
 )
@@ -20,7 +20,11 @@ import (
 type uuidv7Func struct{}
 
 func uuidv7Fn(values []driver.Value) (any, error) {
-    return uuidv7.New().String(), nil
+    uuid, err := uuid.NewV7()
+    if err != nil {
+        return nil, err
+    }
+    return uuid.String(), nil
 }
 
 func (*uuidv7Func) Config() duckdb.ScalarFuncConfig {
@@ -59,7 +63,10 @@ func main() {
 	flag.Parse()
 
 	// Print UUIDv7 on startup
-	startupUUID := uuidv7.New()
+	startupUUID, err := uuid.NewV7()
+	if err != nil {
+		log.Fatalf("Failed to generate startup UUID: %v", err)
+	}
 	log.Printf("Starting icebase with UUID: %s", startupUUID.String())
 
 	db, err := sql.Open("duckdb", "")

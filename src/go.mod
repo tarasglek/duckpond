@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.4
 
 require (
-	github.com/coolaj86/uuidv7 v1.0.2
+	github.com/google/uuid v1.6.0
 	github.com/marcboeker/go-duckdb v1.8.3
 )
 
