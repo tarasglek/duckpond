@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 var (
 	pingClient = &http.Client{
 		Timeout: 1 * time.Millisecond,
@@ -91,7 +90,6 @@ func TestHTTPExtension(t *testing.T) {
 	if err := waitForServerReady(); err != nil {
 		t.Fatalf("Server did not become ready: %v", err)
 	}
-
 
 	// Get list of test query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
