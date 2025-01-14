@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/marcboeker/go-duckdb"
 )
 
 type IceBase struct {
