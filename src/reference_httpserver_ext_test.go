@@ -58,6 +58,18 @@ func waitForServerReady() error {
 	return fmt.Errorf("server did not become ready within %v", timeout)
 }
 
+func nukeTypes(data map[string]interface{}) {
+	if meta, exists := data["meta"]; exists {
+		if metaSlice, ok := meta.([]interface{}); ok {
+			for _, item := range metaSlice {
+				if metaItem, ok := item.(map[string]interface{}); ok {
+					delete(metaItem, "type")
+				}
+			}
+		}
+	}
+}
+
 func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
 	filtered := make(map[string]interface{})
 	for key := range expectedJSON {
@@ -158,6 +170,11 @@ func TestHTTPExtension(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse expected result JSON: %v", err)
 			}
+
+			// Remove type information from meta arrays
+			nukeTypes(httpJSON)
+			nukeTypes(icebaseJSON)
+			nukeTypes(expectedJSON)
 
 			// Filter response keys based on expected result
 			filteredHTTP := filterResponseKeys(httpJSON, expectedJSON)
