@@ -17,7 +17,8 @@ func uuidv7Fn(values []driver.Value) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return uuid.String(), nil
+	// Return as byte slice instead of string
+	return uuid[:], nil
 }
 
 func (*uuidv7Func) Config() duckdb.ScalarFuncConfig {
