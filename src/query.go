@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	
+	"github.com/google/uuid"
 )
 
 type QueryResponse struct {
@@ -58,9 +60,18 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 		Type string `json:"type"`
 	}, len(columns))
 
+	// Create a map to track UUID columns
+	uuidColumns := make(map[int]bool)
+
 	for i, col := range columns {
 		response.Meta[i].Name = col
-		response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
+		dbType := columnTypes[i].DatabaseTypeName()
+		response.Meta[i].Type = dbType
+		
+		// Store whether this column is a UUID type
+		if dbType == "UUID" {
+			uuidColumns[i] = true
+		}
 	}
 
 	var data [][]interface{}
@@ -77,7 +88,19 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 
 		rowData := make([]interface{}, len(columns))
 		for i := range values {
-			rowData[i] = values[i]
+			if uuidColumns[i] {
+				// Handle UUID values specifically
+				switch v := values[i].(type) {
+				case []byte:
+					rowData[i] = uuid.UUID(v).String()
+				case string:
+					rowData[i] = v // Already in string format
+				default:
+					rowData[i] = fmt.Sprintf("%v", v)
+				}
+			} else {
+				rowData[i] = values[i]
+			}
 		}
 		data = append(data, rowData)
 	}
