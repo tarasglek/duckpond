@@ -1,17 +1,29 @@
 {
   "meta": [
     {
-      "name": "col1",
+      "name": "uuid_string",
+      "type": "String"
+    },
+    {
+      "name": "uuid_uuid",
+      "type": "String"
+    },
+    {
+      "name": "uuid_string_type",
+      "type": "String"
+    },
+    {
+      "name": "uuid_uuid_type",
       "type": "String"
     }
   ],
   "data": [
     [
-      "deadbeef-1337-4b1d-8008-0123456789ab"
-    ],
-    [
-      "deadbeef-1337-4b1d-8008-0123456789ab"
+      "deadbeef-1337-4b1d-8008-0123456789ab",
+      "deadbeef-1337-4b1d-8008-0123456789ab",
+      "VARCHAR",
+      "UUID"
     ]
   ],
-  "rows": 2
+  "rows": 1
 }
