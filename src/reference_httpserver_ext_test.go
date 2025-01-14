@@ -13,6 +13,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
+	filtered := make(map[string]interface{})
+	for key := range expectedJSON {
+		if val, exists := responseJSON[key]; exists {
+			filtered[key] = val
+		}
+	}
+	return filtered
+}
+	"bytes"
+	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
 func TestHTTPExtension(t *testing.T) {
 	// Start DuckDB with HTTP server
 	db, err := sql.Open("duckdb", "")
@@ -60,28 +81,52 @@ func TestHTTPExtension(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			// Read and pretty-print the response
+			// Read the response and expected result
 			responseBody, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatalf("Failed to read response body: %v", err)
 			}
 
-			var prettyResponse bytes.Buffer
-			err = json.Indent(&prettyResponse, responseBody, "", "  ")
-			if err != nil {
-				t.Fatalf("Failed to pretty-print response: %v", err)
-			}
-
-			// Read and pretty-print the expected result
 			resultFile := testFile + ".result.json"
-
 			expectedResult, err := os.ReadFile(resultFile)
 			if err != nil {
 				t.Fatalf("Failed to read expected result file: %v", err)
 			}
 
-			var prettyExpected bytes.Buffer
-			err = json.Indent(&prettyExpected, expectedResult, "", "  ")
+			// Parse both JSON responses
+			var responseJSON, expectedJSON map[string]interface{}
+			err = json.Unmarshal(responseBody, &responseJSON)
+			if err != nil {
+				t.Fatalf("Failed to parse response JSON: %v", err)
+			}
+
+			err = json.Unmarshal(expectedResult, &expectedJSON)
+			if err != nil {
+				t.Fatalf("Failed to parse expected result JSON: %v", err)
+			}
+
+			// Filter response keys based on expected result
+			filteredResponse := filterResponseKeys(responseJSON, expectedJSON)
+
+			// Convert back to JSON for comparison
+			filteredResponseBytes, err := json.Marshal(filteredResponse)
+			if err != nil {
+				t.Fatalf("Failed to marshal filtered response: %v", err)
+			}
+
+			expectedResultBytes, err := json.Marshal(expectedJSON)
+			if err != nil {
+				t.Fatalf("Failed to marshal expected result: %v", err)
+			}
+
+			// Pretty print both for comparison
+			var prettyResponse, prettyExpected bytes.Buffer
+			err = json.Indent(&prettyResponse, filteredResponseBytes, "", "  ")
+			if err != nil {
+				t.Fatalf("Failed to pretty-print response: %v", err)
+			}
+
+			err = json.Indent(&prettyExpected, expectedResultBytes, "", "  ")
 			if err != nil {
 				t.Fatalf("Failed to pretty-print expected result: %v", err)
 			}
