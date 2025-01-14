@@ -15,9 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var httpClient = &http.Client{
-	Timeout: 1 * time.Millisecond,
-}
+var (
+	pingClient = &http.Client{
+		Timeout: 1 * time.Millisecond,
+	}
+	requestClient = &http.Client{
+		Timeout: 1 * time.Second,
+	}
+)
 
 const (
 	serverHost = "localhost"
@@ -37,7 +42,7 @@ func waitForServerReady() error {
 	for {
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
 		
-		resp, err := httpClient.Get(url)
+		resp, err := pingClient.Get(url)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -110,7 +115,7 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Send the request
-			resp, err := httpClient.Do(req)
+			resp, err := requestClient.Do(req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
