@@ -11,7 +11,6 @@ import (
 	"strings"
 )
 
-
 func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")

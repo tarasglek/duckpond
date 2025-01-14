@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	
+
 	"github.com/google/uuid"
 )
 
@@ -28,16 +28,16 @@ type QueryResponse struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"meta"`
-	Data [][]interface{} `json:"data"`
-	Rows int             `json:"rows"`
+	Data       [][]interface{} `json:"data"`
+	Rows       int             `json:"rows"`
 	Statistics struct {
-		Elapsed   float64 `json:"elapsed"` // in seconds
+		Elapsed float64 `json:"elapsed"` // in seconds
 	} `json:"statistics"`
 }
 
 func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 	start := time.Now()
-	
+
 	// Serialize and log the query
 	serializedJSON, err := SerializeQuery(db, query)
 	if err != nil {
@@ -76,7 +76,7 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 		response.Meta[i].Name = col
 		dbType := columnTypes[i].DatabaseTypeName()
 		response.Meta[i].Type = dbType
-		
+
 		// Store whether this column is a UUID type
 		if dbType == "UUID" {
 			uuidColumns[i] = true
