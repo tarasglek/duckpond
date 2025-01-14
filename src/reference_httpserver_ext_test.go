@@ -116,6 +116,10 @@ func TestHTTPExtension(t *testing.T) {
 		t.Fatalf("Server did not become ready: %v", err)
 	}
 
+	// Add delay before first request
+	time.Sleep(100 * time.Millisecond)
+	fmt.Println("Waiting 100ms before first request...")
+
 	// Get list of test query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
 	if err != nil {
