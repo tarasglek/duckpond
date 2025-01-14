@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -86,7 +85,6 @@ func TestHTTPExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create IceBase: %v", err)
 	}
-	defer ib.Close()
 
 	// Start HTTP server using IceBase's DB instance
 	db := ib.DB()
