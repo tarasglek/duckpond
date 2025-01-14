@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,21 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func timedRequest(client *http.Client, req *http.Request) (*http.Response, error) {
-	start := time.Now()
-	resp, err := client.Do(req)
-	duration := time.Since(start)
-
-	fmt.Printf("HTTP %s %s - %v\n", req.Method, req.URL.Path, duration.Round(time.Millisecond))
-
-	if err != nil {
-		fmt.Printf("Request error: %v\n", err)
-	} else {
-		fmt.Printf("Response status: %d\n", resp.StatusCode)
-	}
-
-	return resp, err
-}
 
 var (
 	pingClient = &http.Client{
@@ -52,32 +34,22 @@ func serverURL(path string) string {
 
 func waitForServerReady() error {
 	url := serverURL(pingPath)
-	attempt := 1
-	startTime := time.Now()
 	timeout := 5 * time.Second
+	startTime := time.Now()
 
 	for time.Since(startTime) < timeout {
-		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
-
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			fmt.Printf("Failed to create ping request: %v\n", err)
 			continue
 		}
 
-		resp, err := timedRequest(pingClient, req)
+		resp, err := pingClient.Do(req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				fmt.Printf("Success! (after %v)\n", time.Since(startTime).Round(time.Millisecond))
 				return nil
 			}
-			fmt.Printf("Got status %d\n", resp.StatusCode)
-		} else {
-			fmt.Printf("Failed: %v\n", err)
 		}
-
-		attempt++
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -117,7 +89,6 @@ func TestHTTPExtension(t *testing.T) {
 		t.Fatalf("Server did not become ready: %v", err)
 	}
 
-	fmt.Println("Waiting 100ms before first request...")
 
 	// Get list of test query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
@@ -139,8 +110,8 @@ func TestHTTPExtension(t *testing.T) {
 				t.Fatalf("Failed to create request: %v", err)
 			}
 
-			// Send the request with timing
-			resp, err := timedRequest(requestClient, req)
+			// Send the request
+			resp, err := requestClient.Do(req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
