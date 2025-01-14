@@ -26,7 +26,7 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 
 	// Get UUID string from response
 	uuidStr := resp.Data[0][0].(string)
-	
+
 	// Validate UUID format
 	uuidBytes, err := uuid.Parse(uuidStr)
 	assert.NoError(t, err, "UUID is invalid")
@@ -40,7 +40,7 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 
 	// Verify UUID timestamp is >= test start time
 	assert.True(t, uuidTime >= startMillis,
-		fmt.Sprintf("UUID timestamp should be >= start time (uuid: %d, start: %d)", 
+		fmt.Sprintf("UUID timestamp should be >= start time (uuid: %d, start: %d)",
 			uuidTime, startMillis))
 
 	return uuidStr, uuidTime
@@ -59,10 +59,10 @@ func TestUUIDv7(t *testing.T) {
 
 	// Generate first UUID and extract timestamp
 	uuidStr1, timestamp1 := generateUUIDWithTimestamp(t, ib, startTime)
-	
+
 	// Wait briefly to ensure timestamp progression
 	time.Sleep(1 * time.Millisecond)
-	
+
 	// Generate second UUID and extract timestamp
 	uuidStr2, timestamp2 := generateUUIDWithTimestamp(t, ib, startTime)
 

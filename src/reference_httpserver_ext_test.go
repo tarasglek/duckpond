@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,8 +55,8 @@ func processAndCompare(t *testing.T, responseJSON, expectedJSON map[string]inter
 	// Pretty print for comparison
 	filteredBytes, _ := json.MarshalIndent(filtered, "", "  ")
 	expectedBytes, _ := json.MarshalIndent(expectedJSON, "", "  ")
-	
-	return fmt.Sprintf("Expected:\n%s\n\nActual:\n%s", 
+
+	return fmt.Sprintf("Expected:\n%s\n\nActual:\n%s",
 		string(expectedBytes), string(filteredBytes))
 }
 
@@ -68,13 +67,13 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	assert.NoError(t, err, "Failed to read query file")
 
 	// Test against HTTP server
-	resp, err := httpClient.Post(serverURL+"/?default_format=JSONCompact", 
+	resp, err := httpClient.Post(serverURL+"/?default_format=JSONCompact",
 		"text/plain", bytes.NewReader(query))
 	assert.NoError(t, err, "HTTP request failed")
 	defer resp.Body.Close()
 
 	var httpJSON map[string]interface{}
-	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON), 
+	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON),
 		"Failed to parse HTTP response")
 
 	// Test against IceBase
@@ -88,13 +87,13 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	expectedJSON := readJSON(t, queryFile+".result.json")
 
 	// Compare results
-	assert.Equal(t, 
+	assert.Equal(t,
 		processAndCompare(t, expectedJSON, expectedJSON),
 		processAndCompare(t, httpJSON, expectedJSON),
 		"HTTP response mismatch")
 
 	assert.Equal(t,
-		processAndCompare(t, expectedJSON, expectedJSON), 
+		processAndCompare(t, expectedJSON, expectedJSON),
 		processAndCompare(t, icebaseJSON, expectedJSON),
 		"IceBase response mismatch")
 }
