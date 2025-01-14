@@ -54,8 +54,9 @@ func waitForServerReady() error {
 	url := serverURL(pingPath)
 	attempt := 1
 	startTime := time.Now()
+	timeout := 5 * time.Second
 
-	for {
+	for time.Since(startTime) < timeout {
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
 
 		req, err := http.NewRequest("GET", url, nil)
@@ -79,6 +80,8 @@ func waitForServerReady() error {
 		attempt++
 		time.Sleep(1 * time.Millisecond)
 	}
+
+	return fmt.Errorf("server did not become ready within %v", timeout)
 }
 
 func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
