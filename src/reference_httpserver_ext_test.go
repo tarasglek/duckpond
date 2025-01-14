@@ -23,16 +23,6 @@ func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[s
 	return filtered
 }
 
-func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
-	filtered := make(map[string]interface{})
-	for key := range expectedJSON {
-		if val, exists := responseJSON[key]; exists {
-			filtered[key] = val
-		}
-	}
-	return filtered
-}
-
 func TestHTTPExtension(t *testing.T) {
 	// Start DuckDB with HTTP server
 	db, err := sql.Open("duckdb", "")
