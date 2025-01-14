@@ -81,12 +81,6 @@ func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[s
 }
 
 func TestHTTPExtension(t *testing.T) {
-	// Start DuckDB with HTTP server
-	db, err := sql.Open("duckdb", "")
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
-
 	// Create IceBase instance
 	ib, err := NewIceBase()
 	if err != nil {
@@ -94,7 +88,8 @@ func TestHTTPExtension(t *testing.T) {
 	}
 	defer ib.Close()
 
-	// Start HTTP server
+	// Start HTTP server using IceBase's DB instance
+	db := ib.DB()
 	_, err = db.Exec("INSTALL httpserver; LOAD httpserver;")
 	if err != nil {
 		t.Fatalf("Failed to install httpfs: %v", err)

@@ -16,6 +16,11 @@ type IceBase struct {
 	db *sql.DB
 }
 
+// DB returns the underlying DuckDB instance
+func (ib *IceBase) DB() *sql.DB {
+	return ib.db
+}
+
 func NewIceBase() (*IceBase, error) {
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
