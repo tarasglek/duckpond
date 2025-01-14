@@ -109,16 +109,26 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 
 	var data [][]interface{}
 	for rows.Next() {
+		// values will hold the actual data from the database row
 		values := make([]interface{}, len(columns))
+		
+		// valuePtrs is an array of pointers to the values array elements
+		// This is necessary because rows.Scan() requires pointers to where it should
+		// store the scanned values. We can't pass values directly since it contains
+		// interface{} elements, not pointers.
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range columns {
+			// Each pointer in valuePtrs points to the corresponding element in values
 			valuePtrs[i] = &values[i]
 		}
 
+		// Scan the current row into our value pointers
+		// This will populate the values array through the pointers in valuePtrs
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
+		// Process the scanned values...
 		rowData := make([]interface{}, len(columns))
 		for i := range values {
 			if values[i] == nil {
@@ -126,20 +136,16 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 				continue
 			}
 
-			// Convert all values to strings based on column type
-			if response.Meta[i].Type == "UUID" {
-				// Handle UUID specifically
-				switch v := values[i].(type) {
-				case []byte:
+			// Handle UUID specifically
+			if response.Meta[i].Type == "UUID" && values[i] != nil {
+				if v, ok := values[i].([]byte); ok {
 					rowData[i] = uuid.UUID(v).String()
-				case string:
-					rowData[i] = v
-				default:
-					rowData[i] = fmt.Sprintf("%v", v)
+					continue
 				}
-			} else {
-				rowData[i] = fmt.Sprintf("%v", values[i])
 			}
+			
+			// Default case for all other values
+			rowData[i] = fmt.Sprintf("%v", values[i])
 		}
 		data = append(data, rowData)
 	}
