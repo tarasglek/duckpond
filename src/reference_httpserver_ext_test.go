@@ -157,19 +157,19 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Pretty print both for comparison
-			var prettyResponse, prettyExpected bytes.Buffer
-			err = json.Indent(&prettyResponse, filteredResponseBytes, "", "  ")
+			var HTTPExtResponse, HTTPExtExpected bytes.Buffer
+			err = json.Indent(&HTTPExtResponse, filteredResponseBytes, "", "  ")
 			if err != nil {
 				t.Fatalf("Failed to pretty-print response: %v", err)
 			}
 
-			err = json.Indent(&prettyExpected, expectedResultBytes, "", "  ")
+			err = json.Indent(&HTTPExtExpected, expectedResultBytes, "", "  ")
 			if err != nil {
 				t.Fatalf("Failed to pretty-print expected result: %v", err)
 			}
 
 			// Compare the results
-			assert.Equal(t, prettyExpected.String(), prettyResponse.String(), "Response does not match expected result")
+			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(), "Response does not match expected result")
 		})
 	}
 }
