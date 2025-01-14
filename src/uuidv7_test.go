@@ -28,15 +28,22 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	assert.NoError(t, err, "UUID is invalid")
 
 	// Extract and verify timestamp
-	uuidTimestamp := uuidStr[:8]
-	uuidTime, err := strconv.ParseUint(uuidTimestamp, 16, 64)
-	assert.NoError(t, err, "Failed to parse UUID timestamp")
+	// Parse UUID bytes
+	uuidBytes, err := uuid.Parse(uuidStr)
+	assert.NoError(t, err, "Failed to parse UUID bytes")
+	
+	// Extract first 48 bits (6 bytes) as milliseconds since Unix epoch
+	uuidTime := int64(uuidBytes[0])<<40 | int64(uuidBytes[1])<<32 | int64(uuidBytes[2])<<24 |
+		int64(uuidBytes[3])<<16 | int64(uuidBytes[4])<<8 | int64(uuidBytes[5])
 
 	// Convert startTime to milliseconds since Unix epoch
 	startMillis := startTime.UnixMilli()
-	assert.True(t, int64(uuidTime) >= startMillis,
+	assert.True(t, uuidTime >= startMillis,
 		fmt.Sprintf("UUID timestamp should be >= start time (uuid: %d, start: %d)", 
-			int64(uuidTime), startMillis))
+			uuidTime, startMillis))
+
+	// Convert back to hex string for comparison
+	uuidTimestamp := fmt.Sprintf("%012x", uuidTime)
 
 	return uuidStr, uuidTimestamp
 }
