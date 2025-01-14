@@ -111,7 +111,7 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 	for rows.Next() {
 		// values will hold the actual data from the database row
 		values := make([]interface{}, len(columns))
-		
+
 		// valuePtrs is an array of pointers to the values array elements
 		// This is necessary because rows.Scan() requires pointers to where it should
 		// store the scanned values. We can't pass values directly since it contains
@@ -143,7 +143,7 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 					continue
 				}
 			}
-			
+
 			// Default case for all other values
 			rowData[i] = fmt.Sprintf("%v", values[i])
 		}
