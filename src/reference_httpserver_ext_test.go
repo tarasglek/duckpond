@@ -4,16 +4,13 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/marcboeker/go-duckdb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +23,7 @@ func TestHTTPExtension(t *testing.T) {
 	defer db.Close()
 
 	// Start HTTP server
-	_, err = db.Exec("INSTALL httpfs; LOAD httpfs;")
+	_, err = db.Exec("INSTALL httpserver; LOAD httpserver;")
 	if err != nil {
 		t.Fatalf("Failed to install httpfs: %v", err)
 	}
@@ -77,7 +74,7 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Read and pretty-print the expected result
-			resultFile := strings.Replace(testFile, "query_", "query_result_", 1)
+			resultFile := strings.Replace(testFile, "/query_", "/query_result_", 1)
 			resultFile = strings.Replace(resultFile, ".sql", ".json", 1)
 
 			expectedResult, err := os.ReadFile(resultFile)
