@@ -9,12 +9,11 @@ import (
 )
 
 func TestParseEndpoint(t *testing.T) {
-	// Setup test database
-	db, err := sql.Open("duckdb", "")
+	ib, err := NewIceBase()
 	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
+		t.Fatalf("Failed to create IceBase: %v", err)
 	}
-	defer db.Close()
+	defer ib.Close()
 
 	// Test cases
 	tests := []struct {
@@ -57,7 +56,7 @@ func TestParseEndpoint(t *testing.T) {
 			body := strings.NewReader(tt.inputQuery)
 
 			// Call the parse endpoint
-			result, err := PostEndpoint(db, "/parse", body)
+			result, err := ib.PostEndpoint("/parse", body)
 
 			if tt.expectError {
 				assert.Error(t, err)

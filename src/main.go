@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -16,35 +15,21 @@ func main() {
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
 	flag.Parse()
 
-	db, err := sql.Open("duckdb", "")
+	ib, err := NewIceBase()
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		log.Fatalf("Failed to initialize IceBase: %v", err)
 	}
-	defer db.Close()
-
-	// Load JSON extension
-	if _, err := db.Exec("LOAD json;"); err != nil {
-		log.Fatalf("Failed to load JSON extension: %v", err)
-	}
-
-	// Register UUIDv7 UDF
-	if err := registerUUIDv7UDF(db); err != nil {
-		log.Fatalf("Failed to register UUIDv7 UDF: %v", err)
-	}
+	defer ib.Close()
 
 	// If -post flag is provided, act as CLI client
 	if *postEndpoint != "" {
-		// Read from stdin
 		input, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			log.Fatalf("Failed to read stdin: %v", err)
 		}
 
-		// Create a reader from the input
 		body := strings.NewReader(string(input))
-
-		// Use the same PostEndpoint function as the HTTP handler
-		jsonResponse, err := PostEndpoint(db, *postEndpoint, body)
+		jsonResponse, err := ib.PostEndpoint(*postEndpoint, body)
 		if err != nil {
 			log.Fatalf("POST request failed: %v", err)
 		}
@@ -53,17 +38,11 @@ func main() {
 		return
 	}
 
-	// Initialize sample data
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS person (id INTEGER, name VARCHAR)`); err != nil {
-		log.Fatalf("Failed to create table: %v", err)
-	}
-
-	http.HandleFunc("/query", QueryHandler(db))
-	http.HandleFunc("/parse", ParseHandler(db))
-
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Starting server on %s", addr)
+	http.HandleFunc("/query", ib.QueryHandler())
+	http.HandleFunc("/parse", ib.ParseHandler())
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Printf("Error starting server: %v", err)
 		flag.Usage()

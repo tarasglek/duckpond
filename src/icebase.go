@@ -1,0 +1,227 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/marcboeker/go-duckdb"
+)
+
+type IceBase struct {
+	db *sql.DB
+}
+
+func NewIceBase() (*IceBase, error) {
+	db, err := sql.Open("duckdb", "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Load JSON extension
+	if _, err := db.Exec("LOAD json;"); err != nil {
+		return nil, fmt.Errorf("failed to load JSON extension: %w", err)
+	}
+
+	// Register UUIDv7 UDF
+	if err := registerUUIDv7UDF(db); err != nil {
+		return nil, fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
+	}
+
+	// Initialize sample data
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS person (id INTEGER, name VARCHAR)`); err != nil {
+		return nil, fmt.Errorf("failed to create table: %w", err)
+	}
+
+	return &IceBase{db: db}, nil
+}
+
+func (ib *IceBase) Close() error {
+	return ib.db.Close()
+}
+
+func (ib *IceBase) SerializeQuery(query string) (string, error) {
+	_, err := ib.db.Prepare(query)
+	if err != nil {
+		return "", fmt.Errorf("invalid query syntax: %w", err)
+	}
+
+	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
+	var serializedJSON string
+	err = ib.db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize query: %w", err)
+	}
+	return serializedJSON, nil
+}
+
+func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
+	start := time.Now()
+
+	// Serialize and log the query
+	serializedJSON, err := ib.SerializeQuery(query)
+	if err != nil {
+		log.Printf("Failed to serialize query: %v\nQuery: %s", err, query)
+	} else {
+		log.Printf("Serialized query: %s", serializedJSON)
+	}
+
+	// Then execute the original query
+	rows, err := ib.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get column types: %w", err)
+	}
+
+	var response QueryResponse
+	response.Meta = make([]struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}, len(columns))
+
+	// Create a map to track UUID columns
+	uuidColumns := make(map[int]bool)
+
+	for i, col := range columns {
+		response.Meta[i].Name = col
+		dbType := columnTypes[i].DatabaseTypeName()
+		response.Meta[i].Type = dbType
+
+		// Store whether this column is a UUID type
+		if dbType == "UUID" {
+			uuidColumns[i] = true
+		}
+	}
+
+	var data [][]interface{}
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range columns {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		rowData := make([]interface{}, len(columns))
+		for i := range values {
+			if uuidColumns[i] {
+				// Handle UUID values specifically
+				switch v := values[i].(type) {
+				case []byte:
+					rowData[i] = uuid.UUID(v).String()
+				case string:
+					rowData[i] = v // Already in string format
+				default:
+					rowData[i] = fmt.Sprintf("%v", v)
+				}
+			} else {
+				rowData[i] = values[i]
+			}
+		}
+		data = append(data, rowData)
+	}
+
+	response.Data = data
+	response.Rows = len(data)
+	elapsed := time.Since(start)
+	response.Statistics.Elapsed = elapsed.Seconds()
+
+	return &response, nil
+}
+
+func (ib *IceBase) PostEndpoint(endpoint string, body io.Reader) (string, error) {
+	switch endpoint {
+	case "/query":
+		query, err := io.ReadAll(body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read request body: %w", err)
+		}
+
+		response, err := ib.ExecuteQuery(string(query))
+		if err != nil {
+			return "", fmt.Errorf("query execution failed: %w", err)
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+
+		return string(jsonData), nil
+	case "/parse":
+		query, err := io.ReadAll(body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read request body: %w", err)
+		}
+
+		serializedJSON, err := ib.SerializeQuery(string(query))
+		if err != nil {
+			return "", fmt.Errorf("query serialization failed: %w", err)
+		}
+
+		return serializedJSON, nil
+	default:
+		return "", fmt.Errorf("unknown endpoint: %s", endpoint)
+	}
+}
+
+func (ib *IceBase) QueryHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		jsonResponse, err := ib.PostEndpoint(r.URL.Path, r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(jsonResponse))
+	}
+}
+
+func (ib *IceBase) ParseHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		query, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		serializedJSON, err := ib.SerializeQuery(string(query))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to serialize query: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(serializedJSON))
+	}
+}
