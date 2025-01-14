@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -34,7 +35,8 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	// Convert startTime to milliseconds since Unix epoch
 	startMillis := startTime.UnixMilli()
 	assert.True(t, int64(uuidTime) >= startMillis,
-		"UUID timestamp should be >= start time")
+		fmt.Sprintf("UUID timestamp should be >= start time (uuid: %d, start: %d)", 
+			int64(uuidTime), startMillis))
 
 	return uuidStr, uuidTimestamp
 }
