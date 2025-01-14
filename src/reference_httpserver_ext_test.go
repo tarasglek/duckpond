@@ -27,18 +27,30 @@ func serverURL(path string) string {
 
 func waitForServerReady() error {
 	client := &http.Client{
-		Timeout: 0, // No timeout
+		Timeout: 1 * time.Millisecond, // 1ms timeout
 	}
 
 	url := serverURL(pingPath)
+	attempt := 1
+	startTime := time.Now()
+
 	for {
+		t := time.Now()
+		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
+		
 		resp, err := client.Get(url)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
+				fmt.Printf("Success! (after %v)\n", time.Since(startTime).Round(time.Millisecond))
 				return nil
 			}
+			fmt.Printf("Got status %d\n", resp.StatusCode)
+		} else {
+			fmt.Printf("Failed: %v\n", err)
 		}
+
+		attempt++
 		time.Sleep(100 * time.Millisecond)
 	}
 }
