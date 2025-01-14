@@ -41,7 +41,7 @@ func waitForServerReady() error {
 
 	for {
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
-		
+
 		resp, err := pingClient.Get(url)
 		if err == nil {
 			resp.Body.Close()
@@ -55,7 +55,7 @@ func waitForServerReady() error {
 		}
 
 		attempt++
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 
