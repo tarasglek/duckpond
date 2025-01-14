@@ -22,7 +22,6 @@ type QueryResponse struct {
 	Rows int             `json:"rows"`
 	Statistics struct {
 		Elapsed   float64 `json:"elapsed"` // in seconds
-		RowsRead  int64   `json:"rows_read"`
 	} `json:"statistics"`
 }
 
@@ -110,7 +109,6 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 	response.Rows = len(data)
 	elapsed := time.Since(start)
 	response.Statistics.Elapsed = elapsed.Seconds()
-	response.Statistics.RowsRead = int64(response.Rows)
 
 	return &response, nil
 }
