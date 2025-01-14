@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 	
 	"github.com/google/uuid"
 )
@@ -20,13 +21,13 @@ type QueryResponse struct {
 	Data [][]interface{} `json:"data"`
 	Rows int             `json:"rows"`
 	Statistics struct {
-		Elapsed   float64 `json:"elapsed"`
+		Elapsed   float64 `json:"elapsed"` // in seconds
 		RowsRead  int64   `json:"rows_read"`
-		BytesRead int64   `json:"bytes_read"`
 	} `json:"statistics"`
 }
 
 func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
+	start := time.Now()
 	// First serialize and log the query
 	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
 	var serializedJSON string
@@ -107,10 +108,9 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 
 	response.Data = data
 	response.Rows = len(data)
-	// TODO: Add actual statistics collection
-	response.Statistics.Elapsed = 0.01
+	elapsed := time.Since(start)
+	response.Statistics.Elapsed = elapsed.Seconds()
 	response.Statistics.RowsRead = int64(response.Rows)
-	response.Statistics.BytesRead = 0
 
 	return &response, nil
 }
