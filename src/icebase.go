@@ -147,15 +147,10 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 	return &response, nil
 }
 
-func (ib *IceBase) PostEndpoint(endpoint string, body io.Reader) (string, error) {
+func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 	switch endpoint {
 	case "/query":
-		query, err := io.ReadAll(body)
-		if err != nil {
-			return "", fmt.Errorf("failed to read request body: %w", err)
-		}
-
-		response, err := ib.ExecuteQuery(string(query))
+		response, err := ib.ExecuteQuery(body)
 		if err != nil {
 			return "", fmt.Errorf("query execution failed: %w", err)
 		}
@@ -167,12 +162,7 @@ func (ib *IceBase) PostEndpoint(endpoint string, body io.Reader) (string, error)
 
 		return string(jsonData), nil
 	case "/parse":
-		query, err := io.ReadAll(body)
-		if err != nil {
-			return "", fmt.Errorf("failed to read request body: %w", err)
-		}
-
-		serializedJSON, err := ib.SerializeQuery(string(query))
+		serializedJSON, err := ib.SerializeQuery(body)
 		if err != nil {
 			return "", fmt.Errorf("query serialization failed: %w", err)
 		}
@@ -190,7 +180,13 @@ func (ib *IceBase) QueryHandler() http.HandlerFunc {
 			return
 		}
 
-		jsonResponse, err := ib.PostEndpoint(r.URL.Path, r.Body)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		jsonResponse, err := ib.PostEndpoint(r.URL.Path, string(body))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

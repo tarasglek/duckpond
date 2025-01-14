@@ -28,8 +28,7 @@ func main() {
 			log.Fatalf("Failed to read stdin: %v", err)
 		}
 
-		body := strings.NewReader(string(input))
-		jsonResponse, err := ib.PostEndpoint(*postEndpoint, body)
+		jsonResponse, err := ib.PostEndpoint(*postEndpoint, string(input))
 		if err != nil {
 			log.Fatalf("POST request failed: %v", err)
 		}
