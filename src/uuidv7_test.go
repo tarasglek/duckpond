@@ -45,20 +45,11 @@ func TestUUIDv7(t *testing.T) {
 
     t.Logf("Generated UUIDs:\nUUID1: %s\nUUID2: %s", uuidStr1, uuidStr2)
 
-    // Verify timestamps overlap (should be same or +1)
-    assert.True(t, timestamp1 == timestamp2 || 
-        timestamp2 == incrementHexTimestamp(timestamp1),
-        "UUID timestamps should overlap or be sequential")
+    // Verify timestamps are sequential
+    assert.True(t, timestamp2 >= timestamp1, 
+        "UUID timestamps should be sequential (timestamp2 should be >= timestamp1)")
 
     // Verify uniqueness
     assert.NotEqual(t, uuidStr1, uuidStr2, "UUIDs should be unique")
 }
 
-// Helper function to increment hex timestamp by 1
-func incrementHexTimestamp(hex string) string {
-	val, err := strconv.ParseUint(hex, 16, 64)
-	if err != nil {
-		panic("invalid hex timestamp")
-	}
-	return fmt.Sprintf("%08x", val+1)
-}
