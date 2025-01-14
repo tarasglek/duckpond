@@ -214,8 +214,10 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Compare the results
-			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(), "HTTP Response does not match expected result")
-			assert.Equal(t, HTTPExtExpected.String(), IcebaseResponse.String(), "IceBase Response does not match expected result")
+			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(), 
+				fmt.Sprintf("HTTP Response does not match expected result for file: %s", testFile))
+			assert.Equal(t, HTTPExtExpected.String(), IcebaseResponse.String(), 
+				fmt.Sprintf("IceBase Response does not match expected result for file: %s", testFile))
 		})
 	}
 }
