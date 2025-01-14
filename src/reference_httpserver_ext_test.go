@@ -35,7 +35,6 @@ func waitForServerReady() error {
 	startTime := time.Now()
 
 	for {
-		t := time.Now()
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
 		
 		resp, err := client.Get(url)
