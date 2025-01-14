@@ -19,15 +19,15 @@ func timedRequest(client *http.Client, req *http.Request) (*http.Response, error
 	start := time.Now()
 	resp, err := client.Do(req)
 	duration := time.Since(start)
-	
+
 	fmt.Printf("HTTP %s %s - %v\n", req.Method, req.URL.Path, duration.Round(time.Millisecond))
-	
+
 	if err != nil {
 		fmt.Printf("Request error: %v\n", err)
 	} else {
 		fmt.Printf("Response status: %d\n", resp.StatusCode)
 	}
-	
+
 	return resp, err
 }
 
@@ -97,7 +97,6 @@ func TestHTTPExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
 
 	// Start HTTP server
 	_, err = db.Exec("INSTALL httpserver; LOAD httpserver;")
@@ -109,15 +108,12 @@ func TestHTTPExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start HTTP server: %v", err)
 	}
-	defer db.Exec("SELECT httpserve_stop();")
 
 	// Wait for server to be ready
 	if err := waitForServerReady(); err != nil {
 		t.Fatalf("Server did not become ready: %v", err)
 	}
 
-	// Add delay before first request
-	time.Sleep(100 * time.Millisecond)
 	fmt.Println("Waiting 100ms before first request...")
 
 	// Get list of test query files
