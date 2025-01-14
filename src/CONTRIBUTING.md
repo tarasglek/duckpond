@@ -1,7 +1,16 @@
 For dev use:
 
 ```bash
-watchexec -e go -r -- go run *.go -port 8081
+watchexec -e go -r -- go run $(ls *.go | grep -v '_test\.go$') -port 8881
+```
+
+```bash
+watchexec -e go -r -- go build
+```
+
+tests:
+```
+go test -v
 ```
 
 Then you can do:
