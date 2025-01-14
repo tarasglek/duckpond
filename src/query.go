@@ -154,22 +154,6 @@ func PostEndpoint(db *sql.DB, endpoint string, body io.Reader) (string, error) {
 		}
 
 		return serializedJSON, nil
-		query, err := io.ReadAll(body)
-		if err != nil {
-			return "", fmt.Errorf("failed to read request body: %w", err)
-		}
-
-		response, err := ExecuteQuery(db, string(query))
-		if err != nil {
-			return "", fmt.Errorf("query execution failed: %w", err)
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal JSON: %w", err)
-		}
-
-		return string(jsonData), nil
 	default:
 		return "", fmt.Errorf("unknown endpoint: %s", endpoint)
 	}
