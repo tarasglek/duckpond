@@ -60,6 +60,7 @@ func main() {
 	}
 
 	http.HandleFunc("/query", QueryHandler(db))
+	http.HandleFunc("/parse", ParseHandler(db))
 
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)

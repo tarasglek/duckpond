@@ -13,6 +13,16 @@ import (
 	"github.com/google/uuid"
 )
 
+func SerializeQuery(db *sql.DB, query string) (string, error) {
+	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
+	var serializedJSON string
+	err := db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize query: %w", err)
+	}
+	return serializedJSON, nil
+}
+
 type QueryResponse struct {
 	Meta []struct {
 		Name string `json:"name"`
@@ -27,10 +37,9 @@ type QueryResponse struct {
 
 func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 	start := time.Now()
-	// First serialize and log the query
-	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
-	var serializedJSON string
-	err := db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	
+	// Serialize and log the query
+	serializedJSON, err := SerializeQuery(db, query)
 	if err != nil {
 		log.Printf("Failed to serialize query: %v\nQuery: %s", err, query)
 	} else {
@@ -133,8 +142,60 @@ func PostEndpoint(db *sql.DB, endpoint string, body io.Reader) (string, error) {
 		}
 
 		return string(jsonData), nil
+	case "/parse":
+		query, err := io.ReadAll(body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read request body: %w", err)
+		}
+
+		serializedJSON, err := SerializeQuery(db, string(query))
+		if err != nil {
+			return "", fmt.Errorf("query serialization failed: %w", err)
+		}
+
+		return serializedJSON, nil
+		query, err := io.ReadAll(body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read request body: %w", err)
+		}
+
+		response, err := ExecuteQuery(db, string(query))
+		if err != nil {
+			return "", fmt.Errorf("query execution failed: %w", err)
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+
+		return string(jsonData), nil
 	default:
 		return "", fmt.Errorf("unknown endpoint: %s", endpoint)
+	}
+}
+
+func ParseHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		query, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		serializedJSON, err := SerializeQuery(db, string(query))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to serialize query: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(serializedJSON))
 	}
 }
 
