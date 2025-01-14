@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"database/sql"
-	"database/sql/driver"
 	"flag"
 	"fmt"
 	"io"
@@ -11,10 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/google/uuid"
-	"github.com/marcboeker/go-duckdb"
-	_ "github.com/marcboeker/go-duckdb"
 )
 
 
