@@ -20,54 +20,47 @@ import (
 type uuidv7Func struct{}
 
 func uuidv7Fn(values []driver.Value) (any, error) {
-    uuid, err := uuid.NewV7()
-    if err != nil {
-        return nil, err
-    }
-    return uuid.String(), nil
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	return uuid.String(), nil
 }
 
 func (*uuidv7Func) Config() duckdb.ScalarFuncConfig {
-    uuidTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_UUID)
-    if err != nil {
-        return duckdb.ScalarFuncConfig{}
-    }
+	uuidTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_UUID)
+	if err != nil {
+		return duckdb.ScalarFuncConfig{}
+	}
 
-    return duckdb.ScalarFuncConfig{
-        ResultTypeInfo: uuidTypeInfo,
-    }
+	return duckdb.ScalarFuncConfig{
+		ResultTypeInfo: uuidTypeInfo,
+	}
 }
 
 func (*uuidv7Func) Executor() duckdb.ScalarFuncExecutor {
-    return duckdb.ScalarFuncExecutor{RowExecutor: uuidv7Fn}
+	return duckdb.ScalarFuncExecutor{RowExecutor: uuidv7Fn}
 }
 
 func registerUUIDv7UDF(db *sql.DB) error {
-    c, err := db.Conn(context.Background())
-    if err != nil {
-        return fmt.Errorf("failed to get connection: %w", err)
-    }
+	c, err := db.Conn(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get connection: %w", err)
+	}
 
-    var uuidv7UDF *uuidv7Func
-    err = duckdb.RegisterScalarUDF(c, "uuidv7", uuidv7UDF)
-    if err != nil {
-        return fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
-    }
+	var uuidv7UDF *uuidv7Func
+	err = duckdb.RegisterScalarUDF(c, "uuidv7", uuidv7UDF)
+	if err != nil {
+		return fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
+	}
 
-    return c.Close()
+	return c.Close()
 }
 
 func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
 	flag.Parse()
-
-	// Print UUIDv7 on startup
-	startupUUID, err := uuid.NewV7()
-	if err != nil {
-		log.Fatalf("Failed to generate startup UUID: %v", err)
-	}
-	log.Printf("Starting icebase with UUID: %s", startupUUID.String())
 
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
