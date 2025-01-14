@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func generateUUIDWithTimestamp(t *testing.T, ib *IceBase) (string, string) {
+func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (string, string) {
     uuidResp, err := ib.PostEndpoint("/query", "SELECT uuidv7()")
     if err != nil {
         t.Fatalf("Failed to generate UUID: %v", err)
@@ -27,7 +27,17 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase) (string, string) {
     _, err = uuid.Parse(uuidStr)
     assert.NoError(t, err, "UUID is invalid")
 
-    return uuidStr, uuidStr[:8] // Return both full UUID and timestamp
+    // Extract and verify timestamp
+    uuidTimestamp := uuidStr[:8]
+    uuidTime, err := strconv.ParseUint(uuidTimestamp, 16, 64)
+    assert.NoError(t, err, "Failed to parse UUID timestamp")
+    
+    // Convert startTime to milliseconds since Unix epoch
+    startMillis := startTime.UnixMilli()
+    assert.True(t, int64(uuidTime) >= startMillis, 
+        "UUID timestamp should be >= start time")
+
+    return uuidStr, uuidTimestamp
 }
 
 func TestUUIDv7(t *testing.T) {
@@ -38,10 +48,13 @@ func TestUUIDv7(t *testing.T) {
     }
     defer ib.Close()
 
+    // Record start time before generating UUIDs
+    startTime := time.Now()
+
     // Generate two UUIDv7 values with minimal delay
-    uuidStr1, timestamp1 := generateUUIDWithTimestamp(t, ib)
+    uuidStr1, timestamp1 := generateUUIDWithTimestamp(t, ib, startTime)
     time.Sleep(1 * time.Millisecond) // Ensure we're in the same timestamp unit
-    uuidStr2, timestamp2 := generateUUIDWithTimestamp(t, ib)
+    uuidStr2, timestamp2 := generateUUIDWithTimestamp(t, ib, startTime)
 
     t.Logf("Generated UUIDs:\nUUID1: %s\nUUID2: %s", uuidStr1, uuidStr2)
 
