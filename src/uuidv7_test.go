@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"strconv"
 	"testing"
@@ -45,7 +44,7 @@ func TestUUIDv7(t *testing.T) {
 	t.Logf("Generated UUIDs:\nUUID1: %s\nUUID2: %s", uuid1, uuid2)
 
 	// Verify timestamps overlap (should be same or +1)
-	assert.True(t, timestamp1 == timestamp2 || 
+	assert.True(t, timestamp1 == timestamp2 ||
 		timestamp2 == incrementHexTimestamp(timestamp1),
 		"UUID timestamps should overlap or be sequential")
 
