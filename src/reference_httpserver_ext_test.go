@@ -15,6 +15,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func timedRequest(client *http.Client, req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, err := client.Do(req)
+	duration := time.Since(start)
+	
+	fmt.Printf("HTTP %s %s - %v\n", req.Method, req.URL.Path, duration.Round(time.Millisecond))
+	
+	if err != nil {
+		fmt.Printf("Request error: %v\n", err)
+	} else {
+		fmt.Printf("Response status: %d\n", resp.StatusCode)
+	}
+	
+	return resp, err
+}
+
 var (
 	pingClient = &http.Client{
 		Timeout: 1 * time.Millisecond,
@@ -42,7 +58,13 @@ func waitForServerReady() error {
 	for {
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
 
-		resp, err := pingClient.Get(url)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Printf("Failed to create ping request: %v\n", err)
+			continue
+		}
+
+		resp, err := timedRequest(pingClient, req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -114,8 +136,8 @@ func TestHTTPExtension(t *testing.T) {
 				t.Fatalf("Failed to create request: %v", err)
 			}
 
-			// Send the request
-			resp, err := requestClient.Do(req)
+			// Send the request with timing
+			resp, err := timedRequest(requestClient, req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
