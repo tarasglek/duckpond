@@ -15,202 +15,117 @@ import (
 )
 
 var (
-	pingClient = &http.Client{
-		Timeout: 1 * time.Millisecond,
-	}
-	requestClient = &http.Client{
-		Timeout: 1 * time.Second,
-	}
+	pingClient = &http.Client{Timeout: 1 * time.Millisecond}
+	httpClient = &http.Client{Timeout: 1 * time.Second}
 )
 
-const (
-	serverHost = "localhost"
-	serverPort = "8882"
-	pingPath   = "/ping"
-)
+const serverURL = "http://localhost:8882"
 
-func serverURL(path string) string {
-	return fmt.Sprintf("http://%s:%s%s", serverHost, serverPort, path)
-}
-
+// waitForServerReady checks if server is responding to ping requests
 func waitForServerReady() error {
-	url := serverURL(pingPath)
-	timeout := 5 * time.Second
-	startTime := time.Now()
-
-	for time.Since(startTime) < timeout {
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			continue
-		}
-
-		resp, err := pingClient.Do(req)
-		if err == nil {
+	timeout := time.Now().Add(5 * time.Second)
+	for time.Now().Before(timeout) {
+		if resp, err := pingClient.Get(serverURL + "/ping"); err == nil {
 			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
+			return nil
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-
-	return fmt.Errorf("server did not become ready within %v", timeout)
+	return fmt.Errorf("server timeout")
 }
 
-func nukeTypes(data map[string]interface{}) {
-	if meta, exists := data["meta"]; exists {
-		if metaSlice, ok := meta.([]interface{}); ok {
-			for _, item := range metaSlice {
-				if metaItem, ok := item.(map[string]interface{}); ok {
-					delete(metaItem, "type")
-				}
+// processAndCompare handles JSON processing and comparison for a test case
+func processAndCompare(t *testing.T, responseJSON, expectedJSON map[string]interface{}) string {
+	// Remove type information from meta arrays
+	if meta, ok := responseJSON["meta"].([]interface{}); ok {
+		for _, m := range meta {
+			if item, ok := m.(map[string]interface{}); ok {
+				delete(item, "type")
 			}
 		}
 	}
-}
 
-func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
+	// Filter response to only include expected keys
 	filtered := make(map[string]interface{})
 	for key := range expectedJSON {
 		if val, exists := responseJSON[key]; exists {
 			filtered[key] = val
 		}
 	}
-	return filtered
+
+	// Pretty print for comparison
+	filteredBytes, _ := json.MarshalIndent(filtered, "", "  ")
+	expectedBytes, _ := json.MarshalIndent(expectedJSON, "", "  ")
+	
+	return fmt.Sprintf("Expected:\n%s\n\nActual:\n%s", 
+		string(expectedBytes), string(filteredBytes))
+}
+
+// testQuery handles the core test logic for a single query file
+func testQuery(t *testing.T, ib *IceBase, queryFile string) {
+	// Read and execute query
+	query, err := os.ReadFile(queryFile)
+	assert.NoError(t, err, "Failed to read query file")
+
+	// Test against HTTP server
+	resp, err := httpClient.Post(serverURL+"/?default_format=JSONCompact", 
+		"text/plain", bytes.NewReader(query))
+	assert.NoError(t, err, "HTTP request failed")
+	defer resp.Body.Close()
+
+	var httpJSON map[string]interface{}
+	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON), 
+		"Failed to parse HTTP response")
+
+	// Test against IceBase
+	icebaseResp, err := ib.PostEndpoint("/query", string(query))
+	assert.NoError(t, err, "IceBase request failed")
+	var icebaseJSON map[string]interface{}
+	assert.NoError(t, json.Unmarshal([]byte(icebaseResp), &icebaseJSON),
+		"Failed to parse IceBase response")
+
+	// Read expected result
+	expectedJSON := readJSON(t, queryFile+".result.json")
+
+	// Compare results
+	assert.Equal(t, 
+		processAndCompare(t, expectedJSON, expectedJSON),
+		processAndCompare(t, httpJSON, expectedJSON),
+		"HTTP response mismatch")
+
+	assert.Equal(t,
+		processAndCompare(t, expectedJSON, expectedJSON), 
+		processAndCompare(t, icebaseJSON, expectedJSON),
+		"IceBase response mismatch")
+}
+
+// readJSON reads and parses a JSON file
+func readJSON(t *testing.T, path string) map[string]interface{} {
+	data, err := os.ReadFile(path)
+	assert.NoError(t, err, "Failed to read JSON file")
+	var result map[string]interface{}
+	assert.NoError(t, json.Unmarshal(data, &result), "Failed to parse JSON")
+	return result
 }
 
 func TestHTTPExtension(t *testing.T) {
-	// Create IceBase instance
+	// Setup IceBase and HTTP server
 	ib, err := NewIceBase()
-	if err != nil {
-		t.Fatalf("Failed to create IceBase: %v", err)
-	}
+	assert.NoError(t, err, "Failed to create IceBase")
+	defer ib.Close()
 
-	// Start HTTP server using IceBase's DB instance
-	db := ib.DB()
-	_, err = db.Exec("INSTALL httpserver; LOAD httpserver;")
-	if err != nil {
-		t.Fatalf("Failed to install httpfs: %v", err)
-	}
+	_, err = ib.DB().Exec(`
+		INSTALL httpserver; 
+		LOAD httpserver; 
+		SELECT httpserve_start('localhost', '8882', '');`)
+	assert.NoError(t, err, "Failed to setup HTTP server")
+	assert.NoError(t, waitForServerReady(), "Server not ready")
 
-	_, err = db.Exec(fmt.Sprintf("SELECT httpserve_start('%s', %s, '');", serverHost, serverPort))
-	if err != nil {
-		t.Fatalf("Failed to start HTTP server: %v", err)
-	}
-
-	// Wait for server to be ready
-	if err := waitForServerReady(); err != nil {
-		t.Fatalf("Server did not become ready: %v", err)
-	}
-
-	// Get list of test query files
+	// Run tests for all query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
-	if err != nil {
-		t.Fatalf("Failed to find test files: %v", err)
-	}
+	assert.NoError(t, err, "Failed to find test files")
 
 	for _, testFile := range testFiles {
-		t.Run(testFile, func(t *testing.T) {
-			// Read the query
-			query, err := os.ReadFile(testFile)
-			if err != nil {
-				t.Fatalf("Failed to read query file: %v", err)
-			}
-
-			// Test against HTTP server
-			req, err := http.NewRequest("POST", serverURL("/?default_format=JSONCompact"), bytes.NewReader(query))
-			if err != nil {
-				t.Fatalf("Failed to create request: %v", err)
-			}
-
-			resp, err := requestClient.Do(req)
-			if err != nil {
-				t.Fatalf("Request failed: %v", err)
-			}
-			defer resp.Body.Close()
-
-			responseBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("Failed to read response body: %v", err)
-			}
-
-			// Test against IceBase
-			icebaseResponse, err := ib.PostEndpoint("/query", string(query))
-			if err != nil {
-				t.Fatalf("IceBase request failed: %v", err)
-			}
-
-			// Read expected result
-			resultFile := testFile + ".result.json"
-			expectedResult, err := os.ReadFile(resultFile)
-			if err != nil {
-				t.Fatalf("Failed to read expected result file: %v", err)
-			}
-
-			// Parse all JSON responses
-			var httpJSON, icebaseJSON, expectedJSON map[string]interface{}
-			err = json.Unmarshal(responseBody, &httpJSON)
-			if err != nil {
-				t.Fatalf("Failed to parse HTTP response JSON: %v", err)
-			}
-
-			err = json.Unmarshal([]byte(icebaseResponse), &icebaseJSON)
-			if err != nil {
-				t.Fatalf("Failed to parse IceBase response JSON: %v", err)
-			}
-
-			err = json.Unmarshal(expectedResult, &expectedJSON)
-			if err != nil {
-				t.Fatalf("Failed to parse expected result JSON: %v", err)
-			}
-
-			// Remove type information from meta arrays
-			nukeTypes(httpJSON)
-			nukeTypes(icebaseJSON)
-			nukeTypes(expectedJSON)
-
-			// Filter response keys based on expected result
-			filteredHTTP := filterResponseKeys(httpJSON, expectedJSON)
-			filteredIcebase := filterResponseKeys(icebaseJSON, expectedJSON)
-
-			// Convert back to JSON for comparison
-			filteredHTTPBytes, err := json.Marshal(filteredHTTP)
-			if err != nil {
-				t.Fatalf("Failed to marshal filtered HTTP response: %v", err)
-			}
-
-			filteredIcebaseBytes, err := json.Marshal(filteredIcebase)
-			if err != nil {
-				t.Fatalf("Failed to marshal filtered IceBase response: %v", err)
-			}
-
-			expectedResultBytes, err := json.Marshal(expectedJSON)
-			if err != nil {
-				t.Fatalf("Failed to marshal expected result: %v", err)
-			}
-
-			// Pretty print all for comparison
-			var HTTPExtResponse, IcebaseResponse, HTTPExtExpected bytes.Buffer
-			err = json.Indent(&HTTPExtResponse, filteredHTTPBytes, "", "  ")
-			if err != nil {
-				t.Fatalf("Failed to pretty-print HTTP response: %v", err)
-			}
-
-			err = json.Indent(&IcebaseResponse, filteredIcebaseBytes, "", "  ")
-			if err != nil {
-				t.Fatalf("Failed to pretty-print IceBase response: %v", err)
-			}
-
-			err = json.Indent(&HTTPExtExpected, expectedResultBytes, "", "  ")
-			if err != nil {
-				t.Fatalf("Failed to pretty-print expected result: %v", err)
-			}
-
-			// Compare the results
-			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(),
-				fmt.Sprintf("HTTP Response does not match expected result for file: %s", testFile))
-			assert.Equal(t, HTTPExtExpected.String(), IcebaseResponse.String(),
-				fmt.Sprintf("IceBase Response does not match expected result for file: %s", testFile))
-		})
+		t.Run(testFile, func(t *testing.T) { testQuery(t, ib, testFile) })
 	}
 }
