@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var httpClient = &http.Client{
+	Timeout: 1 * time.Millisecond,
+}
+
 const (
 	serverHost = "localhost"
 	serverPort = "8882"
@@ -26,10 +30,6 @@ func serverURL(path string) string {
 }
 
 func waitForServerReady() error {
-	client := &http.Client{
-		Timeout: 1 * time.Millisecond, // 1ms timeout
-	}
-
 	url := serverURL(pingPath)
 	attempt := 1
 	startTime := time.Now()
@@ -37,7 +37,7 @@ func waitForServerReady() error {
 	for {
 		fmt.Printf("Attempt %d: Connecting to %s... ", attempt, url)
 		
-		resp, err := client.Get(url)
+		resp, err := httpClient.Get(url)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -110,7 +110,7 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Send the request
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
