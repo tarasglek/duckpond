@@ -4,14 +4,44 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+const (
+	serverHost = "localhost"
+	serverPort = "8882"
+	pingPath   = "/ping"
+)
+
+func serverURL(path string) string {
+	return fmt.Sprintf("http://%s:%s%s", serverHost, serverPort, path)
+}
+
+func waitForServerReady() error {
+	client := &http.Client{
+		Timeout: 0, // No timeout
+	}
+
+	url := serverURL(pingPath)
+	for {
+		resp, err := client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 func filterResponseKeys(responseJSON, expectedJSON map[string]interface{}) map[string]interface{} {
 	filtered := make(map[string]interface{})
@@ -37,11 +67,16 @@ func TestHTTPExtension(t *testing.T) {
 		t.Fatalf("Failed to install httpfs: %v", err)
 	}
 
-	_, err = db.Exec("SELECT httpserve_start('0.0.0.0', 8882, '');")
+	_, err = db.Exec(fmt.Sprintf("SELECT httpserve_start('%s', %s, '');", serverHost, serverPort))
 	if err != nil {
 		t.Fatalf("Failed to start HTTP server: %v", err)
 	}
 	defer db.Exec("SELECT httpserve_stop();")
+
+	// Wait for server to be ready
+	if err := waitForServerReady(); err != nil {
+		t.Fatalf("Server did not become ready: %v", err)
+	}
 
 	// Get list of test query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
@@ -58,7 +93,7 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Prepare the request
-			req, err := http.NewRequest("POST", "http://localhost:8882/?default_format=JSONCompact", bytes.NewReader(query))
+			req, err := http.NewRequest("POST", serverURL("/?default_format=JSONCompact"), bytes.NewReader(query))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
