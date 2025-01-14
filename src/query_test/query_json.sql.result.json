@@ -1,0 +1,28 @@
+{
+  "meta": [
+    {
+      "name": "json_data",
+      "type": "String"
+    },
+    {
+      "name": "json_type",
+      "type": "String"
+    },
+    {
+      "name": "varchar_data",
+      "type": "String"
+    },
+    {
+      "name": "varchar_type",
+      "type": "String"
+    }
+  ],
+  "data": [
+    [
+      "{\"key\":\"value\",\"num\":1}",
+      "JSON",
+      "{\"key\":\"value\",\"num\":1}",
+      "VARCHAR"
+    ]
+  ]
+}
