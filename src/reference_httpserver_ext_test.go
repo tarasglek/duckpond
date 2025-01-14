@@ -75,6 +75,13 @@ func TestHTTPExtension(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 
+	// Create IceBase instance
+	ib, err := NewIceBase()
+	if err != nil {
+		t.Fatalf("Failed to create IceBase: %v", err)
+	}
+	defer ib.Close()
+
 	// Start HTTP server
 	_, err = db.Exec("INSTALL httpserver; LOAD httpserver;")
 	if err != nil {
@@ -105,36 +112,46 @@ func TestHTTPExtension(t *testing.T) {
 				t.Fatalf("Failed to read query file: %v", err)
 			}
 
-			// Prepare the request
+			// Test against HTTP server
 			req, err := http.NewRequest("POST", serverURL("/?default_format=JSONCompact"), bytes.NewReader(query))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
 
-			// Send the request
 			resp, err := requestClient.Do(req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 			defer resp.Body.Close()
 
-			// Read the response and expected result
 			responseBody, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatalf("Failed to read response body: %v", err)
 			}
 
+			// Test against IceBase
+			icebaseResponse, err := ib.PostEndpoint("/query", string(query))
+			if err != nil {
+				t.Fatalf("IceBase request failed: %v", err)
+			}
+
+			// Read expected result
 			resultFile := testFile + ".result.json"
 			expectedResult, err := os.ReadFile(resultFile)
 			if err != nil {
 				t.Fatalf("Failed to read expected result file: %v", err)
 			}
 
-			// Parse both JSON responses
-			var responseJSON, expectedJSON map[string]interface{}
-			err = json.Unmarshal(responseBody, &responseJSON)
+			// Parse all JSON responses
+			var httpJSON, icebaseJSON, expectedJSON map[string]interface{}
+			err = json.Unmarshal(responseBody, &httpJSON)
 			if err != nil {
-				t.Fatalf("Failed to parse response JSON: %v", err)
+				t.Fatalf("Failed to parse HTTP response JSON: %v", err)
+			}
+
+			err = json.Unmarshal([]byte(icebaseResponse), &icebaseJSON)
+			if err != nil {
+				t.Fatalf("Failed to parse IceBase response JSON: %v", err)
 			}
 
 			err = json.Unmarshal(expectedResult, &expectedJSON)
@@ -143,12 +160,18 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Filter response keys based on expected result
-			filteredResponse := filterResponseKeys(responseJSON, expectedJSON)
+			filteredHTTP := filterResponseKeys(httpJSON, expectedJSON)
+			filteredIcebase := filterResponseKeys(icebaseJSON, expectedJSON)
 
 			// Convert back to JSON for comparison
-			filteredResponseBytes, err := json.Marshal(filteredResponse)
+			filteredHTTPBytes, err := json.Marshal(filteredHTTP)
 			if err != nil {
-				t.Fatalf("Failed to marshal filtered response: %v", err)
+				t.Fatalf("Failed to marshal filtered HTTP response: %v", err)
+			}
+
+			filteredIcebaseBytes, err := json.Marshal(filteredIcebase)
+			if err != nil {
+				t.Fatalf("Failed to marshal filtered IceBase response: %v", err)
 			}
 
 			expectedResultBytes, err := json.Marshal(expectedJSON)
@@ -156,11 +179,16 @@ func TestHTTPExtension(t *testing.T) {
 				t.Fatalf("Failed to marshal expected result: %v", err)
 			}
 
-			// Pretty print both for comparison
-			var HTTPExtResponse, HTTPExtExpected bytes.Buffer
-			err = json.Indent(&HTTPExtResponse, filteredResponseBytes, "", "  ")
+			// Pretty print all for comparison
+			var HTTPExtResponse, IcebaseResponse, HTTPExtExpected bytes.Buffer
+			err = json.Indent(&HTTPExtResponse, filteredHTTPBytes, "", "  ")
 			if err != nil {
-				t.Fatalf("Failed to pretty-print response: %v", err)
+				t.Fatalf("Failed to pretty-print HTTP response: %v", err)
+			}
+
+			err = json.Indent(&IcebaseResponse, filteredIcebaseBytes, "", "  ")
+			if err != nil {
+				t.Fatalf("Failed to pretty-print IceBase response: %v", err)
 			}
 
 			err = json.Indent(&HTTPExtExpected, expectedResultBytes, "", "  ")
@@ -169,7 +197,8 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Compare the results
-			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(), "Response does not match expected result")
+			assert.Equal(t, HTTPExtExpected.String(), HTTPExtResponse.String(), "HTTP Response does not match expected result")
+			assert.Equal(t, HTTPExtExpected.String(), IcebaseResponse.String(), "IceBase Response does not match expected result")
 		})
 	}
 }
