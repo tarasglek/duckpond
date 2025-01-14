@@ -74,8 +74,7 @@ func TestHTTPExtension(t *testing.T) {
 			}
 
 			// Read and pretty-print the expected result
-			resultFile := strings.Replace(testFile, "/query_", "/query_result_", 1)
-			resultFile = strings.Replace(resultFile, ".sql", ".json", 1)
+			resultFile := testFile + ".result.json"
 
 			expectedResult, err := os.ReadFile(resultFile)
 			if err != nil {
