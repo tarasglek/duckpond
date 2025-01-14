@@ -103,20 +103,24 @@ func ExecuteQuery(db *sql.DB, query string) (*QueryResponse, error) {
 
 		rowData := make([]interface{}, len(columns))
 		for i := range values {
+			if values[i] == nil {
+				rowData[i] = "NULL"
+				continue
+			}
+
 			// Convert all values to strings based on column type
-			switch response.Meta[i].Type {
-			case "UUID":
-				if values[i] == nil {
-					rowData[i] = "NULL"
-				} else {
-					rowData[i] = fmt.Sprintf("%v", values[i])
+			if response.Meta[i].Type == "UUID" {
+				// Handle UUID specifically
+				switch v := values[i].(type) {
+				case []byte:
+					rowData[i] = uuid.UUID(v).String()
+				case string:
+					rowData[i] = v
+				default:
+					rowData[i] = fmt.Sprintf("%v", v)
 				}
-			default:
-				if values[i] == nil {
-					rowData[i] = "NULL"
-				} else {
-					rowData[i] = fmt.Sprintf("%v", values[i])
-				}
+			} else {
+				rowData[i] = fmt.Sprintf("%v", values[i])
 			}
 		}
 		data = append(data, rowData)
