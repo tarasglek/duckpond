@@ -51,11 +51,8 @@ func TestParseEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a reader from the input query
-			body := strings.NewReader(tt.inputQuery)
-
-			// Call the parse endpoint
-			result, err := ib.PostEndpoint("/parse", body)
+			// Call the parse endpoint with string body
+			result, err := ib.PostEndpoint("/parse", tt.inputQuery)
 
 			if tt.expectError {
 				assert.Error(t, err)
