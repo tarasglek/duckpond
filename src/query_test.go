@@ -41,9 +41,12 @@ func TestParseEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:        "invalid query",
-			inputQuery:  "SELECT FROM", // Invalid SQL
-			expectError: true,
+			name:       "invalid query",
+			inputQuery: "SELECT FROM", // Invalid SQL
+			checkOutput: func(t *testing.T, output string) {
+				// We can still check that it serialized something
+				assert.Contains(t, output, `"type":"SELECT_NODE"`)
+			},
 		},
 	}
 

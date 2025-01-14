@@ -14,9 +14,15 @@ import (
 )
 
 func SerializeQuery(db *sql.DB, query string) (string, error) {
+	// First try to prepare the query to validate syntax
+	_, err := db.Prepare(query)
+	if err != nil {
+		return "", fmt.Errorf("invalid query syntax: %w", err)
+	}
+
 	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
 	var serializedJSON string
-	err := db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	err = db.QueryRow(serializedQuery).Scan(&serializedJSON)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize query: %w", err)
 	}
