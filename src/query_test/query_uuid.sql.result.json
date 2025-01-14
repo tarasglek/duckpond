@@ -1,0 +1,17 @@
+{
+  "meta": [
+    {
+      "name": "col1",
+      "type": "String"
+    }
+  ],
+  "data": [
+    [
+      "deadbeef-1337-4b1d-8008-0123456789ab"
+    ],
+    [
+      "deadbeef-1337-4b1d-8008-0123456789ab"
+    ]
+  ],
+  "rows": 2
+}
