@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	// these deps are absolutely gigantic
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
@@ -17,9 +18,34 @@ func LogWalkSQL(sql string) error {
 			case *tree.CreateTable:
 				// Print table name for CREATE TABLE statements
 				log.Printf("CREATE TABLE: %s", n.Table.Table())
+				
+				// Print primary key constraints if they exist
+				for _, def := range n.Defs {
+					if pk, ok := def.(*tree.UniqueConstraintTableDef); ok && pk.PrimaryKey {
+						var cols []string
+						for _, col := range pk.Columns {
+							cols = append(cols, col.Column.String())
+						}
+						log.Printf("  PRIMARY KEY: (%s)", strings.Join(cols, ", "))
+					}
+				}
+				
 			case *tree.ColumnTableDef:
-				// Print column name for column definitions
-				log.Printf("  COLUMN: %s", n.Name)
+				// Print column name, type, and constraints
+				log.Printf("  COLUMN: %s %s", n.Name, n.Type)
+				
+				// Print default value if exists
+				if n.DefaultExpr.Expr != nil {
+					log.Printf("    DEFAULT: %s", n.DefaultExpr.Expr)
+				}
+				
+				// Print if column is primary key
+				for _, constraint := range n.Constraints {
+					if constraint.IsPrimaryKey {
+						log.Printf("    PRIMARY KEY")
+					}
+				}
+				
 			default:
 				// Default case for all other node types
 				log.Printf("node type %T", node)
