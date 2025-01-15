@@ -39,11 +39,9 @@ func LogWalkSQL(sql string) error {
 					log.Printf("    DEFAULT: %s", n.DefaultExpr.Expr)
 				}
 				
-				// Print if column is primary key
-				for _, constraint := range n.Constraints {
-					if constraint.IsPrimaryKey {
-						log.Printf("    PRIMARY KEY")
-					}
+				// Print if column is primary key by checking constraints
+				if n.PrimaryKey.IsPrimaryKey {
+					log.Printf("    PRIMARY KEY")
 				}
 				
 			default:
