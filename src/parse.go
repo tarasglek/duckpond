@@ -10,7 +10,7 @@ import (
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
-func ParseSQL(sql string) error {
+func LogWalkSQL(sql string) error {
 	w := &walk.AstWalker{
 		Fn: func(ctx interface{}, node interface{}) (stop bool) {
 			switch n := node.(type) {

@@ -181,7 +181,7 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 	case "/parse":
 		// Log parser output before executing query
 		log.Println("Starting SQL parser walk...")
-		if err := ParseSQL(body); err != nil {
+		if err := LogWalkSQL(body); err != nil {
 			log.Printf("Parser error: %v", err)
 		} else {
 			log.Println("Parser walk completed")
