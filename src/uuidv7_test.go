@@ -46,6 +46,50 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	return uuidStr, uuidTime
 }
 
+func TestUUIDv7Time(t *testing.T) {
+	// Create IceBase instance
+	ib, err := NewIceBase()
+	if err != nil {
+		t.Fatalf("Failed to create IceBase: %v", err)
+	}
+	defer ib.Close()
+
+	// Generate a UUIDv7
+	uuidResp, err := ib.PostEndpoint("/query", "SELECT uuidv7()")
+	if err != nil {
+		t.Fatalf("Failed to generate UUID: %v", err)
+	}
+
+	// Parse the UUID from response
+	var resp QueryResponse
+	err = json.Unmarshal([]byte(uuidResp), &resp)
+	if err != nil {
+		t.Fatalf("Failed to parse UUID response: %v", err)
+	}
+	uuidStr := resp.Data[0][0].(string)
+
+	// Extract timestamp using new UDF
+	timeResp, err := ib.PostEndpoint("/query", 
+		fmt.Sprintf("SELECT uuid_v7_time('%s')", uuidStr))
+	if err != nil {
+		t.Fatalf("Failed to extract timestamp: %v", err)
+	}
+
+	// Parse the timestamp
+	var timeRespData QueryResponse
+	err = json.Unmarshal([]byte(timeResp), &timeRespData)
+	if err != nil {
+		t.Fatalf("Failed to parse timestamp response: %v", err)
+	}
+	timestamp := timeRespData.Data[0][0].(float64)
+
+	// Verify timestamp is within expected range
+	now := time.Now().UnixMilli()
+	assert.True(t, timestamp > 0, "Timestamp should be positive")
+	assert.True(t, timestamp <= now, 
+		"UUID timestamp should not be in the future")
+}
+
 func TestUUIDv7(t *testing.T) {
 	// Create IceBase instance for database operations
 	ib, err := NewIceBase()
