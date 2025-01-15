@@ -132,7 +132,7 @@ func TestHttpQuery(t *testing.T) {
 		t.Run(testFile, func(t *testing.T) {
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
-			logger := NewLog("test_table")
+			logger := NewLog("test_table", ib.DB())
 			logger.addSchema(schemaName)
 			
 			_, err := ib.DB().Exec(fmt.Sprintf(`

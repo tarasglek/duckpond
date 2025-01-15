@@ -22,21 +22,10 @@ func (ib *IceBase) DB() *sql.DB {
 }
 
 func NewIceBase() (*IceBase, error) {
-	db, err := sql.Open("duckdb", "")
+	db, err := InitializeDB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, err
 	}
-
-	// Load JSON extension
-	if _, err := db.Exec("LOAD json;"); err != nil {
-		return nil, fmt.Errorf("failed to load JSON extension: %w", err)
-	}
-
-	// Register UUIDv7 UDF
-	if err := registerUUIDv7UDF(db); err != nil {
-		return nil, fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
-	}
-
 	return &IceBase{db: db}, nil
 }
 
