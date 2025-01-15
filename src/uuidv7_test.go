@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -85,8 +86,12 @@ func TestUUIDv7Time(t *testing.T) {
 		t.Fatalf("Failed to parse timestamp response: %v", err)
 	}
 
-	// Get timestamp value
-	timestamp := int64(timeRespData.Data[0][0].(float64))
+	// Get timestamp value as string and convert to int64
+	timestampStr := timeRespData.Data[0][0].(string)
+	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil {
+		t.Fatalf("Failed to parse timestamp: %v", err)
+	}
 
 	validateTimestamp(t, timestamp, time.Now())
 }
