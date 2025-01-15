@@ -37,11 +37,6 @@ func NewIceBase() (*IceBase, error) {
 		return nil, fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
 	}
 
-	// Initialize sample data
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS person (id INTEGER, name VARCHAR)`); err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
-	}
-
 	return &IceBase{db: db}, nil
 }
 
