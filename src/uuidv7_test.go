@@ -10,7 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (string, int64) {
+// generateUUID generates a UUIDv7 using the database and validates it
+func generateUUID(t *testing.T, ib *IceBase) (string, []byte) {
 	// Generate UUID using the database function
 	uuidResp, err := ib.PostEndpoint("/query", "SELECT uuidv7()")
 	if err != nil {
@@ -31,10 +32,11 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	uuidBytes, err := uuid.Parse(uuidStr)
 	assert.NoError(t, err, "UUID is invalid")
 
-	// Extract timestamp using shared function
-	uuidTime, err := ExtractTimestampFromUUID(uuidBytes[:])
-	assert.NoError(t, err, "Failed to extract timestamp")
+	return uuidStr, uuidBytes[:]
+}
 
+// validateTimestamp ensures the UUID timestamp is valid and within expected bounds
+func validateTimestamp(t *testing.T, uuidTime int64, startTime time.Time) {
 	// Convert startTime to milliseconds since Unix epoch for comparison
 	startMillis := startTime.UnixMilli()
 
@@ -42,6 +44,22 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	assert.True(t, uuidTime >= startMillis,
 		fmt.Sprintf("UUID timestamp should be >= start time (uuid: %d, start: %d)",
 			uuidTime, startMillis))
+
+	// Verify timestamp is within expected range
+	now := time.Now().UnixMilli()
+	assert.True(t, uuidTime > 0, "Timestamp should be positive")
+	assert.True(t, uuidTime <= now, "UUID timestamp should not be in the future")
+}
+
+func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (string, int64) {
+	// Generate and validate UUID
+	uuidStr, uuidBytes := generateUUID(t, ib)
+
+	// Extract timestamp using shared function
+	uuidTime, err := ExtractTimestampFromUUID(uuidBytes)
+	assert.NoError(t, err, "Failed to extract timestamp")
+
+	validateTimestamp(t, uuidTime, startTime)
 
 	return uuidStr, uuidTime
 }
@@ -70,11 +88,7 @@ func TestUUIDv7Time(t *testing.T) {
 	// Get timestamp value
 	timestamp := int64(timeRespData.Data[0][0].(float64))
 
-	// Verify timestamp is within expected range
-	now := time.Now().UnixMilli()
-	assert.True(t, timestamp > 0, "Timestamp should be positive")
-	assert.True(t, timestamp <= now, 
-		"UUID timestamp should not be in the future")
+	validateTimestamp(t, timestamp, time.Now())
 }
 
 func TestUUIDv7(t *testing.T) {

@@ -51,10 +51,7 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 
 func (*uuidV7TimeFunc) Config() duckdb.ScalarFuncConfig {
 	// Create UUID type info for input
-	uuidTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_UUID)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create UUID type info: %v", err))
-	}
+	uuidTypeInfo := getUUIDTypeInfo()
 
 	// Create BIGINT type info for output
 	bigintTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_BIGINT)
@@ -96,32 +93,32 @@ func (*uuidv7Func) Executor() duckdb.ScalarFuncExecutor {
 	return duckdb.ScalarFuncExecutor{RowExecutor: uuidv7Fn}
 }
 
-func registerUUIDv7UDF(db *sql.DB) error {
+func getUUIDTypeInfo() duckdb.TypeInfo {
+	uuidTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_UUID)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create UUID type info: %v", err))
+	}
+	return uuidTypeInfo
+}
+
+func registerUDF(db *sql.DB, name string, udf interface{}) error {
 	c, err := db.Conn(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get connection: %w", err)
 	}
 
-	var uuidv7UDF *uuidv7Func
-	err = duckdb.RegisterScalarUDF(c, "uuidv7", uuidv7UDF)
+	err = duckdb.RegisterScalarUDF(c, name, udf)
 	if err != nil {
-		return fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
+		return fmt.Errorf("failed to register %s UDF: %w", name, err)
 	}
 
 	return c.Close()
 }
 
+func registerUUIDv7UDF(db *sql.DB) error {
+	return registerUDF(db, "uuidv7", &uuidv7Func{})
+}
+
 func registerUUIDv7TimeUDF(db *sql.DB) error {
-	c, err := db.Conn(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get connection: %w", err)
-	}
-
-	var uuidV7TimeUDF *uuidV7TimeFunc
-	err = duckdb.RegisterScalarUDF(c, "uuid_v7_time", uuidV7TimeUDF)
-	if err != nil {
-		return fmt.Errorf("failed to register uuid_v7_time UDF: %w", err)
-	}
-
-	return c.Close()
+	return registerUDF(db, "uuid_v7_time", &uuidV7TimeFunc{})
 }
