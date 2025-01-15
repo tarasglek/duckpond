@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -100,28 +101,28 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 
 // readJSON reads and parses a JSON file
 func logSchemaContents(t *testing.T, db *sql.DB, schemaName string) {
-    t.Logf("Schema %s contents before drop:", schemaName)
-    
-    // Log tables
-    rows, err := db.Query(`
-        SELECT table_name 
-        FROM information_schema.tables 
+	t.Logf("Schema %s contents before drop:", schemaName)
+
+	// Log tables
+	rows, err := db.Query(`
+        SELECT table_name
+        FROM information_schema.tables
         WHERE table_schema = $1
     `, schemaName)
-    if err != nil {
-        t.Logf("  Failed to get tables: %v", err)
-        return
-    }
-    defer rows.Close()
-    
-    for rows.Next() {
-        var tableName string
-        if err := rows.Scan(&tableName); err != nil {
-            t.Logf("  Failed to scan table name: %v", err)
-            continue
-        }
-        t.Logf("  Table: %s", tableName)
-    }
+	if err != nil {
+		t.Logf("  Failed to get tables: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			t.Logf("  Failed to scan table name: %v", err)
+			continue
+		}
+		t.Logf("  Table: %s", tableName)
+	}
 }
 
 func readJSON(t *testing.T, path string) map[string]interface{} {
@@ -154,7 +155,7 @@ func TestHttpQuery(t *testing.T) {
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
 			t.Logf("Creating schema %s for test %s", schemaName, testFile)
-			
+
 			_, err := ib.DB().Exec(fmt.Sprintf(`
 				CREATE SCHEMA %s;
 				SET search_path TO %s;
