@@ -54,33 +54,20 @@ func TestUUIDv7Time(t *testing.T) {
 	}
 	defer ib.Close()
 
-	// Generate a UUIDv7
-	uuidResp, err := ib.PostEndpoint("/query", "SELECT uuidv7()")
-	if err != nil {
-		t.Fatalf("Failed to generate UUID: %v", err)
-	}
-
-	// Parse the UUID from response
-	var resp QueryResponse
-	err = json.Unmarshal([]byte(uuidResp), &resp)
-	if err != nil {
-		t.Fatalf("Failed to parse UUID response: %v", err)
-	}
-	uuidStr := resp.Data[0][0].(string)
-
-	// Extract timestamp using new UDF
-	timeResp, err := ib.PostEndpoint("/query", 
-		fmt.Sprintf("SELECT uuid_v7_time('%s')", uuidStr))
+	// Execute query to get timestamp
+	timeResp, err := ib.PostEndpoint("/query", "SELECT uuid_v7_time(uuidv7())")
 	if err != nil {
 		t.Fatalf("Failed to extract timestamp: %v", err)
 	}
 
-	// Parse the timestamp
+	// Parse the response
 	var timeRespData QueryResponse
 	err = json.Unmarshal([]byte(timeResp), &timeRespData)
 	if err != nil {
 		t.Fatalf("Failed to parse timestamp response: %v", err)
 	}
+
+	// Get timestamp value
 	timestamp := int64(timeRespData.Data[0][0].(float64))
 
 	// Verify timestamp is within expected range
