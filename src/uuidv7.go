@@ -40,8 +40,13 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 }
 
 func (*uuidV7TimeFunc) Config() duckdb.ScalarFuncConfig {
+	bigintType, err := duckdb.NewTypeInfo(duckdb.TYPE_BIGINT)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create BIGINT type info: %v", err))
+	}
+
 	return duckdb.ScalarFuncConfig{
-		ResultTypeInfo: duckdb.TypeInfo{ID: duckdb.TYPE_BIGINT},
+		ResultTypeInfo: bigintType,
 	}
 }
 
