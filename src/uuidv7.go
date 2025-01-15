@@ -20,20 +20,9 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 		return nil, fmt.Errorf("uuid_v7_time expects exactly 1 argument")
 	}
 
-	// Handle both UUID and []byte input
-	var uuidBytes []byte
-	switch v := values[0].(type) {
-	case []byte:
-		// Already in byte format
-		uuidBytes = v
-	case string:
-		// Parse string UUID
-		uuid, err := uuid.Parse(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid UUID string: %w", err)
-		}
-		uuidBytes = uuid[:]
-	default:
+	// Handle UUID input
+	uuidBytes, ok := values[0].([]byte)
+	if !ok {
 		return nil, fmt.Errorf("uuid_v7_time requires UUID type, got %T", values[0])
 	}
 
@@ -56,13 +45,21 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 }
 
 func (*uuidV7TimeFunc) Config() duckdb.ScalarFuncConfig {
-	bigintType, err := duckdb.NewTypeInfo(duckdb.TYPE_BIGINT)
+	// Create UUID type info for input
+	uuidTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_UUID)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create UUID type info: %v", err))
+	}
+
+	// Create BIGINT type info for output
+	bigintTypeInfo, err := duckdb.NewTypeInfo(duckdb.TYPE_BIGINT)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create BIGINT type info: %v", err))
 	}
 
 	return duckdb.ScalarFuncConfig{
-		ResultTypeInfo: bigintType,
+		InputTypeInfos: []duckdb.TypeInfo{uuidTypeInfo}, // Accept UUID input
+		ResultTypeInfo: bigintTypeInfo,                 // Return BIGINT
 	}
 }
 
