@@ -3,10 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-
-	"github.com/marcboeker/go-duckdb"
 )
-
 
 type Log struct {
 	db *sql.DB
