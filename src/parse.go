@@ -28,7 +28,7 @@ type TableDefinition struct {
 	Primary *PrimaryKeyDef `json:"primary_key,omitempty"`
 }
 
-func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
+func ParseSQL(sql string, verbose bool) (*TableDefinition, error) {
 	var tableDef *TableDefinition
 	w := &walk.AstWalker{
 		Fn: func(ctx interface{}, node interface{}) (stop bool) {
@@ -40,7 +40,7 @@ func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
 					Columns: []ColumnDef{},
 				}
 
-				if logWalk {
+				if verbose {
 					log.Printf("CREATE TABLE: %s", tableDef.Name)
 				}
 
@@ -53,7 +53,7 @@ func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
 						}
 						tableDef.Primary = &PrimaryKeyDef{Columns: cols}
 
-						if logWalk {
+						if verbose {
 							log.Printf("  PRIMARY KEY: (%s)", strings.Join(cols, ", "))
 						}
 					}
@@ -78,7 +78,7 @@ func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
 				// Add to table definition
 				tableDef.Columns = append(tableDef.Columns, colDef)
 
-				if logWalk {
+				if verbose {
 					log.Printf("  COLUMN: %s %s", colDef.Name, colDef.Type)
 					if colDef.Default != "" {
 						log.Printf("    DEFAULT: %s", colDef.Default)
@@ -90,7 +90,9 @@ func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
 				
 			default:
 				// Default case for all other node types
-				log.Printf("node type %T", node)
+				if verbose {
+					log.Printf("node type %T", node)
+				}
 			}
 			return false
 		},

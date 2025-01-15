@@ -179,7 +179,7 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 		return string(jsonData), nil
 	case "/parse":
 		// Get structured table definition
-		tableDef, err := ParseSQL(body, true)
+		tableDef, err := ParseSQL(body, false)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse SQL: %w", err)
 		}
