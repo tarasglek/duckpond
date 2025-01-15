@@ -31,9 +31,9 @@ func generateUUIDWithTimestamp(t *testing.T, ib *IceBase, startTime time.Time) (
 	uuidBytes, err := uuid.Parse(uuidStr)
 	assert.NoError(t, err, "UUID is invalid")
 
-	// Extract first 48 bits (6 bytes) as milliseconds since Unix epoch
-	uuidTime := int64(uuidBytes[0])<<40 | int64(uuidBytes[1])<<32 | int64(uuidBytes[2])<<24 |
-		int64(uuidBytes[3])<<16 | int64(uuidBytes[4])<<8 | int64(uuidBytes[5])
+	// Extract timestamp using shared function
+	uuidTime, err := ExtractTimestampFromUUID(uuidBytes[:])
+	assert.NoError(t, err, "Failed to extract timestamp")
 
 	// Convert startTime to milliseconds since Unix epoch for comparison
 	startMillis := startTime.UnixMilli()

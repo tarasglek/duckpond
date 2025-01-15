@@ -14,6 +14,26 @@ type uuidv7Func struct{}
 
 type uuidV7TimeFunc struct{}
 
+// ExtractTimestampFromUUID extracts the timestamp from a UUIDv7
+func ExtractTimestampFromUUID(uuidBytes []byte) (int64, error) {
+	// Parse UUID
+	uuid, err := uuid.FromBytes(uuidBytes)
+	if err != nil {
+		return 0, fmt.Errorf("invalid UUID: %w", err)
+	}
+
+	// Extract timestamp from UUIDv7
+	if uuid.Version() != 7 {
+		return 0, fmt.Errorf("UUID is not version 7")
+	}
+
+	// First 48 bits are the timestamp
+	timestamp := int64(uuid[0])<<40 | int64(uuid[1])<<32 | int64(uuid[2])<<24 |
+		int64(uuid[3])<<16 | int64(uuid[4])<<8 | int64(uuid[5])
+
+	return timestamp, nil
+}
+
 func uuidV7TimeFn(values []driver.Value) (any, error) {
 	// Validate input
 	if len(values) != 1 {
@@ -26,22 +46,7 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 		return nil, fmt.Errorf("uuid_v7_time requires UUID type, got %T", values[0])
 	}
 
-	// Parse UUID
-	uuid, err := uuid.FromBytes(uuidBytes)
-	if err != nil {
-		return nil, fmt.Errorf("invalid UUID: %w", err)
-	}
-
-	// Extract timestamp from UUIDv7
-	if uuid.Version() != 7 {
-		return nil, fmt.Errorf("UUID is not version 7")
-	}
-
-	// First 48 bits are the timestamp
-	timestamp := int64(uuid[0])<<40 | int64(uuid[1])<<32 | int64(uuid[2])<<24 |
-		int64(uuid[3])<<16 | int64(uuid[4])<<8 | int64(uuid[5])
-
-	return timestamp, nil
+	return ExtractTimestampFromUUID(uuidBytes)
 }
 
 func (*uuidV7TimeFunc) Config() duckdb.ScalarFuncConfig {
