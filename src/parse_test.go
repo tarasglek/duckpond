@@ -8,7 +8,6 @@ import (
 
 func TestParseEndpoint(t *testing.T) {
 	ib, err := NewIceBase()
-	verbose := false // Set to true when debugging
 	if err != nil {
 		t.Fatalf("Failed to create IceBase: %v", err)
 	}

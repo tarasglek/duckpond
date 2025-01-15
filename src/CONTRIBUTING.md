@@ -19,6 +19,12 @@ Then you can do:
 curl -X POST -d "SELECT now() AS current_time" http://localhost:8081/query
 ```
 
+Try some sample in *.sql files:
+```bash
+curl -X POST  --data-binary @query_test/query_uuid.sql  http://localhost:8881/query
+```
+
+
 We have a special cli flag to short-circuit this for testing:
 
 ```bash

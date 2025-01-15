@@ -107,7 +107,7 @@ func readJSON(t *testing.T, path string) map[string]interface{} {
 	return result
 }
 
-func TestHTTPExtension(t *testing.T) {
+func TestHttpQuery(t *testing.T) {
 	// Setup IceBase and HTTP server
 	ib, err := NewIceBase()
 	assert.NoError(t, err, "Failed to create IceBase")
