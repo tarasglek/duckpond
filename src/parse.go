@@ -98,12 +98,12 @@ func LogWalkSQL(sql string, logWalk bool) (*TableDefinition, error) {
 
 	stmts, err := parser.Parse(sql)
 	if err != nil {
-		return fmt.Errorf("failed to parse SQL: %w", err)
+		return nil, fmt.Errorf("failed to parse SQL: %w", err)
 	}
 
 	_, err = w.Walk(stmts, nil)
 	if err != nil {
-		return fmt.Errorf("failed to walk AST: %w", err)
+		return nil, fmt.Errorf("failed to walk AST: %w", err)
 	}
 
 	// Return nil for non-CREATE TABLE statements
