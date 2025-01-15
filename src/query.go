@@ -34,7 +34,7 @@ type QueryResponse struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"meta"`
-	Data       [][]interface{} `json:"data"`
+	Data       [][]interface{} `json:"data"`  // Will always be [] instead of null
 	Rows       int             `json:"rows"`
 	Statistics struct {
 		Elapsed float64 `json:"elapsed"` // in seconds

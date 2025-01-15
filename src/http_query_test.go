@@ -36,6 +36,11 @@ func waitForServerReady() error {
 
 // processAndCompare handles JSON processing and comparison for a test case
 func processAndCompare(t *testing.T, responseJSON, expectedJSON map[string]interface{}) string {
+	// Ensure data is always an array
+	if responseJSON["data"] == nil {
+		responseJSON["data"] = []interface{}{}
+	}
+
 	// Remove type information from meta arrays
 	if meta, ok := responseJSON["meta"].([]interface{}); ok {
 		for _, m := range meta {

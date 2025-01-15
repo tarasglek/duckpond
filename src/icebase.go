@@ -112,7 +112,8 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 		}
 	}
 
-	var data [][]interface{}
+	// Initialize data as empty slice instead of nil
+	data := make([][]interface{}, 0)
 	for rows.Next() {
 		// values will hold the actual data from the database row
 		values := make([]interface{}, len(columns))
