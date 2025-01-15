@@ -9,22 +9,6 @@ import (
 	"github.com/marcboeker/go-duckdb"
 )
 
-type ColumnDef struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	PrimaryKey bool   `json:"primary_key,omitempty"`
-	Default    string `json:"default,omitempty"`
-}
-
-type PrimaryKeyDef struct {
-	Columns []string `json:"columns"`
-}
-
-type TableDefinition struct {
-	Name    string         `json:"name"`
-	Columns []ColumnDef    `json:"columns"`
-	Primary *PrimaryKeyDef `json:"primary_key,omitempty"`
-}
 
 type Log struct {
 	db *sql.DB
