@@ -35,10 +35,15 @@ func ParseSQL(sql string, verbose bool) (*TableDefinition, error) {
 			switch n := node.(type) {
 			case *tree.CreateTable:
 				// Initialize table definition
+				tableName := n.Table.Table()
 				tableDef = &TableDefinition{
-					Name:    n.Table.Table(),
+					Name:    tableName,
 					Columns: []ColumnDef{},
 				}
+				
+				// Log table creation
+				logger := NewLog(tableName)
+				logger.addSchema("public") // Default schema
 
 				if verbose {
 					log.Printf("CREATE TABLE: %s", tableDef.Name)
