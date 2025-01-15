@@ -33,9 +33,6 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 		);
 	`)
 	if err != nil {
-		if duckdbErr, ok := err.(*duckdb.Error); ok {
-			return int(duckdbErr.ErrorNumber), fmt.Errorf("failed to create schema_log table: %w", err)
-		}
 		return -1, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 
@@ -45,10 +42,7 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 		VALUES (CURRENT_TIMESTAMP, ?);
 	`, rawCreateTable)
 	if err != nil {
-		if duckdbErr, ok := err.(*duckdb.Error); ok {
-			return int(duckdbErr.ErrorNumber), fmt.Errorf("failed to log table creation: %w", err)
-		}
-		return -1, fmt.Errorf("failed to log table creation: %w", err)
+		return -2, fmt.Errorf("failed to log table creation: %w", err)
 	}
 
 	return 0, nil
