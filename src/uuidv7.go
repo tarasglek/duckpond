@@ -20,10 +20,21 @@ func uuidV7TimeFn(values []driver.Value) (any, error) {
 		return nil, fmt.Errorf("uuid_v7_time expects exactly 1 argument")
 	}
 
-	// Only accept []byte input
-	uuidBytes, ok := values[0].([]byte)
-	if !ok {
-		return nil, fmt.Errorf("uuid_v7_time requires UUID in byte format, got %T", values[0])
+	// Handle both UUID and []byte input
+	var uuidBytes []byte
+	switch v := values[0].(type) {
+	case []byte:
+		// Already in byte format
+		uuidBytes = v
+	case string:
+		// Parse string UUID
+		uuid, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UUID string: %w", err)
+		}
+		uuidBytes = uuid[:]
+	default:
+		return nil, fmt.Errorf("uuid_v7_time requires UUID type, got %T", values[0])
 	}
 
 	// Parse UUID
