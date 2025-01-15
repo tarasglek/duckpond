@@ -76,28 +76,21 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 		return nil, fmt.Errorf("failed to get column types: %w", err)
 	}
 
-	var response QueryResponse
+	// Initialize response with empty data slice
+	response := QueryResponse{
+		Data: make([][]interface{}, 0), // Ensure Data is never nil
+	}
+
+	// Populate meta information
 	response.Meta = make([]struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	}, len(columns))
 
-	// Create a map to track UUID columns
-	uuidColumns := make(map[int]bool)
-
 	for i, col := range columns {
 		response.Meta[i].Name = col
-		dbType := columnTypes[i].DatabaseTypeName()
-		response.Meta[i].Type = dbType
-
-		// Store whether this column is a UUID type
-		if dbType == "UUID" {
-			uuidColumns[i] = true
-		}
+		response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
 	}
-
-	// Initialize data as empty slice instead of nil
-	data := make([][]interface{}, 0)
 	for rows.Next() {
 		// values will hold the actual data from the database row
 		values := make([]interface{}, len(columns))
