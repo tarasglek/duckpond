@@ -73,6 +73,9 @@ func TestUUIDv7Time(t *testing.T) {
 	}
 	defer ib.Close()
 
+	// Record start time BEFORE executing the query
+	startTime := time.Now()
+
 	// Execute query to get timestamp
 	timeResp, err := ib.PostEndpoint("/query", "SELECT uuid_v7_time(uuidv7())")
 	if err != nil {
@@ -93,7 +96,7 @@ func TestUUIDv7Time(t *testing.T) {
 		t.Fatalf("Failed to parse timestamp: %v", err)
 	}
 
-	validateTimestamp(t, timestamp, time.Now())
+	validateTimestamp(t, timestamp, startTime)
 }
 
 func TestUUIDv7(t *testing.T) {
