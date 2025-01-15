@@ -6,13 +6,24 @@ import (
 
 	// these deps are absolutely gigantic
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
+	"github.com/auxten/postgresql-parser/pkg/sql/tree"
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
 func ParseSQL(sql string) error {
 	w := &walk.AstWalker{
 		Fn: func(ctx interface{}, node interface{}) (stop bool) {
-			log.Printf("node type %T", node)
+			switch n := node.(type) {
+			case *tree.CreateTable:
+				// Print table name for CREATE TABLE statements
+				log.Printf("CREATE TABLE: %s", n.Table.Table())
+			case *tree.ColumnTableDef:
+				// Print column name for column definitions
+				log.Printf("  COLUMN: %s", n.Name)
+			default:
+				// Default case for all other node types
+				log.Printf("node type %T", node)
+			}
 			return false
 		},
 	}
