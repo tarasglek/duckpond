@@ -3,8 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/marcboeker/go-duckdb"
 )
@@ -36,7 +34,7 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 	`)
 	if err != nil {
 		if duckdbErr, ok := err.(*duckdb.Error); ok {
-			return int(duckdbErr.Code), fmt.Errorf("failed to create schema_log table: %w", err)
+			return int(duckdbErr.ErrorNumber), fmt.Errorf("failed to create schema_log table: %w", err)
 		}
 		return -1, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
@@ -48,7 +46,7 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 	`, rawCreateTable)
 	if err != nil {
 		if duckdbErr, ok := err.(*duckdb.Error); ok {
-			return int(duckdbErr.Code), fmt.Errorf("failed to log table creation: %w", err)
+			return int(duckdbErr.ErrorNumber), fmt.Errorf("failed to log table creation: %w", err)
 		}
 		return -1, fmt.Errorf("failed to log table creation: %w", err)
 	}
