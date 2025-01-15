@@ -28,7 +28,7 @@ type TableDefinition struct {
 	Primary *PrimaryKeyDef `json:"primary_key,omitempty"`
 }
 
-func LogWalkSQL(sql string, logWalk bool) (*TableDefinition, error) {
+func ParseSQL(sql string, logWalk bool) (*TableDefinition, error) {
 	var tableDef *TableDefinition
 	w := &walk.AstWalker{
 		Fn: func(ctx interface{}, node interface{}) (stop bool) {
