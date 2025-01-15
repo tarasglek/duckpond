@@ -101,7 +101,7 @@ func getUUIDTypeInfo() duckdb.TypeInfo {
 	return uuidTypeInfo
 }
 
-func registerUDF(db *sql.DB, name string, udf interface{}) error {
+func registerUDF(db *sql.DB, name string, udf duckdb.ScalarFunc) error {
 	c, err := db.Conn(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get connection: %w", err)
