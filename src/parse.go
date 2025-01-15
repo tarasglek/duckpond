@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	// these deps are absolutely gigantic
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
