@@ -11,37 +11,81 @@ import (
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
-func LogWalkSQL(sql string) error {
+type ColumnDef struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	PrimaryKey bool   `json:"primary_key,omitempty"`
+	Default    string `json:"default,omitempty"`
+}
+
+type PrimaryKeyDef struct {
+	Columns []string `json:"columns"`
+}
+
+type TableDefinition struct {
+	Name    string     `json:"name"`
+	Columns []ColumnDef `json:"columns"`
+	Primary *PrimaryKeyDef `json:"primary_key,omitempty"`
+}
+
+func LogWalkSQL(sql string, logWalk bool) (*TableDefinition, error) {
+	var tableDef *TableDefinition
 	w := &walk.AstWalker{
 		Fn: func(ctx interface{}, node interface{}) (stop bool) {
 			switch n := node.(type) {
 			case *tree.CreateTable:
-				// Print table name for CREATE TABLE statements
-				log.Printf("CREATE TABLE: %s", n.Table.Table())
-				
-				// Print primary key constraints if they exist
+				// Initialize table definition
+				tableDef = &TableDefinition{
+					Name:    n.Table.Table(),
+					Columns: []ColumnDef{},
+				}
+
+				if logWalk {
+					log.Printf("CREATE TABLE: %s", tableDef.Name)
+				}
+
+				// Process table-level primary key
 				for _, def := range n.Defs {
 					if pk, ok := def.(*tree.UniqueConstraintTableDef); ok && pk.PrimaryKey {
 						var cols []string
 						for _, col := range pk.Columns {
 							cols = append(cols, col.Column.String())
 						}
-						log.Printf("  PRIMARY KEY: (%s)", strings.Join(cols, ", "))
+						tableDef.Primary = &PrimaryKeyDef{Columns: cols}
+
+						if logWalk {
+							log.Printf("  PRIMARY KEY: (%s)", strings.Join(cols, ", "))
+						}
 					}
 				}
-				
+
 			case *tree.ColumnTableDef:
-				// Print column name, type, and constraints
-				log.Printf("  COLUMN: %s %s", n.Name, n.Type)
-				
-				// Print default value if exists
-				if n.DefaultExpr.Expr != nil {
-					log.Printf("    DEFAULT: %s", n.DefaultExpr.Expr)
+				if tableDef == nil {
+					return false
 				}
-				
-				// Print if column is primary key by checking constraints
-				if n.PrimaryKey.IsPrimaryKey {
-					log.Printf("    PRIMARY KEY")
+
+				colDef := ColumnDef{
+					Name:       n.Name.String(),
+					Type:       n.Type.String(),
+					PrimaryKey: n.PrimaryKey.IsPrimaryKey,
+				}
+
+				// Process default value
+				if n.DefaultExpr.Expr != nil {
+					colDef.Default = n.DefaultExpr.Expr.String()
+				}
+
+				// Add to table definition
+				tableDef.Columns = append(tableDef.Columns, colDef)
+
+				if logWalk {
+					log.Printf("  COLUMN: %s %s", colDef.Name, colDef.Type)
+					if colDef.Default != "" {
+						log.Printf("    DEFAULT: %s", colDef.Default)
+					}
+					if colDef.PrimaryKey {
+						log.Printf("    PRIMARY KEY")
+					}
 				}
 				
 			default:
@@ -62,5 +106,10 @@ func LogWalkSQL(sql string) error {
 		return fmt.Errorf("failed to walk AST: %w", err)
 	}
 
-	return nil
+	// Return nil for non-CREATE TABLE statements
+	if tableDef == nil {
+		return nil, nil
+	}
+
+	return tableDef, nil
 }

@@ -179,18 +179,26 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 
 		return string(jsonData), nil
 	case "/parse":
-		// Log parser output before executing query
-		log.Println("Starting SQL parser walk...")
-		if err := LogWalkSQL(body); err != nil {
-			log.Printf("Parser error: %v", err)
-		} else {
-			log.Println("Parser walk completed")
+		// Get structured table definition
+		tableDef, err := LogWalkSQL(body, true)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse SQL: %w", err)
 		}
+
+		// If it's a CREATE TABLE statement, return the structured definition
+		if tableDef != nil {
+			jsonData, err := json.Marshal(tableDef)
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal table definition: %w", err)
+			}
+			return string(jsonData), nil
+		}
+
+		// For other queries, return the serialized version
 		serializedJSON, err := ib.SerializeQuery(body)
 		if err != nil {
 			return "", fmt.Errorf("query serialization failed: %w", err)
 		}
-
 		return serializedJSON, nil
 	default:
 		return "", fmt.Errorf("unknown endpoint: %s", endpoint)

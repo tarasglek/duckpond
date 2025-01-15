@@ -24,6 +24,7 @@ func TestParseEndpoint(t *testing.T) {
 			name:       "simple select",
 			inputQuery: "SELECT 1",
 			checkOutput: func(t *testing.T, output string) {
+				// For SELECT statements, we expect the serialized query
 				assert.Contains(t, output, `"type":"SELECT_NODE"`)
 				assert.Contains(t, output, `"select_list":`)
 			},
@@ -32,6 +33,7 @@ func TestParseEndpoint(t *testing.T) {
 			name:       "complex query",
 			inputQuery: "SELECT * FROM (SELECT 1 AS a, 2 AS b) t WHERE a = 1",
 			checkOutput: func(t *testing.T, output string) {
+				// For SELECT statements, we expect the serialized query
 				assert.Contains(t, output, `"type":"SELECT_NODE"`)
 				assert.Contains(t, output, `"from_table":`)
 				assert.Contains(t, output, `"where_clause":`)
