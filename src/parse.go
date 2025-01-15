@@ -6,7 +6,7 @@ import (
 
 	// these deps are absolutely gigantic
 	"github.com/auxten/postgresql-parser/pkg/sql/parser"
-	"github.com/auxten/postgresql-parser/pkg/sql/tree"
+	"github.com/auxten/postgresql-parser/pkg/sql/sem/tree"
 	"github.com/auxten/postgresql-parser/pkg/walk"
 )
 
