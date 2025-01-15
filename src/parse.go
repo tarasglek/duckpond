@@ -23,8 +23,8 @@ type PrimaryKeyDef struct {
 }
 
 type TableDefinition struct {
-	Name    string     `json:"name"`
-	Columns []ColumnDef `json:"columns"`
+	Name    string         `json:"name"`
+	Columns []ColumnDef    `json:"columns"`
 	Primary *PrimaryKeyDef `json:"primary_key,omitempty"`
 }
 
@@ -87,7 +87,7 @@ func ParseSQL(sql string, verbose bool) (*TableDefinition, error) {
 						log.Printf("    PRIMARY KEY")
 					}
 				}
-				
+
 			default:
 				// Default case for all other node types
 				if verbose {
