@@ -11,11 +11,24 @@ type Log struct {
 	db        *sql.DB
 }
 
-func NewLog(tableName string, db *sql.DB) *Log {
+func NewLog(tableName string) (*Log, error) {
+	// Create new database connection
+	db, err := InitializeDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database for logging: %w", err)
+	}
+
 	return &Log{
 		tableName: tableName,
 		db:        db,
+	}, nil
+}
+
+func (l *Log) Close() error {
+	if l.db != nil {
+		return l.db.Close()
 	}
+	return nil
 }
 
 func (l *Log) addSchema(schemaName string) {
