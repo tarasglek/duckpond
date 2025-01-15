@@ -81,7 +81,7 @@ func TestUUIDv7Time(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse timestamp response: %v", err)
 	}
-	timestamp := timeRespData.Data[0][0].(float64)
+	timestamp := int64(timeRespData.Data[0][0].(float64))
 
 	// Verify timestamp is within expected range
 	now := time.Now().UnixMilli()
