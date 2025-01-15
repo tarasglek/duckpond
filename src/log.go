@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/marcboeker/go-duckdb"
 )
 
 type ColumnDef struct {
@@ -40,7 +42,7 @@ func NewLog() (*Log, error) {
 	}, nil
 }
 
-func (l *Log) createTable(rawCreateTable string) error {
+func (l *Log) createTable(rawCreateTable string) (int, error) {
 	// Create schema_log table if it doesn't exist
 	_, err := l.db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_log (
@@ -49,7 +51,10 @@ func (l *Log) createTable(rawCreateTable string) error {
 		);
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to create schema_log table: %w", err)
+		if duckdbErr, ok := err.(*duckdb.Error); ok {
+			return int(duckdbErr.Code), fmt.Errorf("failed to create schema_log table: %w", err)
+		}
+		return -1, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 
 	// Insert the raw query
@@ -58,10 +63,13 @@ func (l *Log) createTable(rawCreateTable string) error {
 		VALUES (CURRENT_TIMESTAMP, ?);
 	`, rawCreateTable)
 	if err != nil {
-		return fmt.Errorf("failed to log table creation: %w", err)
+		if duckdbErr, ok := err.(*duckdb.Error); ok {
+			return int(duckdbErr.Code), fmt.Errorf("failed to log table creation: %w", err)
+		}
+		return -1, fmt.Errorf("failed to log table creation: %w", err)
 	}
 
-	return nil
+	return 0, nil
 }
 
 func (l *Log) Close() error {
