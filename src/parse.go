@@ -41,14 +41,6 @@ func ParseSQL(sql string, verbose bool) (*TableDefinition, error) {
 					Columns: []ColumnDef{},
 				}
 				
-				// Log table creation
-				logger, err := NewLog(tableName)
-				if err != nil {
-					log.Printf("Warning: failed to create logger: %v", err)
-				} else {
-					defer logger.Close()
-					logger.addSchema("public") // Default schema
-				}
 
 				if verbose {
 					log.Printf("CREATE TABLE: %s", tableDef.Name)
