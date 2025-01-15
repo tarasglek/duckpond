@@ -167,14 +167,6 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 	switch endpoint {
 	case "/query":
-		// Log parser output before executing query
-		log.Println("Starting SQL parser walk...")
-		if err := ParseSQL(body); err != nil {
-			log.Printf("Parser error: %v", err)
-		} else {
-			log.Println("Parser walk completed")
-		}
-
 		response, err := ib.ExecuteQuery(body)
 		if err != nil {
 			return "", fmt.Errorf("query execution failed: %w", err)
@@ -187,6 +179,13 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 
 		return string(jsonData), nil
 	case "/parse":
+		// Log parser output before executing query
+		log.Println("Starting SQL parser walk...")
+		if err := ParseSQL(body); err != nil {
+			log.Printf("Parser error: %v", err)
+		} else {
+			log.Println("Parser walk completed")
+		}
 		serializedJSON, err := ib.SerializeQuery(body)
 		if err != nil {
 			return "", fmt.Errorf("query serialization failed: %w", err)
