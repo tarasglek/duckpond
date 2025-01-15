@@ -80,6 +80,7 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 	response := QueryResponse{
 		Data: make([][]interface{}, 0), // Ensure Data is never nil
 	}
+	var data [][]interface{} // Define data variable that will be used later
 
 	// Populate meta information
 	response.Meta = make([]struct {
@@ -133,7 +134,7 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 		data = append(data, rowData)
 	}
 
-	response.Data = data
+	response.Data = data // Now data is properly defined
 	response.Rows = len(data)
 	elapsed := time.Since(start)
 	response.Statistics.Elapsed = elapsed.Seconds()
