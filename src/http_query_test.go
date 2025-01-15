@@ -125,6 +125,27 @@ func TestHttpQuery(t *testing.T) {
 	assert.NoError(t, err, "Failed to find test files")
 
 	for _, testFile := range testFiles {
-		t.Run(testFile, func(t *testing.T) { testQuery(t, ib, testFile) })
+		t.Run(testFile, func(t *testing.T) {
+			// Create temp schema for this test
+			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
+			_, err := ib.DB().Exec(fmt.Sprintf(`
+				CREATE SCHEMA %s;
+				SET search_path TO %s;
+			`, schemaName, schemaName))
+			if err != nil {
+				t.Fatalf("Failed to create temp schema: %v", err)
+			}
+			
+			// Ensure schema is dropped after test
+			defer func() {
+				_, err := ib.DB().Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schemaName))
+				if err != nil {
+					t.Logf("Warning: failed to drop temp schema: %v", err)
+				}
+			}()
+
+			// Run the actual test
+			testQuery(t, ib, testFile)
+		})
 	}
 }
