@@ -15,10 +15,15 @@ type uuidv7Func struct{}
 type uuidV7TimeFunc struct{}
 
 func uuidV7TimeFn(values []driver.Value) (any, error) {
-	// Get UUID value
+	// Validate input
+	if len(values) != 1 {
+		return nil, fmt.Errorf("uuid_v7_time expects exactly 1 argument")
+	}
+
+	// Only accept []byte input
 	uuidBytes, ok := values[0].([]byte)
 	if !ok {
-		return nil, fmt.Errorf("invalid UUID type")
+		return nil, fmt.Errorf("uuid_v7_time requires UUID in byte format, got %T", values[0])
 	}
 
 	// Parse UUID
