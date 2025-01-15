@@ -13,8 +13,8 @@ type Log struct {
 }
 
 func NewLog(tableName string) (*Log, error) {
-	// Create storage directory if it doesn't exist
-	logDir := filepath.Join("storage", "log")
+	// Create storage directory structure
+	logDir := filepath.Join("storage", tableName, "log")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
@@ -26,7 +26,7 @@ func NewLog(tableName string) (*Log, error) {
 	}
 
 	// Attach log database
-	dbPath := filepath.Join(logDir, fmt.Sprintf("%s.db", tableName))
+	dbPath := filepath.Join(logDir, "log.db")
 	_, err = db.Exec(fmt.Sprintf(`
 		ATTACH DATABASE '%s' AS db;
 		USE db;
