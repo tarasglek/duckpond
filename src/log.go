@@ -94,3 +94,21 @@ func (l *Log) Close() error {
 	}
 	return nil
 }
+
+func (l *Log) Insert(table string, query string) (int, error) {
+	db, err := l.getDB()
+	if err != nil {
+		return -1, err
+	}
+
+	// Insert the raw query
+	_, err = db.Exec(`
+		INSERT INTO insert_log (timestamp, table_name, raw_query)
+		VALUES (CURRENT_TIMESTAMP, ?, ?);
+	`, table, query)
+	if err != nil {
+		return -1, fmt.Errorf("failed to log insert: %w", err)
+	}
+
+	return 0, nil
+}
