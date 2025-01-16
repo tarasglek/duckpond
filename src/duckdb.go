@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// InitializeDB creates and configures a new DuckDB connection
-func InitializeDB() (*sql.DB, error) {
+// InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
+func InitializeDuckDB() (*sql.DB, error) {
 	// Open database connection
 	db, err := sql.Open("duckdb", "")
 	if err != nil {

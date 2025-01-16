@@ -24,7 +24,7 @@ func (ib *IceBase) DB() *sql.DB {
 }
 
 func NewIceBase() (*IceBase, error) {
-	db, err := InitializeDB()
+	db, err := InitializeDuckDB()
 	if err != nil {
 		return nil, err
 	}

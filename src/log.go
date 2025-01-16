@@ -33,7 +33,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	dbPath := filepath.Join(logDir, "log.db")
 
 	// Initialize main database connection
-	db, err := InitializeDB()
+	db, err := InitializeDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
