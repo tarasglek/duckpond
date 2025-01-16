@@ -30,7 +30,6 @@ type IceBase struct {
 	logs   map[string]*Log
 }
 
-
 func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error) {
 	start := time.Now()
 
@@ -170,10 +169,21 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	return serializedJSON, nil
 }
 
-
 func (ib *IceBase) handleQuery(body string) (string, error) {
+	// Execute query, then discard results
+	tx, err := ib.db.Begin()
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	op, table := ib.parser.Parse(body)
-	
+
+	response, err := ib.ExecuteQuery(body, tx)
+	if err != nil {
+		return "", fmt.Errorf("query execution failed: %w", err)
+	}
+
 	// Handle CREATE TABLE logging
 	if op == OpCreateTable {
 		log, err := ib.logByName(table)
@@ -184,34 +194,18 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			return "", fmt.Errorf("failed to log table creation: %w", err)
 		}
 	}
-
-	// Execute query
-	tx, err := ib.db.Begin()
-	if err != nil {
-		return "", fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	response, err := ib.ExecuteQuery(body, tx)
-	if err != nil {
-		return "", fmt.Errorf("query execution failed: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
+	// return response as JSON
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-
+	// defer will cause a rollback here
 	return string(jsonData), nil
 }
 
 func (ib *IceBase) handleParse(body string) (string, error) {
 	op, table := ib.parser.Parse(body)
-	
+
 	response := struct {
 		Operation string `json:"operation"`
 		Table     string `json:"table"`
