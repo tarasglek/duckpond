@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -189,7 +188,6 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			return "", fmt.Errorf("failed to get table log: %w", err)
 		}
 	}
-	log.Printf("Operation: %s, Table: %s, body: %s", op, table, body)
 	// Recreate schema before executing user query
 	if dblog != nil {
 		if op == OpSelect {
@@ -249,9 +247,6 @@ func (ib *IceBase) handleParse(body string) (string, error) {
 }
 
 func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
-	// Trim whitespace from body
-	body = strings.TrimSpace(body)
-	
 	switch endpoint {
 	case "/query":
 		return ib.handleQuery(body)

@@ -30,6 +30,7 @@ func TestParser(t *testing.T) {
 
 		// Select tests
 		{"SELECT * FROM users", OpSelect, "users"},
+		{"\nSELECT * FROM users\n", OpSelect, "users"},
 		{"SELECT id, name FROM app.users", OpSelect, "app.users"},
 		{"SELECT count(*) FROM mydb.schema.users", OpSelect, "mydb.schema.users"},
 		{"  SELECT col1,col2 FROM temp_users", OpSelect, "temp_users"},

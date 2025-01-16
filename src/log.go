@@ -230,21 +230,8 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 		return fmt.Errorf("error iterating insert_log: %w", err)
 	}
 
-	// Get the latest schema
-	var createQuery string
-	err = db.QueryRow(`
-        SELECT raw_query
-        FROM schema_log
-        ORDER BY timestamp DESC
-        LIMIT 1
-    `).Scan(&createQuery)
-	if err != nil {
-		return fmt.Errorf("failed to get latest schema: %w", err)
-	}
+	viewQuery := "CREATE VIEW " + l.tableName + " "
 
-	// Convert CREATE TABLE to CREATE VIEW
-	viewQuery := strings.Replace(createQuery, "TABLE", "VIEW", 1)
-	
 	// Join files with commas and add to query
 	if len(files) > 0 {
 		viewQuery += " AS SELECT * FROM read_parquet(" + strings.Join(files, ", ") + ")"
@@ -252,7 +239,6 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 		viewQuery += " AS SELECT * FROM read_parquet('')" // Empty view
 	}
 
-	log.Printf("Recreating view with query: %s", viewQuery)
 	// Execute the view creation
 	_, err = tx.Exec(viewQuery)
 	if err != nil {
