@@ -132,18 +132,36 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	// Generate proper UUIDv7 using Go library
-	uuid, err := uuid.NewV7()
+	// First insert into insert_log to generate UUID
+	db, err := l.getDB()
 	if err != nil {
-		return -1, fmt.Errorf("failed to generate UUID: %w", err)
+		return -1, fmt.Errorf("failed to get log database: %w", err)
 	}
 
-	// Verify UUID version
-	if uuid.Version() != 7 {
-		return -1, fmt.Errorf("generated UUID is not version 7: %s", uuid.String())
+	// Insert and get last inserted UUID
+	_, err = db.Exec(`
+		INSERT INTO insert_log (id, partition)
+		VALUES (uuidv7(), '');
+	`)
+	if err != nil {
+		return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
 	}
 
-	log.Printf("Generated UUIDv7: %s", uuid.String())
+	// Read back the last inserted UUID
+	var uuidBytes []byte
+	err = db.QueryRow(`
+		SELECT id 
+		FROM insert_log 
+		ORDER BY id DESC 
+		LIMIT 1;
+	`).Scan(&uuidBytes)
+	if err != nil {
+		return -1, fmt.Errorf("failed to read UUID from insert_log: %w", err)
+	}
+
+	// Convert UUID bytes to string for filename
+	uuidStr := uuid.UUID(uuidBytes).String()
+	log.Printf("Generated UUIDv7: %s", uuidStr)
 
 	// Create storage directory structure
 	dataDir := filepath.Join("storage", table, "data")
@@ -151,8 +169,8 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		return -1, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	// Create parquet file path using UUID
-	parquetPath := filepath.Join(dataDir, uuid.String()+".parquet")
+	// Create parquet file path using UUID from insert_log
+	parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
 	log.Printf("Parquet file path: %s", parquetPath)
 
 	// Copy table data to parquet file
@@ -164,15 +182,6 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	_, err = tx.Exec(copyQuery)
 	if err != nil {
 		return -1, fmt.Errorf("failed to copy to parquet with query: %q: %w", copyQuery, err)
-	}
-
-	// Insert into insert_log table
-	_, err = l.db.Exec(`
-		INSERT INTO insert_log (id, partition)
-		VALUES (uuidv7(), ?);
-	`, "")
-	if err != nil {
-		return -1, fmt.Errorf("failed to log insert: %w", err)
 	}
 
 	return 0, nil
