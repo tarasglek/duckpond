@@ -14,6 +14,21 @@ const (
 	OpUnknown
 )
 
+func (o Operation) String() string {
+	switch o {
+	case OpInsert:
+		return "insert"
+	case OpCreateTable:
+		return "create_table"
+	case OpSelect:
+		return "select"
+	case OpAlterTable:
+		return "alter_table"
+	default:
+		return "unknown"
+	}
+}
+
 type Parser struct {
 	insertRe *regexp.Regexp
 	createRe *regexp.Regexp
