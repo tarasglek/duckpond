@@ -40,7 +40,7 @@ func NewParser() *Parser {
 	return &Parser{
 		insertRe: regexp.MustCompile(`(?i)^\s*INSERT\s+(OR\s+(REPLACE|IGNORE)\s+)?INTO\s+([.\w]+)`),
 		createRe: regexp.MustCompile(`(?i)^\s*CREATE\s+(OR\s+REPLACE\s+)?(TEMP(?:ORARY)?\s+)?TABLE\s+(\w+)`),
-		selectRe: regexp.MustCompile(`(?i)^\s*SELECT\s+.+?\s+(?:FROM\s+([.\w]+))?`),
+		selectRe: regexp.MustCompile(`(?i)^\s*SELECT\s+.*?(?:\s+FROM\s+([.\w]+))?$`),
 		alterRe:  regexp.MustCompile(`(?i)^\s*ALTER\s+TABLE\s+([.\w]+)`),
 	}
 }
