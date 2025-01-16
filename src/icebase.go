@@ -179,38 +179,40 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 	op, table := ib.parser.Parse(body)
 
+	// Get log if we have a valid table name
+	var log *Log
+	if table != "" {
+		var err error
+		log, err = ib.logByName(table)
+		if err != nil {
+			return "", fmt.Errorf("failed to get table log: %w", err)
+		}
+	}
+
 	response, err := ib.ExecuteQuery(body, tx)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %w", err)
 	}
 
 	// Handle CREATE TABLE logging
-	if op == OpCreateTable {
-		log, err := ib.logByName(table)
-		if err != nil {
-			return "", fmt.Errorf("failed to get table log: %w", err)
-		}
+	if op == OpCreateTable && log != nil {
 		if _, err := log.createTable(body); err != nil {
 			return "", fmt.Errorf("failed to log table creation: %w", err)
 		}
 	}
 
 	// Handle INSERT logging
-	if op == OpInsert {
-		log, err := ib.logByName(table)
-		if err != nil {
-			return "", fmt.Errorf("failed to get table log: %w", err)
-		}
+	if op == OpInsert && log != nil {
 		if _, err := log.Insert(tx, table, body); err != nil {
 			return "", fmt.Errorf("failed to log insert: %w", err)
 		}
 	}
+
 	// return response as JSON
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	// defer will cause a rollback here
 	return string(jsonData), nil
 }
 
