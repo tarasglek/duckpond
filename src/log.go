@@ -186,10 +186,47 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		UPDATE insert_log 
 		SET size = ?
 		WHERE id = ?;
-	`, fileInfo.Size(), uuidBytes)
+	`, fileInfo.Size(), uuidStr)
 	if err != nil {
 		return -1, fmt.Errorf("failed to update insert_log size: %w", err)
 	}
 
 	return 0, nil
+}
+
+// Recreates the table described in the schema_log table as a view over partitioned parquet files
+func (l *Log) RecreateAsView(tx *sql.Tx) error {
+	// filels = list of files with tombstone 0 ordered by id desc
+	db, err := l.getDB()
+	if err != nil {
+		return fmt.Errorf("failed to get log database: %w", err)
+	}
+
+	// Query schema_log for all create table statements
+	rows, err := db.Query(`
+		SELECT raw_query
+		FROM schema_log
+		ORDER BY timestamp ASC
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to query schema_log: %w", err)
+	}
+	defer rows.Close()
+
+	// Execute each create table statement in the transaction
+	for rows.Next() {
+		var createQuery string
+		if err := rows.Scan(&createQuery); err != nil {
+			return fmt.Errorf("failed to scan schema_log row: %w", err)
+		}
+		// Replace CREATE TABLE with CREATE VIEW and append files to view view read_parquet(filels);
+		// log query
+		// Execute the create table statement
+		if _, err := tx.Exec(createQuery); err != nil {
+			return fmt.Errorf("failed to execute schema_log query: %w", err)
+		}
+		break
+	}
+
+	return nil
 }
