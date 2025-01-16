@@ -132,12 +132,18 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	// Generate UUIDv7 using Go library
+	// Generate proper UUIDv7 using Go library
 	uuid, err := uuid.NewV7()
 	if err != nil {
 		return -1, fmt.Errorf("failed to generate UUID: %w", err)
 	}
-	log.Printf("Generated UUID: %s", uuid.String())
+	
+	// Verify UUID version
+	if uuid.Version() != 7 {
+		return -1, fmt.Errorf("generated UUID is not version 7: %s", uuid.String())
+	}
+	
+	log.Printf("Generated UUIDv7: %s", uuid.String())
 
 	// Create storage directory structure
 	dataDir := filepath.Join("storage", table, "data")
