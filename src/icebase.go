@@ -172,35 +172,31 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
-	// Parse query to check if it's a CREATE TABLE
 	op, table := ib.parser.Parse(body)
+	
+	// Handle CREATE TABLE logging
 	if op == OpCreateTable {
-		// Get or create table-specific log
 		log, err := ib.logByName(table)
 		if err != nil {
 			return "", fmt.Errorf("failed to get table log: %w", err)
 		}
-
-		// Log the table creation
 		if _, err := log.createTable(body); err != nil {
 			return "", fmt.Errorf("failed to log table creation: %w", err)
 		}
 	}
 
-	// Start transaction
+	// Execute query
 	tx, err := ib.db.Begin()
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Execute the query within transaction
 	response, err := ib.ExecuteQuery(body, tx)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %w", err)
 	}
 
-	// Commit the transaction if everything succeeded
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -214,10 +210,8 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 }
 
 func (ib *IceBase) handleParse(body string) (string, error) {
-	// Parse the query to get operation and table
 	op, table := ib.parser.Parse(body)
-
-	// Create response structure
+	
 	response := struct {
 		Operation string `json:"operation"`
 		Table     string `json:"table"`
@@ -244,7 +238,7 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 	}
 }
 
-func (ib *IceBase) QueryHandler() http.HandlerFunc {
+func (ib *IceBase) RequestHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -265,29 +259,5 @@ func (ib *IceBase) QueryHandler() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(jsonResponse))
-	}
-}
-
-func (ib *IceBase) ParseHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		query, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
-			return
-		}
-
-		serializedJSON, err := ib.SerializeQuery(string(query))
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to serialize query: %v", err), http.StatusBadRequest)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(serializedJSON))
 	}
 }
