@@ -138,25 +138,15 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		return -1, fmt.Errorf("failed to get log database: %w", err)
 	}
 
-	// Insert and get last inserted UUID
-	_, err = db.Exec(`
-		INSERT INTO insert_log (id, partition)
-		VALUES (uuidv7(), '');
-	`)
-	if err != nil {
-		return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
-	}
-
-	// Read back the last inserted UUID
+	// Insert and get UUID using RETURNING
 	var uuidBytes []byte
 	err = db.QueryRow(`
-		SELECT id 
-		FROM insert_log 
-		ORDER BY id DESC 
-		LIMIT 1;
+		INSERT INTO insert_log (id, partition)
+		VALUES (uuidv7(), '')
+		RETURNING id;
 	`).Scan(&uuidBytes)
 	if err != nil {
-		return -1, fmt.Errorf("failed to read UUID from insert_log: %w", err)
+		return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
 	}
 
 	// Convert UUID bytes to string for filename
