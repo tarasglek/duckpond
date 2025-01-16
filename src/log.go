@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -196,76 +197,62 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
 func (l *Log) RecreateAsView(tx *sql.Tx) error {
-    db, err := l.getDB()
-    if err != nil {
-        return fmt.Errorf("failed to get log database: %w", err)
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return fmt.Errorf("failed to get log database: %w", err)
+	}
 
-    // Get list of active parquet files
-    var files []string
-    rows, err := db.Query(`
+	// Get list of active parquet files
+	var files []string
+	rows, err := db.Query(`
         SELECT id 
         FROM insert_log
         WHERE tombstoned_unix_time = 0
         ORDER BY id DESC
     `)
-    if err != nil {
-        return fmt.Errorf("failed to query insert_log: %w", err)
-    }
-    defer rows.Close()
+	if err != nil {
+		return fmt.Errorf("failed to query insert_log: %w", err)
+	}
+	defer rows.Close()
 
-    for rows.Next() {
-        var id []byte
-        if err := rows.Scan(&id); err != nil {
-            return fmt.Errorf("failed to scan insert_log row: %w", err)
-        }
-        
-        // Convert UUID to string and build file path
-        uuidStr := uuid.UUID(id).String()
-        files = append(files, filepath.Join("storage", l.tableName, "data", uuidStr+".parquet"))
-    }
+	for rows.Next() {
+		var id []byte
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("failed to scan insert_log row: %w", err)
+		}
 
-    if err := rows.Err(); err != nil {
-        return fmt.Errorf("error iterating insert_log: %w", err)
-    }
+		// Convert UUID to string and build file path
+		uuidStr := uuid.UUID(id).String()
+		files = append(files, filepath.Join("storage", l.tableName, "data", uuidStr+".parquet"))
+	}
 
-    // Get the latest schema
-    var createQuery string
-    err = db.QueryRow(`
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating insert_log: %w", err)
+	}
+
+	// Get the latest schema
+	var createQuery string
+	err = db.QueryRow(`
         SELECT raw_query
         FROM schema_log
         ORDER BY timestamp DESC
         LIMIT 1
     `).Scan(&createQuery)
-    if err != nil {
-        return fmt.Errorf("failed to get latest schema: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to get latest schema: %w", err)
+	}
 
-    // Convert CREATE TABLE to CREATE VIEW
-    viewQuery := strings.Replace(createQuery, "CREATE TABLE", "CREATE VIEW", 1)
-    
-    // Create single read_parquet call with file list
-    quotedFiles := make([]string, len(files))
-    for i, f := range files {
-        quotedFiles[i] = fmt.Sprintf("'%s'", f)
-    }
-    fileList := strings.Join(quotedFiles, ", ")
-    viewQuery += fmt.Sprintf(" AS SELECT * FROM read_parquet([%s])", fileList)
+	// Convert CREATE TABLE to CREATE VIEW
+	viewQuery := strings.Replace(createQuery, "TABLE", "VIEW", 1)
 
-    // Log the view creation query
-    _, err = db.Exec(`
-        INSERT INTO schema_log (timestamp, raw_query)
-        VALUES (CURRENT_TIMESTAMP, ?);
-    `, viewQuery)
-    if err != nil {
-        return fmt.Errorf("failed to log view creation: %w", err)
-    }
+	viewQuery += " AS SELECT * FROM read_parquet(?)"
 
-    // Execute the view creation
-    _, err = tx.Exec(viewQuery)
-    if err != nil {
-        return fmt.Errorf("failed to create view: %w", err)
-    }
+	log.Printf("Recreating view with query: %s, (%v)", viewQuery, files)
+	// Execute the view creation
+	_, err = tx.Exec(viewQuery, files)
+	if err != nil {
+		return fmt.Errorf("failed to create view: %w", err)
+	}
 
-    return nil
+	return nil
 }
