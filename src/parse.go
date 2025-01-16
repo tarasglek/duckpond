@@ -15,10 +15,10 @@ const (
 )
 
 type Parser struct {
-	insertRe    *regexp.Regexp
-	createRe    *regexp.Regexp
-	selectRe    *regexp.Regexp
-	alterRe     *regexp.Regexp
+	insertRe *regexp.Regexp
+	createRe *regexp.Regexp
+	selectRe *regexp.Regexp
+	alterRe  *regexp.Regexp
 }
 
 func NewParser() *Parser {
