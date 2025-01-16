@@ -140,12 +140,15 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	// Create parquet file path using UUID
 	parquetPath := filepath.Join("storage", table, "data", uuid.String()+".parquet")
 
-	// Execute COPY TO PARQUET using the transaction
-	_, err = tx.Exec(fmt.Sprintf(`
+	// Format the COPY query
+	copyQuery := fmt.Sprintf(`
 		COPY (%s) TO '%s' (FORMAT PARQUET);
-	`, query, parquetPath))
+	`, query, parquetPath)
+
+	// Execute COPY TO PARQUET using the transaction
+	_, err = tx.Exec(copyQuery)
 	if err != nil {
-		return -1, fmt.Errorf("failed to copy to parquet: %w", err)
+		return -1, fmt.Errorf("failed to copy to parquet with query: %q: %w", copyQuery, err)
 	}
 
 	// Insert into insert_log table
