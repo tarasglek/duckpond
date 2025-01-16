@@ -13,7 +13,7 @@ import (
 )
 
 type IceBase struct {
-	db *sql.DB
+	db     *sql.DB
 	parser *Parser
 }
 
@@ -28,7 +28,7 @@ func NewIceBase() (*IceBase, error) {
 		return nil, err
 	}
 	return &IceBase{
-		db: db,
+		db:     db,
 		parser: NewParser(),
 	}, nil
 }
@@ -163,7 +163,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 func (ib *IceBase) handleParse(body string) (string, error) {
 	// Parse the query to get operation and table
 	op, table := ib.parser.Parse(body)
-	
+
 	// Create response structure
 	response := struct {
 		Operation string `json:"operation"`

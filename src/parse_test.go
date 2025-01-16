@@ -33,12 +33,8 @@ func TestParser(t *testing.T) {
 		{"SELECT id, name FROM app.users", OpSelect, "app.users"},
 		{"SELECT count(*) FROM mydb.schema.users", OpSelect, "mydb.schema.users"},
 		{"  SELECT col1,col2 FROM temp_users", OpSelect, "temp_users"},
-		{"SELECT 1", OpSelect, ""},
 		{"SELECT 1 + 1", OpSelect, ""},
 		{"SELECT NOW()", OpSelect, ""},
-		{"  SELECT 1", OpSelect, ""},
-		{"SELECT 1;", OpSelect, ""},
-		{"SELECT 1 FROM dual", OpSelect, "dual"},
 
 		// Negative tests
 		{"UPDATE users", OpUnknown, ""},

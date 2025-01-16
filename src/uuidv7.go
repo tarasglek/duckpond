@@ -61,7 +61,7 @@ func (*uuidV7TimeFunc) Config() duckdb.ScalarFuncConfig {
 
 	return duckdb.ScalarFuncConfig{
 		InputTypeInfos: []duckdb.TypeInfo{uuidTypeInfo}, // Accept UUID input
-		ResultTypeInfo: bigintTypeInfo,                 // Return BIGINT
+		ResultTypeInfo: bigintTypeInfo,                  // Return BIGINT
 	}
 }
 
