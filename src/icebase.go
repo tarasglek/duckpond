@@ -15,7 +15,7 @@ import (
 type IceBase struct {
 	db     *sql.DB
 	parser *Parser
-	log    *Log
+	logs   map[string]*Log
 }
 
 // DB returns the underlying DuckDB instance
@@ -32,13 +32,29 @@ func NewIceBase() (*IceBase, error) {
 	return &IceBase{
 		db:     db,
 		parser: NewParser(),
-		log:    NewLog(),
+		logs:   make(map[string]*Log),
 	}, nil
 }
 
+func (ib *IceBase) logByName(tableName string) (*Log, error) {
+	if log, exists := ib.logs[tableName]; exists {
+		return log, nil
+	}
+
+	// Create new log for table
+	log := NewLog(tableName)
+	ib.logs[tableName] = log
+	return log, nil
+}
+
 func (ib *IceBase) Close() error {
-	if err := ib.log.Close(); err != nil {
-		return fmt.Errorf("failed to close log: %w", err)
+	// Close all table logs
+	for _, log := range ib.logs {
+		if log.db != nil {
+			if err := log.db.Close(); err != nil {
+				return fmt.Errorf("failed to close log: %w", err)
+			}
+		}
 	}
 	return ib.db.Close()
 }
@@ -156,8 +172,14 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Parse query to check if it's a CREATE TABLE
 	op, table := ib.parser.Parse(body)
 	if op == OpCreateTable {
+		// Get or create table-specific log
+		log, err := ib.logByName(table)
+		if err != nil {
+			return "", fmt.Errorf("failed to get table log: %w", err)
+		}
+
 		// Log the table creation
-		if _, err := ib.log.createTable(body); err != nil {
+		if _, err := log.createTable(body); err != nil {
 			return "", fmt.Errorf("failed to log table creation: %w", err)
 		}
 	}

@@ -3,14 +3,19 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 type Log struct {
-	db *sql.DB
+	db        *sql.DB
+	tableName string
 }
 
-func NewLog() *Log {
-	return &Log{}
+func NewLog(tableName string) *Log {
+	return &Log{
+		tableName: tableName,
+	}
 }
 
 func (l *Log) getDB() (*sql.DB, error) {
@@ -18,12 +23,32 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return l.db, nil
 	}
 
-	db, err := InitializeDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database for logging: %w", err)
+	// Create storage directory structure
+	logDir := filepath.Join("storage", l.tableName, "log")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// Create schema_log table if it doesn't exist
+	// Create database path
+	dbPath := filepath.Join(logDir, "log.db")
+
+	// Initialize main database connection
+	db, err := InitializeDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	// Attach log database
+	_, err = db.Exec(fmt.Sprintf(`
+		ATTACH DATABASE '%s' AS log_db;
+		USE log_db;
+	`, dbPath))
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to attach log database: %w", err)
+	}
+
+	// Create schema if needed
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_log (
 			timestamp TIMESTAMP PRIMARY KEY,
