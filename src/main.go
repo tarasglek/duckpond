@@ -39,8 +39,9 @@ func main() {
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Starting server on %s", addr)
-	http.HandleFunc("/query", ib.QueryHandler())
-	http.HandleFunc("/parse", ib.ParseHandler())
+	handler := ib.RequestHandler()
+	http.HandleFunc("/query", handler)
+	http.HandleFunc("/parse", handler)
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Printf("Error starting server: %v", err)
 		flag.Usage()
