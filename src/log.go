@@ -142,8 +142,8 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 	// Format the COPY query
 	copyQuery := fmt.Sprintf(`
-		COPY (%s) TO '%s' (FORMAT PARQUET);
-	`, query, parquetPath)
+		COPY (select * from %s) TO '%s' (FORMAT PARQUET);
+	`, table, parquetPath)
 
 	// Execute COPY TO PARQUET using the transaction
 	_, err = tx.Exec(copyQuery)
