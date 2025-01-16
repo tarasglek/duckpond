@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 type Log struct {
@@ -96,12 +98,37 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	// Insert the raw query using the provided transaction
-	// generated a uuidv7 for the filename
+	// Generate UUIDv7 using Go library
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return -1, fmt.Errorf("failed to generate UUID: %w", err)
+	}
 
-	// first use tx to do copy ({}) to '<table>/storage/data/<uuid>.parquet' (format parquet, codec '{}', row_group_size {})
+	// Create storage directory structure
+	dataDir := filepath.Join("storage", table, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return -1, fmt.Errorf("failed to create data directory: %w", err)
+	}
 
-	// insert uuid into insert_log table in l.db
+	// Create parquet file path using UUID
+	parquetPath := filepath.Join(dataDir, uuid.String()+".parquet")
+
+	// Execute COPY TO PARQUET using the transaction
+	_, err = tx.Exec(fmt.Sprintf(`
+		COPY (%s) TO '%s' (FORMAT PARQUET);
+	`, query, parquetPath))
+	if err != nil {
+		return -1, fmt.Errorf("failed to copy to parquet: %w", err)
+	}
+
+	// Insert into insert_log table
+	_, err = tx.Exec(`
+		INSERT INTO insert_log (id, partition)
+		VALUES (?, ?);
+	`, uuid.String(), "")
+	if err != nil {
+		return -1, fmt.Errorf("failed to log insert: %w", err)
+	}
 
 	return 0, nil
 }
