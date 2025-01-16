@@ -136,6 +136,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	if err != nil {
 		return -1, fmt.Errorf("failed to generate UUID: %w", err)
 	}
+	log.Printf("Generated UUID: %s", uuid.String())
 
 	// Create storage directory structure
 	dataDir := filepath.Join("storage", table, "data")
@@ -145,6 +146,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 	// Create parquet file path using UUID
 	parquetPath := filepath.Join(dataDir, uuid.String()+".parquet")
+	log.Printf("Parquet file path: %s", parquetPath)
 
 	// Copy table data to parquet file
 	copyQuery := fmt.Sprintf(`
