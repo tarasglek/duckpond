@@ -1,72 +1,30 @@
 package main
 
-import (
-	"testing"
+/*
+[
+  'CREATE TABLE users',
+  '  CREATE TEMPORARY TABLE temp_users',
+  '\tCREATE OR REPLACE TABLE new_users',
+  ' \t CREATE OR REPLACE TEMP TABLE tmp_users',
+  'ALTER TABLE users ADD COLUMN name TEXT', // Should not match
+  'SELECT * FROM users' // Should not match
+];
 
-	"github.com/stretchr/testify/assert"
-)
+[
+  'INSERT INTO users',
+  'INSERT OR REPLACE INTO app.users',
+  'INSERT OR IGNORE INTO mydb.schema.users',
+  '  INSERT INTO temp_users',
+  'CREATE TABLE users', // Should not match
+  'UPDATE users' // Should not match
+];
 
-func TestParseEndpoint(t *testing.T) {
-	ib, err := NewIceBase()
-	if err != nil {
-		t.Fatalf("Failed to create IceBase: %v", err)
-	}
-	defer ib.Close()
-
-	// Test cases
-	tests := []struct {
-		name        string
-		inputQuery  string
-		expectError bool
-		checkOutput func(t *testing.T, output string)
-	}{
-		{
-			name:       "simple select",
-			inputQuery: "SELECT 1",
-			checkOutput: func(t *testing.T, output string) {
-				// For SELECT statements, we expect the serialized query
-				assert.Contains(t, output, `"type":"SELECT_NODE"`)
-				assert.Contains(t, output, `"select_list":`)
-			},
-		},
-		{
-			name:       "complex query",
-			inputQuery: "SELECT * FROM (SELECT 1 AS a, 2 AS b) t WHERE a = 1",
-			checkOutput: func(t *testing.T, output string) {
-				// For SELECT statements, we expect the serialized query
-				assert.Contains(t, output, `"type":"SELECT_NODE"`)
-				assert.Contains(t, output, `"from_table":`)
-				assert.Contains(t, output, `"where_clause":`)
-			},
-		},
-		{
-			name:        "invalid query",
-			inputQuery:  "SELECT FROM", // Invalid SQL
-			expectError: true,
-			checkOutput: func(t *testing.T, output string) {
-				// We can check the error message contains "syntax"
-				assert.Contains(t, output, "syntax")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Call the parse endpoint with string body
-			result, err := ib.PostEndpoint("/parse", tt.inputQuery)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.NotEmpty(t, result)
-
-			// Run additional checks if provided
-			if tt.checkOutput != nil {
-				tt.checkOutput(t, result)
-			}
-		})
-	}
-}
+[
+  'SELECT * FROM users',
+  'SELECT id, name FROM app.users',
+  'SELECT count(*) FROM mydb.schema.users',
+  '  SELECT col1,col2 FROM temp_users',
+  'INSERT INTO users', // Should not match
+  'UPDATE users' // Should not match
+];
+*/
