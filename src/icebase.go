@@ -189,16 +189,16 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		}
 	}
 
-	response, err := ib.ExecuteQuery(body, tx)
-	if err != nil {
-		return "", fmt.Errorf("query execution failed: %w", err)
-	}
-
-	// Recreate schema before executing query
+	// Recreate schema before executing user query
 	if log != nil {
 		if err := log.RecreateSchema(tx); err != nil {
 			return "", fmt.Errorf("failed to recreate schema: %w", err)
 		}
+	}
+
+	response, err := ib.ExecuteQuery(body, tx)
+	if err != nil {
+		return "", fmt.Errorf("query execution failed: %w", err)
 	}
 
 	// Handle CREATE TABLE logging
