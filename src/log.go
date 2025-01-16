@@ -98,21 +98,44 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	// first query the schema_log table, order by timestamp, and run those all raw_query tx
+	// Get database connection
+	db, err := l.getDB()
+	if err != nil {
+		return -1, fmt.Errorf("failed to get log database: %w", err)
+	}
+
+	// Query schema_log for all create table statements
+	rows, err := db.Query(`
+		SELECT raw_query 
+		FROM schema_log
+		ORDER BY timestamp ASC
+	`)
+	if err != nil {
+		return -1, fmt.Errorf("failed to query schema_log: %w", err)
+	}
+	defer rows.Close()
+
+	// Execute each create table statement in the transaction
+	for rows.Next() {
+		var createQuery string
+		if err := rows.Scan(&createQuery); err != nil {
+			return -1, fmt.Errorf("failed to scan schema_log row: %w", err)
+		}
+
+		// Execute the create table statement
+		if _, err := tx.Exec(createQuery); err != nil {
+			return -1, fmt.Errorf("failed to execute schema_log query: %w", err)
+		}
+	}
+
 	// Generate UUIDv7 using Go library
 	uuid, err := uuid.NewV7()
 	if err != nil {
 		return -1, fmt.Errorf("failed to generate UUID: %w", err)
 	}
 
-	// Create storage directory structure
-	dataDir := filepath.Join("storage", table, "data")
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return -1, fmt.Errorf("failed to create data directory: %w", err)
-	}
-
 	// Create parquet file path using UUID
-	parquetPath := filepath.Join(dataDir, uuid.String()+".parquet")
+	parquetPath := filepath.Join("storage", table, "data", uuid.String()+".parquet")
 
 	// Execute COPY TO PARQUET using the transaction
 	_, err = tx.Exec(fmt.Sprintf(`
