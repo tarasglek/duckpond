@@ -12,10 +12,37 @@ import (
 	"github.com/google/uuid"
 )
 
+type QueryResponse struct {
+	Meta []struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	} `json:"meta"`
+	Data       [][]interface{} `json:"data"` // Always initialized as []
+	Rows       int             `json:"rows"`
+	Statistics struct {
+		Elapsed float64 `json:"elapsed"` // in seconds
+	} `json:"statistics"`
+}
+
 type IceBase struct {
 	db     *sql.DB
 	parser *Parser
 	logs   map[string]*Log
+}
+
+func (ib *IceBase) SerializeQuery(query string) (string, error) {
+	_, err := ib.db.Prepare(query)
+	if err != nil {
+		return "", fmt.Errorf("invalid query syntax: %w", err)
+	}
+
+	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
+	var serializedJSON string
+	err = ib.db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize query: %w", err)
+	}
+	return serializedJSON, nil
 }
 
 func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error) {
