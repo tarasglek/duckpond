@@ -223,7 +223,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 
 		// Convert UUID to string and build file path
 		uuidStr := uuid.UUID(id).String()
-		files = append(files, filepath.Join("storage", l.tableName, "data", uuidStr+".parquet"))
+		files = append(files, fmt.Sprintf("'%s'", filepath.Join("storage", l.tableName, "data", uuidStr+".parquet")))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -244,12 +244,17 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 
 	// Convert CREATE TABLE to CREATE VIEW
 	viewQuery := strings.Replace(createQuery, "TABLE", "VIEW", 1)
+	
+	// Join files with commas and add to query
+	if len(files) > 0 {
+		viewQuery += " AS SELECT * FROM read_parquet(" + strings.Join(files, ", ") + ")"
+	} else {
+		viewQuery += " AS SELECT * FROM read_parquet('')" // Empty view
+	}
 
-	viewQuery += " AS SELECT * FROM read_parquet(?)"
-
-	log.Printf("Recreating view with query: %s, (%v)", viewQuery, files)
+	log.Printf("Recreating view with query: %s", viewQuery)
 	// Execute the view creation
-	_, err = tx.Exec(viewQuery, files)
+	_, err = tx.Exec(viewQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create view: %w", err)
 	}
