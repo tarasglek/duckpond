@@ -196,37 +196,76 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
 func (l *Log) RecreateAsView(tx *sql.Tx) error {
-	// filels = list of files with tombstone 0 ordered by id desc
-	db, err := l.getDB()
-	if err != nil {
-		return fmt.Errorf("failed to get log database: %w", err)
-	}
+    db, err := l.getDB()
+    if err != nil {
+        return fmt.Errorf("failed to get log database: %w", err)
+    }
 
-	// Query schema_log for all create table statements
-	rows, err := db.Query(`
-		SELECT raw_query
-		FROM schema_log
-		ORDER BY timestamp ASC
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to query schema_log: %w", err)
-	}
-	defer rows.Close()
+    // Get list of active parquet files
+    var files []string
+    rows, err := db.Query(`
+        SELECT id 
+        FROM insert_log
+        WHERE tombstoned_unix_time = 0
+        ORDER BY id DESC
+    `)
+    if err != nil {
+        return fmt.Errorf("failed to query insert_log: %w", err)
+    }
+    defer rows.Close()
 
-	// Execute each create table statement in the transaction
-	for rows.Next() {
-		var createQuery string
-		if err := rows.Scan(&createQuery); err != nil {
-			return fmt.Errorf("failed to scan schema_log row: %w", err)
-		}
-		// Replace CREATE TABLE with CREATE VIEW and append files to view view read_parquet(filels);
-		// log query
-		// Execute the create table statement
-		if _, err := tx.Exec(createQuery); err != nil {
-			return fmt.Errorf("failed to execute schema_log query: %w", err)
-		}
-		break
-	}
+    for rows.Next() {
+        var id []byte
+        if err := rows.Scan(&id); err != nil {
+            return fmt.Errorf("failed to scan insert_log row: %w", err)
+        }
+        
+        // Convert UUID to string and build file path
+        uuidStr := uuid.UUID(id).String()
+        files = append(files, filepath.Join("storage", l.tableName, "data", uuidStr+".parquet"))
+    }
 
-	return nil
+    if err := rows.Err(); err != nil {
+        return fmt.Errorf("error iterating insert_log: %w", err)
+    }
+
+    // Get the latest schema
+    var createQuery string
+    err = db.QueryRow(`
+        SELECT raw_query
+        FROM schema_log
+        ORDER BY timestamp DESC
+        LIMIT 1
+    `).Scan(&createQuery)
+    if err != nil {
+        return fmt.Errorf("failed to get latest schema: %w", err)
+    }
+
+    // Convert CREATE TABLE to CREATE VIEW
+    viewQuery := strings.Replace(createQuery, "CREATE TABLE", "CREATE VIEW", 1)
+    
+    // Append read_parquet calls for each file
+    var readCalls []string
+    for _, file := range files {
+        readCalls = append(readCalls, fmt.Sprintf("read_parquet('%s')", file))
+    }
+    
+    viewQuery += " AS SELECT * FROM " + strings.Join(readCalls, " UNION ALL ")
+
+    // Log the view creation query
+    _, err = db.Exec(`
+        INSERT INTO schema_log (timestamp, raw_query)
+        VALUES (CURRENT_TIMESTAMP, ?);
+    `, viewQuery)
+    if err != nil {
+        return fmt.Errorf("failed to log view creation: %w", err)
+    }
+
+    // Execute the view creation
+    _, err = tx.Exec(viewQuery)
+    if err != nil {
+        return fmt.Errorf("failed to create view: %w", err)
+    }
+
+    return nil
 }
