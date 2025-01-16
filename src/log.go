@@ -62,6 +62,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 			id UUID PRIMARY KEY,
 			partition TEXT NOT NULL DEFAULT '',
 			tombstoned_unix_time BIGINT NOT NULL DEFAULT 0,
+			size BIGINT NOT NULL DEFAULT 0
 		);
 	`)
 	if err != nil {
@@ -172,6 +173,22 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	_, err = tx.Exec(copyQuery)
 	if err != nil {
 		return -1, fmt.Errorf("failed to copy to parquet with query: %q: %w", copyQuery, err)
+	}
+
+	// Get file size
+	fileInfo, err := os.Stat(parquetPath)
+	if err != nil {
+		return -1, fmt.Errorf("failed to get parquet file size: %w", err)
+	}
+
+	// Update size in insert_log
+	_, err = db.Exec(`
+		UPDATE insert_log 
+		SET size = ?
+		WHERE id = ?;
+	`, fileInfo.Size(), uuidBytes)
+	if err != nil {
+		return -1, fmt.Errorf("failed to update insert_log size: %w", err)
 	}
 
 	return 0, nil
