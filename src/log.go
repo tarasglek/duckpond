@@ -56,9 +56,9 @@ func (l *Log) getDB() (*sql.DB, error) {
 		);
 		
 		CREATE TABLE IF NOT EXISTS insert_log (
-			timestamp TIMESTAMP PRIMARY KEY,
-			table_name TEXT NOT NULL,
-			raw_query TEXT NOT NULL
+			id UUID PRIMARY KEY,
+			partition TEXT NOT NULL DEFAULT '',
+			tombstoned_unix_time BIGINT NOT NULL DEFAULT 0,
 		);
 	`)
 	if err != nil {
@@ -97,13 +97,11 @@ func (l *Log) Close() error {
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	// Insert the raw query using the provided transaction
-	_, err := tx.Exec(`
-		INSERT INTO insert_log (timestamp, table_name, raw_query)
-		VALUES (CURRENT_TIMESTAMP, ?, ?);
-	`, table, query)
-	if err != nil {
-		return -1, fmt.Errorf("failed to log insert: %w", err)
-	}
+	// generated a uuidv7 for the filename
+
+	// first use tx to do copy ({}) to '<table>/storage/data/<uuid>.parquet' (format parquet, codec '{}', row_group_size {})
+
+	// insert uuid into insert_log table in l.db
 
 	return 0, nil
 }
