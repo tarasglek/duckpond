@@ -29,15 +29,10 @@ func NewIceBase() (*IceBase, error) {
 		return nil, err
 	}
 
-	log, err := NewLog()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize log: %w", err)
-	}
-
 	return &IceBase{
 		db:     db,
 		parser: NewParser(),
-		log:    log,
+		log:    NewLog(),
 	}, nil
 }
 

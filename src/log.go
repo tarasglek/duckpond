@@ -9,7 +9,15 @@ type Log struct {
 	db *sql.DB
 }
 
-func NewLog() (*Log, error) {
+func NewLog() *Log {
+	return &Log{}
+}
+
+func (l *Log) getDB() (*sql.DB, error) {
+	if l.db != nil {
+		return l.db, nil
+	}
+
 	db, err := InitializeDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database for logging: %w", err)
@@ -23,17 +31,22 @@ func NewLog() (*Log, error) {
 		);
 	`)
 	if err != nil {
+		db.Close()
 		return nil, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 
-	return &Log{
-		db: db,
-	}, nil
+	l.db = db
+	return l.db, nil
 }
 
 func (l *Log) createTable(rawCreateTable string) (int, error) {
+	db, err := l.getDB()
+	if err != nil {
+		return -1, err
+	}
+
 	// Insert the raw query
-	_, err := l.db.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO schema_log (timestamp, raw_query)
 		VALUES (CURRENT_TIMESTAMP, ?);
 	`, rawCreateTable)
