@@ -54,6 +54,12 @@ func (l *Log) getDB() (*sql.DB, error) {
 			timestamp TIMESTAMP PRIMARY KEY,
 			raw_query TEXT NOT NULL
 		);
+		
+		CREATE TABLE IF NOT EXISTS insert_log (
+			timestamp TIMESTAMP PRIMARY KEY,
+			table_name TEXT NOT NULL,
+			raw_query TEXT NOT NULL
+		);
 	`)
 	if err != nil {
 		db.Close()
