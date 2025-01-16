@@ -77,8 +77,15 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 	start := time.Now()
 
-	// Then execute the original query
-	rows, err := ib.db.Query(query)
+	// Start transaction
+	tx, err := ib.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Execute the query within transaction
+	rows, err := tx.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -109,6 +116,11 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 	for i, col := range columns {
 		response.Meta[i].Name = col
 		response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
+	}
+
+	// Commit the transaction if everything succeeded
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	for rows.Next() {
 		// values will hold the actual data from the database row
@@ -176,7 +188,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		}
 	}
 
-	// Execute the query
+	// Execute the query within transaction
 	response, err := ib.ExecuteQuery(body)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %w", err)
