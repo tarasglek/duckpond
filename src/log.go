@@ -244,13 +244,13 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
     // Convert CREATE TABLE to CREATE VIEW
     viewQuery := strings.Replace(createQuery, "CREATE TABLE", "CREATE VIEW", 1)
     
-    // Append read_parquet calls for each file
-    var readCalls []string
-    for _, file := range files {
-        readCalls = append(readCalls, fmt.Sprintf("read_parquet('%s')", file))
+    // Create single read_parquet call with file list
+    quotedFiles := make([]string, len(files))
+    for i, f := range files {
+        quotedFiles[i] = fmt.Sprintf("'%s'", f)
     }
-    
-    viewQuery += " AS SELECT * FROM " + strings.Join(readCalls, " UNION ALL ")
+    fileList := strings.Join(quotedFiles, ", ")
+    viewQuery += fmt.Sprintf(" AS SELECT * FROM read_parquet([%s])", fileList)
 
     // Log the view creation query
     _, err = db.Exec(`
