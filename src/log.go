@@ -95,14 +95,9 @@ func (l *Log) Close() error {
 	return nil
 }
 
-func (l *Log) Insert(table string, query string) (int, error) {
-	db, err := l.getDB()
-	if err != nil {
-		return -1, err
-	}
-
-	// Insert the raw query
-	_, err = db.Exec(`
+func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
+	// Insert the raw query using the provided transaction
+	_, err := tx.Exec(`
 		INSERT INTO insert_log (timestamp, table_name, raw_query)
 		VALUES (CURRENT_TIMESTAMP, ?, ?);
 	`, table, query)

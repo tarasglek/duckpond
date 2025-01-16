@@ -194,6 +194,17 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			return "", fmt.Errorf("failed to log table creation: %w", err)
 		}
 	}
+
+	// Handle INSERT logging
+	if op == OpInsert {
+		log, err := ib.logByName(table)
+		if err != nil {
+			return "", fmt.Errorf("failed to get table log: %w", err)
+		}
+		if _, err := log.Insert(tx, table, body); err != nil {
+			return "", fmt.Errorf("failed to log insert: %w", err)
+		}
+	}
 	// return response as JSON
 	jsonData, err := json.Marshal(response)
 	if err != nil {
