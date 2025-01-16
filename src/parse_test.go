@@ -26,6 +26,14 @@ func TestParser(t *testing.T) {
 		{"CREATE TABLE users", OpCreateTable, "users"},
 		{"UPDATE users", OpUnknown, ""},
 
+		// Alter table tests
+		{"ALTER TABLE users ADD COLUMN email TEXT", OpAlterTable, "users"},
+		{"ALTER TABLE app.users DROP COLUMN age", OpAlterTable, "app.users"},
+		{"ALTER TABLE mydb.schema.users RENAME TO new_users", OpAlterTable, "mydb.schema.users"},
+		{"  ALTER TABLE temp_users ADD PRIMARY KEY (id)", OpAlterTable, "temp_users"},
+		{"SELECT * FROM users", OpSelect, "users"}, // Should not match
+		{"CREATE TABLE users", OpCreateTable, "users"}, // Should not match
+
 		// Select tests
 		{"SELECT * FROM users", OpSelect, "users"},
 		{"SELECT id, name FROM app.users", OpSelect, "app.users"},

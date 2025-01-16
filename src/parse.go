@@ -10,6 +10,7 @@ const (
 	OpInsert Operation = iota
 	OpCreateTable
 	OpSelect
+	OpAlterTable
 	OpUnknown
 )
 
@@ -17,6 +18,7 @@ type Parser struct {
 	insertRe    *regexp.Regexp
 	createRe    *regexp.Regexp
 	selectRe    *regexp.Regexp
+	alterRe     *regexp.Regexp
 }
 
 func NewParser() *Parser {
@@ -24,6 +26,7 @@ func NewParser() *Parser {
 		insertRe: regexp.MustCompile(`(?i)^\s*INSERT\s+(OR\s+(REPLACE|IGNORE)\s+)?INTO\s+([.\w]+)`),
 		createRe: regexp.MustCompile(`(?i)^\s*CREATE\s+(OR\s+REPLACE\s+)?(TEMP(?:ORARY)?\s+)?TABLE\s+(\w+)`),
 		selectRe: regexp.MustCompile(`(?i)^\s*SELECT\s+.+?\s+FROM\s+([.\w]+)`),
+		alterRe:  regexp.MustCompile(`(?i)^\s*ALTER\s+TABLE\s+([.\w]+)`),
 	}
 }
 
@@ -36,6 +39,9 @@ func (p *Parser) Parse(query string) (Operation, string) {
 	}
 	if matches := p.selectRe.FindStringSubmatch(query); matches != nil {
 		return OpSelect, matches[len(matches)-1]
+	}
+	if matches := p.alterRe.FindStringSubmatch(query); matches != nil {
+		return OpAlterTable, matches[len(matches)-1]
 	}
 	return OpUnknown, ""
 }
