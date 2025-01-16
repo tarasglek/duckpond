@@ -158,7 +158,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	}
 
 	// Insert into insert_log table
-	_, err = tx.Exec(`
+	_, err = l.db.Exec(`
 		INSERT INTO insert_log (id, partition)
 		VALUES (?, ?);
 	`, uuid.String(), "")
