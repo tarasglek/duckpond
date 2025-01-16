@@ -137,12 +137,12 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	if err != nil {
 		return -1, fmt.Errorf("failed to generate UUID: %w", err)
 	}
-	
+
 	// Verify UUID version
 	if uuid.Version() != 7 {
 		return -1, fmt.Errorf("generated UUID is not version 7: %s", uuid.String())
 	}
-	
+
 	log.Printf("Generated UUIDv7: %s", uuid.String())
 
 	// Create storage directory structure
@@ -169,8 +169,8 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	// Insert into insert_log table
 	_, err = l.db.Exec(`
 		INSERT INTO insert_log (id, partition)
-		VALUES (?, ?);
-	`, uuid.String(), "")
+		VALUES (uuidv7(), ?);
+	`, "")
 	if err != nil {
 		return -1, fmt.Errorf("failed to log insert: %w", err)
 	}
