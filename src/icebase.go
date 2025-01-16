@@ -30,20 +30,6 @@ type IceBase struct {
 	logs   map[string]*Log
 }
 
-func (ib *IceBase) SerializeQuery(query string) (string, error) {
-	_, err := ib.db.Prepare(query)
-	if err != nil {
-		return "", fmt.Errorf("invalid query syntax: %w", err)
-	}
-
-	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
-	var serializedJSON string
-	err = ib.db.QueryRow(serializedQuery).Scan(&serializedJSON)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize query: %w", err)
-	}
-	return serializedJSON, nil
-}
 
 func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error) {
 	start := time.Now()
@@ -184,103 +170,6 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	return serializedJSON, nil
 }
 
-func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
-	start := time.Now()
-
-	// Start transaction
-	tx, err := ib.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Execute the query within transaction
-	rows, err := tx.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("query error: %w", err)
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
-	}
-
-	columnTypes, err := rows.ColumnTypes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get column types: %w", err)
-	}
-
-	// Initialize response with empty data slice
-	response := QueryResponse{
-		Data: make([][]interface{}, 0), // Ensure Data is never nil
-	}
-	var data [][]interface{} // Define data variable that will be used later
-
-	// Populate meta information
-	response.Meta = make([]struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-	}, len(columns))
-
-	for i, col := range columns {
-		response.Meta[i].Name = col
-		response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
-	}
-
-	// Commit the transaction if everything succeeded
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-	for rows.Next() {
-		// values will hold the actual data from the database row
-		values := make([]interface{}, len(columns))
-
-		// valuePtrs is an array of pointers to the values array elements
-		// This is necessary because rows.Scan() requires pointers to where it should
-		// store the scanned values. We can't pass values directly since it contains
-		// interface{} elements, not pointers.
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range columns {
-			// Each pointer in valuePtrs points to the corresponding element in values
-			valuePtrs[i] = &values[i]
-		}
-
-		// Scan the current row into our value pointers
-		// This will populate the values array through the pointers in valuePtrs
-		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-
-		// Process the scanned values...
-		rowData := make([]interface{}, len(columns))
-		for i := range values {
-			if values[i] == nil {
-				rowData[i] = "NULL"
-				continue
-			}
-
-			// Handle UUID specifically
-			if response.Meta[i].Type == "UUID" && values[i] != nil {
-				if v, ok := values[i].([]byte); ok {
-					rowData[i] = uuid.UUID(v).String()
-					continue
-				}
-			}
-
-			// Default case for all other values
-			rowData[i] = fmt.Sprintf("%v", values[i])
-		}
-		data = append(data, rowData)
-	}
-
-	response.Data = data // Now data is properly defined
-	response.Rows = len(data)
-	elapsed := time.Since(start)
-	response.Statistics.Elapsed = elapsed.Seconds()
-
-	return &response, nil
-}
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Parse query to check if it's a CREATE TABLE
