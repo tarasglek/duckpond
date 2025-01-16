@@ -98,6 +98,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
+	// first query the schema_log table, order by timestamp, and run those all raw_query tx
 	// Generate UUIDv7 using Go library
 	uuid, err := uuid.NewV7()
 	if err != nil {
