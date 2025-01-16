@@ -249,6 +249,9 @@ func (ib *IceBase) handleParse(body string) (string, error) {
 }
 
 func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
+	// Trim whitespace from body
+	body = strings.TrimSpace(body)
+	
 	switch endpoint {
 	case "/query":
 		return ib.handleQuery(body)
