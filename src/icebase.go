@@ -15,6 +15,7 @@ import (
 type IceBase struct {
 	db     *sql.DB
 	parser *Parser
+	log    *Log
 }
 
 // DB returns the underlying DuckDB instance
@@ -27,13 +28,23 @@ func NewIceBase() (*IceBase, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log, err := NewLog()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize log: %w", err)
+	}
+
 	return &IceBase{
 		db:     db,
 		parser: NewParser(),
+		log:    log,
 	}, nil
 }
 
 func (ib *IceBase) Close() error {
+	if err := ib.log.Close(); err != nil {
+		return fmt.Errorf("failed to close log: %w", err)
+	}
 	return ib.db.Close()
 }
 
@@ -147,6 +158,16 @@ func (ib *IceBase) ExecuteQuery(query string) (*QueryResponse, error) {
 }
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
+	// Parse query to check if it's a CREATE TABLE
+	op, table := ib.parser.Parse(body)
+	if op == OpCreateTable {
+		// Log the table creation
+		if _, err := ib.log.createTable(body); err != nil {
+			return "", fmt.Errorf("failed to log table creation: %w", err)
+		}
+	}
+
+	// Execute the query
 	response, err := ib.ExecuteQuery(body)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %w", err)
