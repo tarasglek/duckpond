@@ -14,6 +14,7 @@ import (
 
 type IceBase struct {
 	db *sql.DB
+	parser *Parser
 }
 
 // DB returns the underlying DuckDB instance
@@ -26,7 +27,10 @@ func NewIceBase() (*IceBase, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &IceBase{db: db}, nil
+	return &IceBase{
+		db: db,
+		parser: NewParser(),
+	}, nil
 }
 
 func (ib *IceBase) Close() error {
