@@ -137,13 +137,19 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		return -1, fmt.Errorf("failed to generate UUID: %w", err)
 	}
 
+	// Create storage directory structure
+	dataDir := filepath.Join("storage", table, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return -1, fmt.Errorf("failed to create data directory: %w", err)
+	}
+
 	// Create parquet file path using UUID
-	parquetPath := filepath.Join("storage", table, "data", uuid.String()+".parquet")
+	parquetPath := filepath.Join(dataDir, uuid.String()+".parquet")
 
 	// Format the COPY query
 	copyQuery := fmt.Sprintf(`
-		COPY (select * from %s) TO '%s' (FORMAT PARQUET);
-	`, table, parquetPath)
+		COPY (%s) TO '%s' (FORMAT PARQUET);
+	`, query, parquetPath)
 
 	// Execute COPY TO PARQUET using the transaction
 	_, err = tx.Exec(copyQuery)
