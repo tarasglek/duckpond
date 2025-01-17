@@ -203,7 +203,6 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
         SELECT id 
         FROM insert_log
         WHERE tombstoned_unix_time = 0
-        ORDER BY id DESC
     `)
 	if err != nil {
 		return fmt.Errorf("failed to query insert_log: %w", err)
