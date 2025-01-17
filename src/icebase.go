@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -166,8 +167,8 @@ func (ib *IceBase) logByName(tableName string) (*Log, error) {
 		return log, nil
 	}
 
-	// Create new log for table
-	log := NewLog(tableName)
+	// Create new log for table with storageDir from IceBase
+	log := NewLog(ib.storageDir, tableName)
 	ib.logs[tableName] = log
 	return log, nil
 }
