@@ -33,3 +33,18 @@ func InitializeDuckDB() (*sql.DB, error) {
 
 	return db, nil
 }
+
+// ResetMemoryDB resets the in-memory database state
+func ResetMemoryDB(db *sql.DB) error {
+	_, err := db.Exec(`
+		ATTACH ':memory:' AS tmp;
+		DETACH icebase;
+		ATTACH ':memory:' AS icebase;
+		USE icebase;
+		DETACH tmp;
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to reset memory database: %w", err)
+	}
+	return nil
+}
