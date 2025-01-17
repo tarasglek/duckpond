@@ -154,6 +154,27 @@ func (ib *IceBase) Close() error {
 	return ib.db.Close()
 }
 
+// Destroy completely removes all logs and associated data
+func (ib *IceBase) Destroy() error {
+	// Close all table logs and destroy their storage
+	for tableName, log := range ib.logs {
+		if err := log.Destroy(); err != nil {
+			return fmt.Errorf("failed to destroy log for table %s: %w", tableName, err)
+		}
+		delete(ib.logs, tableName)
+	}
+
+	// Close the main database connection
+	if ib.db != nil {
+		if err := ib.db.Close(); err != nil {
+			return fmt.Errorf("failed to close database: %w", err)
+		}
+		ib.db = nil
+	}
+
+	return nil
+}
+
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	_, err := ib.db.Prepare(query)
 	if err != nil {
