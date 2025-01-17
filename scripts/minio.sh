@@ -7,7 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # Inline configuration
 MINIO_ROOT_USER=${MINIO_ROOT_USER:-demo}
 MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-demo-pass}
-MINIO_PORT=${MINIO_PORT:-9000}
+MINIO_API_PORT=${MINIO_API_PORT:-9000}
+MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT:-$((MINIO_API_PORT + 1))}
 MINIO_HOST=${MINIO_HOST:-localhost}
 MINIO_DATA_DIR=${MINIO_DATA_DIR:-"$SCRIPT_DIR/data"}
 
@@ -22,10 +23,11 @@ mkdir -p "$MINIO_DATA_DIR"
 start_server() {
     echo "Starting MinIO Server..."
     echo "Data directory: $MINIO_DATA_DIR"
-    CONSOLE_PORT=$((MINIO_PORT + 1))
+    echo "API Port: $MINIO_API_PORT"
+    echo "Console Port: $MINIO_CONSOLE_PORT"
     minio server "$MINIO_DATA_DIR" \
-        --address ":${MINIO_PORT}" \
-        --console-address ":${CONSOLE_PORT}" \
+        --address ":${MINIO_API_PORT}" \
+        --console-address ":${MINIO_CONSOLE_PORT}" \
         "$@"
 }
 
@@ -77,7 +79,8 @@ case "$1" in
             echo "Current configuration:"
             echo "MINIO_ROOT_USER=$MINIO_ROOT_USER"
             echo "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
-            echo "MINIO_PORT=$MINIO_PORT"
+            echo "MINIO_API_PORT=$MINIO_API_PORT"
+            echo "MINIO_CONSOLE_PORT=$MINIO_CONSOLE_PORT"
             echo "MINIO_HOST=$MINIO_HOST"
             echo "MINIO_DATA_DIR=$MINIO_DATA_DIR"
             exit 0
