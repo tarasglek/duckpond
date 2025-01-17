@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # Inline configuration
 MINIO_ROOT_USER=${MINIO_ROOT_USER:-demo}
 MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-demo-pass}
-MINIO_API_PORT=${MINIO_API_PORT:-9000}
+MINIO_API_PORT=${MINIO_API_PORT:-8883}
 MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT:-$((MINIO_API_PORT + 1))}
 MINIO_HOST=${MINIO_HOST:-localhost}
 MINIO_DATA_DIR=${MINIO_DATA_DIR:-"$SCRIPT_DIR/data"}
@@ -34,7 +34,7 @@ start_server() {
 # Function to configure MinIO client
 setup_client() {
     echo "Configuring MinIO Client..."
-    mc alias set local \
+    mc alias set s3 \
         "http://${MINIO_HOST}:${MINIO_PORT}" \
         "$MINIO_ROOT_USER" \
         "$MINIO_ROOT_PASSWORD"
