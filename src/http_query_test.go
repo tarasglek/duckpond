@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -112,29 +113,29 @@ func readJSON(t *testing.T, path string) map[string]interface{} {
 }
 
 func TestHttpQuery(t *testing.T) {
-	// Setup IceBase and HTTP server
 	ib, err := NewIceBase()
 	assert.NoError(t, err, "Failed to create IceBase")
 	defer ib.Close()
-
-	_, err = ib.DB().Exec(`
-		INSTALL httpserver; 
-		LOAD httpserver; 
-		SELECT httpserve_start('localhost', '8882', '');`)
-	assert.NoError(t, err, "Failed to setup HTTP server")
-	assert.NoError(t, waitForServerReady(), "Server not ready")
 
 	// Run tests for all query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
 	assert.NoError(t, err, "Failed to find test files")
 
 	for _, testFile := range testFiles {
-		// Destroy any existing state before each test
-		if err := ib.Destroy(); err != nil {
-			t.Logf("Warning: failed to destroy icebase state: %v", err)
-		}
-
 		t.Run(testFile, func(t *testing.T) {
+			// Destroy any existing state before each test
+			if err := ib.Destroy(); err != nil {
+				t.Logf("Warning: failed to destroy icebase state: %v", err)
+			}
+			log.Printf("Running test: %s", testFile)
+			// [re-]start HTTP server
+			_, err = ib.DB().Exec(`
+			INSTALL httpserver;
+			LOAD httpserver;
+			SELECT httpserve_start('localhost', '8882', '');`)
+			assert.NoError(t, err, "Failed to setup HTTP server")
+			assert.NoError(t, waitForServerReady(), "Server not ready")
+
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
 			_, err := ib.DB().Exec(fmt.Sprintf(`
