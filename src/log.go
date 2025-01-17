@@ -231,6 +231,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	viewQuery += " AS SELECT * FROM read_parquet([" + strings.Join(files, ", ") + "])"
 
 	// Execute the view creation
+	log.Printf("Creating view with query:\n%s", viewQuery)
 	_, err = tx.Exec(viewQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create view: %w", err)
