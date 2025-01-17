@@ -128,6 +128,7 @@ func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error
 }
 
 // DB returns the underlying DuckDB instance, initializing it if needed
+// This is an in-memory db
 func (ib *IceBase) DB() *sql.DB {
 	if ib._db == nil {
 		var err error
@@ -212,7 +213,7 @@ func (ib *IceBase) Destroy() error {
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	db := ib.DB()
-	
+
 	_, err := db.Prepare(query)
 	if err != nil {
 		return "", fmt.Errorf("invalid query syntax: %w", err)
