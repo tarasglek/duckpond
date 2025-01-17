@@ -95,34 +95,6 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 	return 0, nil
 }
 
-func (l *Log) Close() error {
-	if l.db != nil {
-		return l.db.Close()
-	}
-	return nil
-}
-
-// Destroy completely removes the log and all associated data
-func (l *Log) Destroy() error {
-	// Close database connection if open
-	if l.db != nil {
-		if err := l.db.Close(); err != nil {
-			return fmt.Errorf("failed to close database: %w", err)
-		}
-		l.db = nil
-	}
-
-	// Build path to delete
-	storagePath := filepath.Join(l.storageDir, l.tableName)
-
-	// Remove entire storage directory
-	if err := os.RemoveAll(storagePath); err != nil {
-		return fmt.Errorf("failed to remove storage directory: %w", err)
-	}
-
-	return nil
-}
-
 func (l *Log) RecreateSchema(tx *sql.Tx) error {
 	db, err := l.getDB()
 	if err != nil {
@@ -266,6 +238,35 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	_, err = tx.Exec(viewQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create view: %w", err)
+	}
+
+	return nil
+}
+
+func (l *Log) Close() error {
+	if l.db != nil {
+		return l.db.Close()
+	}
+	return nil
+}
+
+// Destroy completely removes the log and all associated data
+// does not Close the database connection (useful for testing)
+func (l *Log) Destroy() error {
+	// Close database connection if open
+	if l.db != nil {
+		if err := l.db.Close(); err != nil {
+			return fmt.Errorf("failed to close database: %w", err)
+		}
+		l.db = nil
+	}
+
+	// Build path to delete
+	storagePath := filepath.Join(l.storageDir, l.tableName)
+
+	// Remove entire storage directory
+	if err := os.RemoveAll(storagePath); err != nil {
+		return fmt.Errorf("failed to remove storage directory: %w", err)
 	}
 
 	return nil

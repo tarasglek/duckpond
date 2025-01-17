@@ -113,10 +113,18 @@ func readJSON(t *testing.T, path string) map[string]interface{} {
 }
 
 func TestHttpQuery(t *testing.T) {
-    // Create IceBase with custom storage directory
-    ib, err := NewIceBase(WithStorageDir("http_query_test_tables"))
-    assert.NoError(t, err, "Failed to create IceBase")
-    defer ib.Close()
+	// Create IceBase with custom storage directory
+	ib, err := NewIceBase(WithStorageDir("http_query_test_tables"))
+	assert.NoError(t, err, "Failed to create IceBase")
+	defer ib.Close()
+
+	// start HTTP server
+	_, err = ib.DB().Exec(`
+				INSTALL httpserver;
+				LOAD httpserver;
+				SELECT httpserve_start('localhost', '8882', '');`)
+	assert.NoError(t, err, "Failed to setup HTTP server")
+	assert.NoError(t, waitForServerReady(), "Server not ready")
 
 	// Run tests for all query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
@@ -124,39 +132,23 @@ func TestHttpQuery(t *testing.T) {
 
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
-			// Destroy any existing state before each test
-			if err := ib.Destroy(); err != nil {
-				t.Logf("Warning: failed to destroy icebase state: %v", err)
-			}
-			log.Printf("Running test: %s", testFile)
-			// [re-]start HTTP server
-			_, err = ib.DB().Exec(`
-			INSTALL httpserver;
-			LOAD httpserver;
-			SELECT httpserve_start('localhost', '8882', '');`)
-			assert.NoError(t, err, "Failed to setup HTTP server")
-			assert.NoError(t, waitForServerReady(), "Server not ready")
 
+			log.Printf("Running test: %s", testFile)
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
-			_, err := ib.DB().Exec(fmt.Sprintf(`
-				CREATE SCHEMA %s;
-				SET search_path TO %s;
-			`, schemaName, schemaName))
 			if err != nil {
 				t.Fatalf("Failed to create schema %s: %v", schemaName, err)
 			}
 
-			// Ensure schema is dropped after test
-			defer func() {
-				_, err := ib.DB().Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schemaName))
-				if err != nil {
-					t.Logf("Warning: failed to drop schema %s: %v", schemaName, err)
-				}
-			}()
-
 			// Run the actual test
 			testQuery(t, ib, testFile)
+
+			// Destroy any existing state before each test
+			// don't use defer so we have state available for debugging if test fails
+			if err := ib.Destroy(); err != nil {
+				t.Logf("Warning: failed to destroy icebase state: %v", err)
+			}
+
 		})
 	}
 }
