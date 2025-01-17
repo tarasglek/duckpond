@@ -139,12 +139,12 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	assert.Equal(t,
 		processAndCompare(t, expectedJSON, expectedJSON),
 		processAndCompare(t, httpJSON, expectedJSON),
-		"HTTP response mismatch")
+		fmt.Sprintf("HTTP response mismatch for %s", expectedPath))
 
 	assert.Equal(t,
 		processAndCompare(t, expectedJSON, expectedJSON),
 		processAndCompare(t, icebaseJSON, expectedJSON),
-		"IceBase response mismatch")
+		fmt.Sprintf("IceBase response mismatch for %s", expectedPath))
 }
 
 func writeExpectedResult(t *testing.T, queryFile string, httpJSON string) string {
