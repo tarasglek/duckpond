@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 )
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
@@ -46,15 +47,17 @@ func ResetMemoryDB(db *sql.DB) error {
 		return fmt.Errorf("failed to get database name: %w", err)
 	}
 
-	// Reset database
-	_, err := db.Exec(fmt.Sprintf(`
-			ATTACH ':memory:' AS tmp;
-			USE tmp;
-			DETACH %s;
-			ATTACH ':memory:' AS %s;
-			USE %s;
-			DETACH tmp;
-	`, dbName, dbName, dbName))
+	// Build and log the cleanup query
+	cleanupQuery := fmt.Sprintf(`
+		ATTACH ':memory:' AS tmp;
+		DETACH %s;
+		ATTACH ':memory:' AS %s;
+		USE %s;
+		DETACH tmp;
+	`, dbName, dbName, dbName)
+	log.Printf("Executing database cleanup:\n%s", cleanupQuery)
 
+	// Execute the cleanup
+	_, err := db.Exec(cleanupQuery)
 	return err
 }
