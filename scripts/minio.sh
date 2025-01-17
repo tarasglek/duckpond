@@ -22,7 +22,11 @@ mkdir -p "$MINIO_DATA_DIR"
 start_server() {
     echo "Starting MinIO Server..."
     echo "Data directory: $MINIO_DATA_DIR"
-    minio server "$MINIO_DATA_DIR" --console-address ":${MINIO_PORT}" "$@" &
+    CONSOLE_PORT=$((MINIO_PORT + 1))
+    minio server "$MINIO_DATA_DIR" \
+        --address ":${MINIO_PORT}" \
+        --console-address ":${CONSOLE_PORT}" \
+        "$@" &
     sleep 2  # Give server time to start
 }
 
