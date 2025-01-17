@@ -211,14 +211,7 @@ func (ib *IceBase) Destroy() error {
 
 	// Reset memory database if connection exists
 	if ib._db != nil {
-		_, err := ib._db.Exec(`
-            ATTACH ':memory:' AS tmp;
-            DETACH icebase;
-            ATTACH ':memory:' AS icebase;
-            USE icebase;
-            DETACH tmp;
-        `)
-		if err != nil {
+		if err := ResetMemoryDB(ib._db); err != nil {
 			return fmt.Errorf("failed to reset memory database: %w", err)
 		}
 	}
