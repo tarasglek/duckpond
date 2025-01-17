@@ -59,14 +59,39 @@ case "$1" in
         setup_client "$@"
         ;;
     *)
-        echo "Usage: $0 {server|client|all} [additional arguments...]"
-        echo
-        echo "Current configuration:"
-        echo "MINIO_ROOT_USER=$MINIO_ROOT_USER"
-        echo "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
-        echo "MINIO_PORT=$MINIO_PORT"
-        echo "MINIO_HOST=$MINIO_HOST"
-        echo "MINIO_DATA_DIR=$MINIO_DATA_DIR"
-        exit 1
+        if [ $# -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+            echo "MinIO Management Script"
+            echo
+            echo "Usage: $0 {server|client|all} [additional arguments...]"
+            echo
+            echo "Standard Options:"
+            echo "  --help, -h       Show this help message"
+            echo "  --version        Show version information"
+            echo
+            echo "Server Options:"
+            minio server --help | sed -n '/OPTIONS:/,$p'
+            echo
+            echo "Client Options:"
+            mc --help | sed -n '/OPTIONS:/,$p'
+            echo
+            echo "Current configuration:"
+            echo "MINIO_ROOT_USER=$MINIO_ROOT_USER"
+            echo "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
+            echo "MINIO_PORT=$MINIO_PORT"
+            echo "MINIO_HOST=$MINIO_HOST"
+            echo "MINIO_DATA_DIR=$MINIO_DATA_DIR"
+            exit 0
+        elif [ "$1" = "--version" ]; then
+            echo "MinIO Server:"
+            minio --version
+            echo
+            echo "MinIO Client:"
+            mc --version
+            exit 0
+        else
+            echo "Invalid command: $1"
+            echo "Use --help for usage information"
+            exit 1
+        fi
         ;;
 esac
