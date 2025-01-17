@@ -130,14 +130,23 @@ func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error
 // DB returns the underlying DuckDB instance, initializing it if needed
 // This is an in-memory db
 func (ib *IceBase) DB() *sql.DB {
-	if ib._db == nil {
-		var err error
-		ib._db, err = InitializeDuckDB()
-		if err != nil {
-			panic(fmt.Sprintf("failed to initialize database: %v", err))
-		}
-	}
-	return ib._db
+    if ib._db == nil {
+        var err error
+        ib._db, err = InitializeDuckDB()
+        if err != nil {
+            panic(fmt.Sprintf("failed to initialize database: %v", err))
+        }
+        
+        // Initialize memory database
+        _, err = ib._db.Exec(`
+            ATTACH ':memory:' AS icebase;
+            USE icebase;
+        `)
+        if err != nil {
+            panic(fmt.Sprintf("failed to initialize memory database: %v", err))
+        }
+    }
+    return ib._db
 }
 
 func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
@@ -192,23 +201,29 @@ func (ib *IceBase) Close() error {
 
 // Destroy completely removes all logs and associated data
 func (ib *IceBase) Destroy() error {
-	// Close all table logs and destroy their storage
-	for tableName, log := range ib.logs {
-		if err := log.Destroy(); err != nil {
-			return fmt.Errorf("failed to destroy log for table %s: %w", tableName, err)
-		}
-		delete(ib.logs, tableName)
-	}
+    // Destroy all table logs (keep existing logic)
+    for tableName, log := range ib.logs {
+        if err := log.Destroy(); err != nil {
+            return fmt.Errorf("failed to destroy log for table %s: %w", tableName, err)
+        }
+        delete(ib.logs, tableName)
+    }
 
-	// Close the main database connection if it exists
-	if ib._db != nil {
-		if err := ib._db.Close(); err != nil {
-			return fmt.Errorf("failed to close database: %w", err)
-		}
-		ib._db = nil
-	}
+    // Reset memory database if connection exists
+    if ib._db != nil {
+        _, err := ib._db.Exec(`
+            ATTACH ':memory:' AS tmp;
+            DETACH icebase;
+            ATTACH ':memory:' AS icebase;
+            USE icebase;
+            DETACH tmp;
+        `)
+        if err != nil {
+            return fmt.Errorf("failed to reset memory database: %w", err)
+        }
+    }
 
-	return nil
+    return nil
 }
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
