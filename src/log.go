@@ -100,6 +100,27 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// Destroy completely removes the log and all associated data
+func (l *Log) Destroy() error {
+	// Close database connection if open
+	if l.db != nil {
+		if err := l.db.Close(); err != nil {
+			return fmt.Errorf("failed to close database: %w", err)
+		}
+		l.db = nil
+	}
+
+	// Build path to delete
+	storagePath := filepath.Join("storage", l.tableName)
+
+	// Remove entire storage directory
+	if err := os.RemoveAll(storagePath); err != nil {
+		return fmt.Errorf("failed to remove storage directory: %w", err)
+	}
+
+	return nil
+}
+
 func (l *Log) RecreateSchema(tx *sql.Tx) error {
 	db, err := l.getDB()
 	if err != nil {
