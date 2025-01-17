@@ -35,7 +35,7 @@ start_server() {
 setup_client() {
     echo "Configuring MinIO Client..."
     mc alias set s3 \
-        "http://${MINIO_HOST}:${MINIO_PORT}" \
+        "http://${MINIO_HOST}:${MINIO_API_PORT}" \
         "$MINIO_ROOT_USER" \
         "$MINIO_ROOT_PASSWORD"
 
