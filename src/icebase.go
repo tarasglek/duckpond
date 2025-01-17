@@ -113,19 +113,20 @@ func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error
 	return &response, nil
 }
 
-// DB returns the underlying DuckDB instance
+// DB returns the underlying DuckDB instance, initializing it if needed
 func (ib *IceBase) DB() *sql.DB {
+	if ib.db == nil {
+		var err error
+		ib.db, err = InitializeDuckDB()
+		if err != nil {
+			panic(fmt.Sprintf("failed to initialize database: %v", err))
+		}
+	}
 	return ib.db
 }
 
 func NewIceBase() (*IceBase, error) {
-	db, err := InitializeDuckDB()
-	if err != nil {
-		return nil, err
-	}
-
 	return &IceBase{
-		db:     db,
 		parser: NewParser(),
 		logs:   make(map[string]*Log),
 	}, nil
@@ -146,12 +147,16 @@ func (ib *IceBase) Close() error {
 	// Close all table logs
 	for _, log := range ib.logs {
 		if log.db != nil {
-			if err := log.db.Close(); err != nil {
+			if err := log.Close(); err != nil {
 				return fmt.Errorf("failed to close log: %w", err)
 			}
 		}
 	}
-	return ib.db.Close()
+	
+	if ib.db != nil {
+		return ib.db.Close()
+	}
+	return nil
 }
 
 // Destroy completely removes all logs and associated data
