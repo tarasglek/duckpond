@@ -113,9 +113,10 @@ func readJSON(t *testing.T, path string) map[string]interface{} {
 }
 
 func TestHttpQuery(t *testing.T) {
-	ib, err := NewIceBase()
-	assert.NoError(t, err, "Failed to create IceBase")
-	defer ib.Close()
+    // Create IceBase with custom storage directory
+    ib, err := NewIceBase(WithStorageDir("http_query_test_tables"))
+    assert.NoError(t, err, "Failed to create IceBase")
+    defer ib.Close()
 
 	// Run tests for all query files
 	testFiles, err := filepath.Glob("query_test/query_*.sql")
