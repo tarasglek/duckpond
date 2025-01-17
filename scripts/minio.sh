@@ -26,8 +26,7 @@ start_server() {
     minio server "$MINIO_DATA_DIR" \
         --address ":${MINIO_PORT}" \
         --console-address ":${CONSOLE_PORT}" \
-        "$@" &
-    sleep 2  # Give server time to start
+        "$@"
 }
 
 # Function to configure MinIO client
