@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 )
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
@@ -47,17 +46,27 @@ func ResetMemoryDB(db *sql.DB) error {
 		return fmt.Errorf("failed to get database name: %w", err)
 	}
 
-	// Build and log the cleanup query
-	cleanupQuery := fmt.Sprintf(`
-		ATTACH ':memory:' AS tmp;
-		DETACH %s;
-		ATTACH ':memory:' AS %s;
-		USE %s;
-		DETACH tmp;
-	`, dbName, dbName, dbName)
-	log.Printf("Executing database cleanup:\n%s", cleanupQuery)
+	// now run ATTACH 'memory' as <dbName_tmp>; USE <dbName_tmp>; detach <dbName>; ATTACH 'memory' as <dbName>; USE <dbName>;
+	_, err := db.Exec(fmt.Sprintf(`ATTACH ':memory:' AS %s_tmp; USE %s_tmp; DETACH %s; ATTACH ':memory:' AS %s; USE %s`, dbName))
+	if err != nil {
+		return fmt.Errorf("failed to reset memory database: %w", err)
+	}
 
-	// Execute the cleanup
-	_, err := db.Exec(cleanupQuery)
-	return err
+	rows, err := db.Query("SELECT name FROM pragma_database_list() WHERE name != %s", dbName)
+	if err != nil {
+		return fmt.Errorf("failed to list databases: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("failed to scan database name: %w", err)
+		}
+		if _, err := db.Exec("DETACH " + name); err != nil {
+			return fmt.Errorf("failed to detach %s: %w", name, err)
+		}
+	}
+
+	return nil
 }
