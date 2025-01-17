@@ -169,7 +169,7 @@ func (ib *IceBase) Destroy() error {
 		delete(ib.logs, tableName)
 	}
 
-	// Close the main database connection
+	// Close the main database connection if it exists
 	if ib.db != nil {
 		if err := ib.db.Close(); err != nil {
 			return fmt.Errorf("failed to close database: %w", err)
