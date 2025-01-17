@@ -211,14 +211,16 @@ func (ib *IceBase) Destroy() error {
 }
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
-	_, err := ib._db.Prepare(query)
+	db := ib.DB()
+	
+	_, err := db.Prepare(query)
 	if err != nil {
 		return "", fmt.Errorf("invalid query syntax: %w", err)
 	}
 
 	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
 	var serializedJSON string
-	err = ib._db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	err = db.QueryRow(serializedQuery).Scan(&serializedJSON)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize query: %w", err)
 	}
@@ -226,8 +228,11 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 }
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
+	// Get database connection
+	db := ib.DB()
+
 	// Execute query, then discard results
-	tx, err := ib._db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
