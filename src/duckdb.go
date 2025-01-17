@@ -36,35 +36,25 @@ func InitializeDuckDB() (*sql.DB, error) {
 
 // ResetMemoryDB resets the in-memory database state
 func ResetMemoryDB(db *sql.DB) error {
-	// First attach temporary database
-	_, err := db.Exec("ATTACH ':memory:' AS tmp;")
-	if err != nil {
-		return fmt.Errorf("failed to attach temporary database: %w", err)
+	// Get database name from character sets
+	var dbName string
+	if err := db.QueryRow(`
+			SELECT default_collate_catalog
+			FROM information_schema.character_sets
+			LIMIT 1;
+	`).Scan(&dbName); err != nil {
+		return fmt.Errorf("failed to get database name: %w", err)
 	}
 
-	// Query current database list
-	rows, err := db.Query("PRAGMA database_list;")
-	if err != nil {
-		return fmt.Errorf("failed to query database list: %w", err)
-	}
-	defer rows.Close()
+	// Reset database
+	_, err := db.Exec(fmt.Sprintf(`
+			ATTACH ':memory:' AS tmp;
+			USE tmp;
+			DETACH %s;
+			ATTACH ':memory:' AS %s;
+			USE %s;
+			DETACH tmp;
+	`, dbName, dbName, dbName))
 
-	// Detach all databases except 'tmp'
-	for rows.Next() {
-		var seq int64
-		var name, file string
-		if err := rows.Scan(&seq, &name, &file); err != nil {
-			return fmt.Errorf("failed to scan database list: %w", err)
-		}
-		
-		// Skip detaching the temporary database
-		if name != "tmp" {
-			_, err := db.Exec(fmt.Sprintf("DETACH %s;", name))
-			if err != nil {
-				return fmt.Errorf("failed to detach database %s: %w", name, err)
-			}
-		}
-	}
-
-	return nil
+	return err
 }
