@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -90,7 +91,22 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 		"Failed to parse IceBase response")
 
 	// Read expected result
-	expectedJSON := readJSON(t, queryFile+".result.json")
+	expectedPath := queryFile + ".result.json"
+	expectedJSON, err := readJSON(t, expectedPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// If expected result doesn't exist, write the actual result
+			httpJSONBytes, _ := json.MarshalIndent(httpJSON, "", "  ")
+			resultFile := writeExpectedResult(t, queryFile, string(httpJSONBytes))
+			if resultFile != "" {
+				t.Logf("Wrote expected result to: %s", resultFile)
+				t.Logf("You can review and rename this file to use it as the expected result")
+			}
+			t.Fatalf("Expected result file not found: %s", expectedPath)
+		} else {
+			t.Fatalf("Failed to read expected result: %v", err)
+		}
+	}
 
 	// Compare results
 	assert.Equal(t,
@@ -104,12 +120,29 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 		"IceBase response mismatch")
 }
 
-func readJSON(t *testing.T, path string) map[string]interface{} {
+func writeExpectedResult(t *testing.T, queryFile string, httpJSON string) string {
+	// Create the result file path
+	resultFile := queryFile + ".result.json.let-me-help-you"
+	
+	// Write the JSON to file
+	err := os.WriteFile(resultFile, []byte(httpJSON), 0644)
+	if err != nil {
+		t.Logf("Failed to write expected result file: %v", err)
+		return ""
+	}
+	return resultFile
+}
+
+func readJSON(t *testing.T, path string) (map[string]interface{}, error) {
 	data, err := os.ReadFile(path)
-	assert.NoError(t, err, "Failed to read JSON file")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JSON file: %w", err)
+	}
 	var result map[string]interface{}
-	assert.NoError(t, json.Unmarshal(data, &result), "Failed to parse JSON")
-	return result
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	return result, nil
 }
 
 func TestHttpQuery(t *testing.T) {
