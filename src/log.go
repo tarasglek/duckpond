@@ -228,11 +228,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	viewQuery := "CREATE VIEW " + l.tableName + " "
 
 	// Join files with commas and add to query
-	if len(files) > 0 {
-		viewQuery += " AS SELECT * FROM read_parquet(" + strings.Join(files, ", ") + ")"
-	} else {
-		viewQuery += " AS SELECT * FROM read_parquet('')" // Empty view
-	}
+	viewQuery += " AS SELECT * FROM read_parquet([" + strings.Join(files, ", ") + "])"
 
 	// Execute the view creation
 	_, err = tx.Exec(viewQuery)
