@@ -152,7 +152,7 @@ func (ib *IceBase) Close() error {
 			}
 		}
 	}
-	
+
 	if ib.db != nil {
 		return ib.db.Close()
 	}
