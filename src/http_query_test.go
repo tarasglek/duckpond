@@ -83,6 +83,7 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON),
 		"Failed to parse HTTP response")
 
+	log.Printf("JSON response: %v %v", queryFile, httpJSON)
 	// Test against IceBase
 	icebaseResp, err := ib.PostEndpoint("/query", string(query))
 	assert.NoError(t, err, "IceBase request failed")
@@ -96,6 +97,7 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// If expected result doesn't exist, write the actual result
+			log.Printf("JSON response2: %v", httpJSON)
 			httpJSONBytes, _ := json.MarshalIndent(httpJSON, "", "  ")
 			resultFile := writeExpectedResult(t, queryFile, string(httpJSONBytes))
 			if resultFile != "" {
@@ -123,7 +125,7 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 func writeExpectedResult(t *testing.T, queryFile string, httpJSON string) string {
 	// Create the result file path
 	resultFile := queryFile + ".result.json.let-me-help-you"
-	
+
 	// Write the JSON to file
 	err := os.WriteFile(resultFile, []byte(httpJSON), 0644)
 	if err != nil {
@@ -136,7 +138,7 @@ func writeExpectedResult(t *testing.T, queryFile string, httpJSON string) string
 func readJSON(t *testing.T, path string) (map[string]interface{}, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read JSON file: %w", err)
+		return nil, err
 	}
 	var result map[string]interface{}
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -165,8 +167,8 @@ func TestHttpQuery(t *testing.T) {
 
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
-
-			log.Printf("Running test: %s", testFile)
+			// Destroy any existing state after each test
+			defer ib.Destroy()
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
 			if err != nil {
@@ -175,13 +177,6 @@ func TestHttpQuery(t *testing.T) {
 
 			// Run the actual test
 			testQuery(t, ib, testFile)
-
-			// Destroy any existing state before each test
-			// don't use defer so we have state available for debugging if test fails
-			if err := ib.Destroy(); err != nil {
-				t.Logf("Warning: failed to destroy icebase state: %v", err)
-			}
-
 		})
 	}
 }
