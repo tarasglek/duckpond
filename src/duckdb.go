@@ -47,7 +47,18 @@ func ResetMemoryDB(db *sql.DB) error {
 	}
 
 	// now run ATTACH 'memory' as <dbName_tmp>; USE <dbName_tmp>; detach <dbName>; ATTACH 'memory' as <dbName>; USE <dbName>;
-	_, err := db.Exec(fmt.Sprintf(`ATTACH ':memory:' AS %s_tmp; USE %s_tmp; DETACH %s; ATTACH ':memory:' AS %s; USE %s`, dbName))
+	_, err := db.Exec(fmt.Sprintf(
+		`ATTACH ':memory:' AS %s_tmp; 
+		 USE %s_tmp; 
+		 DETACH %s; 
+		 ATTACH ':memory:' AS %s; 
+		 USE %s`,
+		dbName, // %s_tmp
+		dbName, // %s_tmp
+		dbName, // %s
+		dbName, // %s
+		dbName, // %s
+	))
 	if err != nil {
 		return fmt.Errorf("failed to reset memory database: %w", err)
 	}
