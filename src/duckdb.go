@@ -35,6 +35,7 @@ func InitializeDuckDB() (*sql.DB, error) {
 }
 
 // ResetMemoryDB resets the in-memory database state
+// by attaching a new memory database and detaching all others
 func ResetMemoryDB(db *sql.DB) error {
 	// Get database name from character sets
 	var dbName string

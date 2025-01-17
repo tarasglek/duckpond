@@ -136,15 +136,6 @@ func (ib *IceBase) DB() *sql.DB {
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize database: %v", err))
 		}
-
-		// Initialize memory database
-		_, err = ib._db.Exec(`
-            ATTACH ':memory:' AS icebase;
-            USE icebase;
-        `)
-		if err != nil {
-			panic(fmt.Sprintf("failed to initialize memory database: %v", err))
-		}
 	}
 	return ib._db
 }

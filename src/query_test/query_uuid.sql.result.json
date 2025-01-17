@@ -1,20 +1,16 @@
 {
   "meta": [
     {
-      "name": "uuid_string",
-      "type": "String"
+      "name": "uuid_string"
     },
     {
-      "name": "uuid_uuid",
-      "type": "String"
+      "name": "uuid_uuid"
     },
     {
-      "name": "uuid_string_type",
-      "type": "String"
+      "name": "uuid_string_type"
     },
     {
-      "name": "uuid_uuid_type",
-      "type": "String"
+      "name": "uuid_uuid_type"
     }
   ],
   "data": [

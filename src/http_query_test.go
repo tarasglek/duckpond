@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,13 +70,13 @@ func processAndCompare(t *testing.T, responseJSON, expectedJSON map[string]inter
 
 // testQuery handles the core test logic for a single query file
 func testQuery(t *testing.T, ib *IceBase, queryFile string) {
-	// Read and execute query
-	query, err := os.ReadFile(queryFile)
+	// Read and execute query_bytes
+	query_bytes, err := os.ReadFile(queryFile)
 	assert.NoError(t, err, "Failed to read query file")
 
 	// Test against HTTP server
 	resp, err := httpClient.Post(serverURL+"/?default_format=JSONCompact",
-		"text/plain", bytes.NewReader(query))
+		"text/plain", bytes.NewReader(query_bytes))
 	assert.NoError(t, err, "HTTP request failed")
 	defer resp.Body.Close()
 
@@ -84,8 +84,6 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Logf("Failed to read response body: %v", err)
-	} else {
-		t.Logf("Raw HTTP response body: %s", string(bodyBytes))
 	}
 
 	// Check if response is JSON
@@ -100,12 +98,21 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	// Reset the response body for JSON decoding
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	log.Printf("JSON response: %v %v", queryFile, httpJSON)
-
-	log.Printf("JSON response: %v %v", queryFile, httpJSON)
+	// for icebase manually split query by ;, then run indiv queries and use last response as final response
+	// split query by ;
+	// Can't do this in PostEndpoint because we don't have a proper query parser :(
+	var icebaseResp string
+	all_queries := string(query_bytes)
+	indiv_queries := strings.Split(all_queries, ";")
+	for _, query := range indiv_queries {
+		// continue if trimmed query is empty
+		if strings.TrimSpace(query) == "" {
+			continue
+		}
+		icebaseResp, err = ib.PostEndpoint("/query", query)
+		assert.NoError(t, err, "IceBase request failed")
+	}
 	// Test against IceBase
-	icebaseResp, err := ib.PostEndpoint("/query", string(query))
-	assert.NoError(t, err, "IceBase request failed")
 	var icebaseJSON map[string]interface{}
 	assert.NoError(t, json.Unmarshal([]byte(icebaseResp), &icebaseJSON),
 		"Failed to parse IceBase response")
@@ -116,7 +123,6 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// If expected result doesn't exist, write the actual result
-			log.Printf("JSON response2: %v", httpJSON)
 			httpJSONBytes, _ := json.MarshalIndent(httpJSON, "", "  ")
 			resultFile := writeExpectedResult(t, queryFile, string(httpJSONBytes))
 			if resultFile != "" {
