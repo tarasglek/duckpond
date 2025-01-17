@@ -24,10 +24,23 @@ type QueryResponse struct {
 	} `json:"statistics"`
 }
 
+type IceBaseOptions struct {
+    storageDir string
+}
+
+type IceBaseOption func(*IceBaseOptions)
+
+func WithStorageDir(dir string) IceBaseOption {
+    return func(o *IceBaseOptions) {
+        o.storageDir = dir
+    }
+}
+
 type IceBase struct {
-	db     *sql.DB
-	parser *Parser
-	logs   map[string]*Log
+	db         *sql.DB
+	parser     *Parser
+	logs       map[string]*Log
+	storageDir string
 }
 
 func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error) {
@@ -125,11 +138,27 @@ func (ib *IceBase) DB() *sql.DB {
 	return ib.db
 }
 
-func NewIceBase() (*IceBase, error) {
-	return &IceBase{
-		parser: NewParser(),
-		logs:   make(map[string]*Log),
-	}, nil
+func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
+    // Set defaults
+    options := IceBaseOptions{
+        storageDir: "icebase_tables",
+    }
+
+    // Apply options
+    for _, opt := range opts {
+        opt(&options)
+    }
+
+    // Create storage directory if it doesn't exist
+    if err := os.MkdirAll(options.storageDir, 0755); err != nil {
+        return nil, fmt.Errorf("failed to create storage directory: %w", err)
+    }
+
+    return &IceBase{
+        parser:     NewParser(),
+        logs:       make(map[string]*Log),
+        storageDir: options.storageDir,
+    }, nil
 }
 
 func (ib *IceBase) logByName(tableName string) (*Log, error) {

@@ -12,13 +12,15 @@ import (
 )
 
 type Log struct {
-	db        *sql.DB
-	tableName string
+	db         *sql.DB
+	tableName  string
+	storageDir string
 }
 
-func NewLog(tableName string) *Log {
+func NewLog(storageDir, tableName string) *Log {
 	return &Log{
-		tableName: tableName,
+		tableName:  tableName,
+		storageDir: storageDir,
 	}
 }
 
@@ -28,7 +30,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	}
 
 	// Create storage directory structure
-	logDir := filepath.Join("storage", l.tableName, "log")
+	logDir := filepath.Join(l.storageDir, l.tableName, "log")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
@@ -111,7 +113,7 @@ func (l *Log) Destroy() error {
 	}
 
 	// Build path to delete
-	storagePath := filepath.Join("storage", l.tableName)
+	storagePath := filepath.Join(l.storageDir, l.tableName)
 
 	// Remove entire storage directory
 	if err := os.RemoveAll(storagePath); err != nil {
@@ -177,7 +179,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	log.Printf("Generated UUIDv7: %s", uuidStr)
 
 	// Create storage directory structure
-	dataDir := filepath.Join("storage", table, "data")
+	dataDir := filepath.Join(l.storageDir, table, "data")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return -1, fmt.Errorf("failed to create data directory: %w", err)
 	}
@@ -244,7 +246,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 
 		// Convert UUID to string and build file path
 		uuidStr := uuid.UUID(id).String()
-		files = append(files, fmt.Sprintf("'%s'", filepath.Join("storage", l.tableName, "data", uuidStr+".parquet")))
+		files = append(files, fmt.Sprintf("'%s'", filepath.Join(l.storageDir, l.tableName, "data", uuidStr+".parquet")))
 	}
 
 	if err := rows.Err(); err != nil {
