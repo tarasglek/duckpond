@@ -26,19 +26,19 @@ type QueryResponse struct {
 }
 
 type IceBaseOptions struct {
-    storageDir string
+	storageDir string
 }
 
 type IceBaseOption func(*IceBaseOptions)
 
 func WithStorageDir(dir string) IceBaseOption {
-    return func(o *IceBaseOptions) {
-        o.storageDir = dir
-    }
+	return func(o *IceBaseOptions) {
+		o.storageDir = dir
+	}
 }
 
 type IceBase struct {
-	db         *sql.DB
+	_db        *sql.DB
 	parser     *Parser
 	logs       map[string]*Log
 	storageDir string
@@ -129,37 +129,37 @@ func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error
 
 // DB returns the underlying DuckDB instance, initializing it if needed
 func (ib *IceBase) DB() *sql.DB {
-	if ib.db == nil {
+	if ib._db == nil {
 		var err error
-		ib.db, err = InitializeDuckDB()
+		ib._db, err = InitializeDuckDB()
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize database: %v", err))
 		}
 	}
-	return ib.db
+	return ib._db
 }
 
 func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
-    // Set defaults
-    options := IceBaseOptions{
-        storageDir: "icebase_tables",
-    }
+	// Set defaults
+	options := IceBaseOptions{
+		storageDir: "icebase_tables",
+	}
 
-    // Apply options
-    for _, opt := range opts {
-        opt(&options)
-    }
+	// Apply options
+	for _, opt := range opts {
+		opt(&options)
+	}
 
-    // Create storage directory if it doesn't exist
-    if err := os.MkdirAll(options.storageDir, 0755); err != nil {
-        return nil, fmt.Errorf("failed to create storage directory: %w", err)
-    }
+	// Create storage directory if it doesn't exist
+	if err := os.MkdirAll(options.storageDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create storage directory: %w", err)
+	}
 
-    return &IceBase{
-        parser:     NewParser(),
-        logs:       make(map[string]*Log),
-        storageDir: options.storageDir,
-    }, nil
+	return &IceBase{
+		parser:     NewParser(),
+		logs:       make(map[string]*Log),
+		storageDir: options.storageDir,
+	}, nil
 }
 
 func (ib *IceBase) logByName(tableName string) (*Log, error) {
@@ -183,8 +183,8 @@ func (ib *IceBase) Close() error {
 		}
 	}
 
-	if ib.db != nil {
-		return ib.db.Close()
+	if ib._db != nil {
+		return ib._db.Close()
 	}
 	return nil
 }
@@ -200,25 +200,25 @@ func (ib *IceBase) Destroy() error {
 	}
 
 	// Close the main database connection if it exists
-	if ib.db != nil {
-		if err := ib.db.Close(); err != nil {
+	if ib._db != nil {
+		if err := ib._db.Close(); err != nil {
 			return fmt.Errorf("failed to close database: %w", err)
 		}
-		ib.db = nil
+		ib._db = nil
 	}
 
 	return nil
 }
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
-	_, err := ib.db.Prepare(query)
+	_, err := ib._db.Prepare(query)
 	if err != nil {
 		return "", fmt.Errorf("invalid query syntax: %w", err)
 	}
 
 	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
 	var serializedJSON string
-	err = ib.db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	err = ib._db.QueryRow(serializedQuery).Scan(&serializedJSON)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize query: %w", err)
 	}
@@ -227,7 +227,7 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Execute query, then discard results
-	tx, err := ib.db.Begin()
+	tx, err := ib._db.Begin()
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
