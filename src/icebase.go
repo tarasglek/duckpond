@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -149,11 +148,6 @@ func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 	// Apply options
 	for _, opt := range opts {
 		opt(&options)
-	}
-
-	// Create storage directory if it doesn't exist
-	if err := os.MkdirAll(options.storageDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
 	return &IceBase{
