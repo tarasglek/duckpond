@@ -80,7 +80,7 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	assert.NoError(t, err, "HTTP request failed")
 	defer resp.Body.Close()
 
-	// Read and print the raw response body
+	// Read the raw response body
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Logf("Failed to read response body: %v", err)
@@ -88,12 +88,19 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 		t.Logf("Raw HTTP response body: %s", string(bodyBytes))
 	}
 
+	// Check if response is JSON
+	var httpJSON map[string]interface{}
+	err = json.Unmarshal(bodyBytes, &httpJSON)
+	if err != nil {
+		// If not JSON, treat as error response
+		t.Errorf("Non-JSON response: %s", string(bodyBytes))
+		return
+	}
+
 	// Reset the response body for JSON decoding
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	var httpJSON map[string]interface{}
-	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON),
-		"Failed to parse HTTP response")
+	log.Printf("JSON response: %v %v", queryFile, httpJSON)
 
 	log.Printf("JSON response: %v %v", queryFile, httpJSON)
 	// Test against IceBase
