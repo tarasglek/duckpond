@@ -129,6 +129,11 @@ func TestHttpQuery(t *testing.T) {
 	assert.NoError(t, err, "Failed to find test files")
 
 	for _, testFile := range testFiles {
+		// Destroy any existing state before each test
+		if err := ib.Destroy(); err != nil {
+			t.Logf("Warning: failed to destroy icebase state: %v", err)
+		}
+
 		t.Run(testFile, func(t *testing.T) {
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
