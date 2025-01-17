@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -78,6 +79,17 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 		"text/plain", bytes.NewReader(query))
 	assert.NoError(t, err, "HTTP request failed")
 	defer resp.Body.Close()
+
+	// Read and print the raw response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Logf("Failed to read response body: %v", err)
+	} else {
+		t.Logf("Raw HTTP response body: %s", string(bodyBytes))
+	}
+
+	// Reset the response body for JSON decoding
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var httpJSON map[string]interface{}
 	assert.NoError(t, json.NewDecoder(resp.Body).Decode(&httpJSON),
