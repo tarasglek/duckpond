@@ -166,7 +166,9 @@ func TestHttpQuery(t *testing.T) {
 	defer ib.Close()
 
 	// start HTTP server
-	_, err = ib.DB().Exec(`
+	referenceDuckDB, err := InitializeDuckDB()
+	defer referenceDuckDB.Close()
+	_, err = referenceDuckDB.Exec(`
 				INSTALL httpserver;
 				LOAD httpserver;
 				SELECT httpserve_start('localhost', '8882', '');`)
@@ -181,6 +183,9 @@ func TestHttpQuery(t *testing.T) {
 		t.Run(testFile, func(t *testing.T) {
 			// Destroy any existing state after each test
 			defer ib.Destroy()
+			defer func() {
+				ResetMemoryDB(referenceDuckDB)
+			}()
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())
 			if err != nil {
