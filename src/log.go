@@ -269,6 +269,12 @@ func (l *Log) Destroy() error {
         }
     }
 
+    // Delete log.db file
+    logPath := filepath.Join(l.tableName, "log", "log.db")
+    if err := l.op.Delete(logPath); err != nil {
+        return fmt.Errorf("failed to delete log.db: %w", err)
+    }
+
     // Close database connection if open
     if l.db != nil {
         if err := l.db.Close(); err != nil {
