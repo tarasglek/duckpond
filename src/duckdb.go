@@ -64,7 +64,7 @@ func ResetMemoryDB(db *sql.DB) error {
 		return fmt.Errorf("failed to reset memory database: %w", err)
 	}
 
-	rows, err := db.Query("SELECT name FROM pragma_database_list() WHERE name != ?", dbName)
+	rows, err := db.Query("SELECT name FROM pragma_database_list WHERE name != ?", dbName)
 	if err != nil {
 		return fmt.Errorf("failed to list databases: %w", err)
 	}
