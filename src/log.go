@@ -4,23 +4,32 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/apache/opendal/bindings/go"
 )
 
 type Log struct {
 	db         *sql.DB
 	tableName  string
 	storageDir string
+	op         *opendal.Operator
 }
 
 func NewLog(storageDir, tableName string) *Log {
+	op, err := opendal.NewOperator("fs", opendal.OperatorOptions{
+		"root": storageDir,
+	})
+	if err != nil {
+		panic(fmt.Errorf("failed to create OpenDAL operator: %w", err))
+	}
+	
 	return &Log{
 		tableName:  tableName,
 		storageDir: storageDir,
+		op:         op,
 	}
 }
 
@@ -29,9 +38,9 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return l.db, nil
 	}
 
-	// Create storage directory structure
-	logDir := filepath.Join(l.storageDir, l.tableName, "log")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	// Create storage directory structure using OpenDAL
+	logDir := filepath.Join(l.tableName, "log")
+	if err := l.op.CreateDir(logDir + "/"); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -150,9 +159,9 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	uuidStr := uuid.UUID(uuidBytes).String()
 	log.Printf("Generated UUIDv7: %s", uuidStr)
 
-	// Create storage directory structure
-	dataDir := filepath.Join(l.storageDir, table, "data")
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	// Create storage directory structure using OpenDAL
+	dataDir := filepath.Join(table, "data")
+	if err := l.op.CreateDir(dataDir + "/"); err != nil {
 		return -1, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
@@ -171,8 +180,8 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		return -1, fmt.Errorf("failed to copy to parquet with query: %q: %w", copyQuery, err)
 	}
 
-	// Get file size
-	fileInfo, err := os.Stat(parquetPath)
+	// Get file size using OpenDAL
+	meta, err := l.op.Stat(parquetPath)
 	if err != nil {
 		return -1, fmt.Errorf("failed to get parquet file size: %w", err)
 	}
@@ -182,7 +191,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		UPDATE insert_log 
 		SET size = ?
 		WHERE id = ?;
-	`, fileInfo.Size(), uuidStr)
+	`, meta.ContentLength(), uuidStr)
 	if err != nil {
 		return -1, fmt.Errorf("failed to update insert_log size: %w", err)
 	}
@@ -197,31 +206,20 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 		return fmt.Errorf("failed to get log database: %w", err)
 	}
 
-	// Get list of active parquet files
-	var files []string
-	rows, err := db.Query(`
-        SELECT id 
-        FROM insert_log
-        WHERE tombstoned_unix_time = 0
-    `)
+	// Get list of active parquet files using OpenDAL
+	dataDir := filepath.Join(l.tableName, "data")
+	lister, err := l.op.List(dataDir + "/")
 	if err != nil {
-		return fmt.Errorf("failed to query insert_log: %w", err)
+		return fmt.Errorf("failed to list parquet files: %w", err)
 	}
-	defer rows.Close()
+	defer lister.Close()
 
-	for rows.Next() {
-		var id []byte
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan insert_log row: %w", err)
+	var files []string
+	for lister.Next() {
+		entry := lister.Entry()
+		if strings.HasSuffix(entry.Path(), ".parquet") {
+			files = append(files, fmt.Sprintf("'%s'", entry.Path()))
 		}
-
-		// Convert UUID to string and build file path
-		uuidStr := uuid.UUID(id).String()
-		files = append(files, fmt.Sprintf("'%s'", filepath.Join(l.storageDir, l.tableName, "data", uuidStr+".parquet")))
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating insert_log: %w", err)
 	}
 
 	viewQuery := "CREATE VIEW " + l.tableName + " "
@@ -257,11 +255,9 @@ func (l *Log) Destroy() error {
 		l.db = nil
 	}
 
-	// Build path to delete
+	// Remove entire storage directory using OpenDAL
 	storagePath := filepath.Join(l.storageDir, l.tableName)
-
-	// Remove entire storage directory
-	if err := os.RemoveAll(storagePath); err != nil {
+	if err := l.op.Delete(storagePath); err != nil {
 		return fmt.Errorf("failed to remove storage directory: %w", err)
 	}
 
