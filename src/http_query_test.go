@@ -110,7 +110,6 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 			continue
 		}
 		// print query
-		fmt.Printf("Running query: %s\n", query)
 		icebaseResp, err = ib.PostEndpoint("/query", query)
 		assert.NoError(t, err, "IceBase request failed")
 	}
@@ -199,7 +198,6 @@ func TestHttpQuery(t *testing.T) {
 		t.Run(testFile, func(t *testing.T) {
 			// Destroy any existing state after each test
 			defer func() {
-				fmt.Println("destroying test")
 				if err := ib.Destroy(); err != nil {
 					t.Fatalf("Failed to destroy IceBase: %v", err)
 				}
@@ -213,7 +211,7 @@ func TestHttpQuery(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create schema %s: %v", schemaName, err)
 			}
-			fmt.Printf("Testing %s\n", testFile)
+			// fmt.Printf("Testing %s\n", testFile)
 			// Run the actual test
 			testQuery(t, ib, testFile)
 		})
