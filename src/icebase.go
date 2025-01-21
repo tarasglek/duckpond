@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -193,6 +195,14 @@ func (ib *IceBase) Destroy() error {
 		}
 		delete(ib.logs, tableName)
 	}
+
+	// Minimal recursive file print
+	filepath.WalkDir(ib.storageDir, func(path string, d os.DirEntry, err error) error {
+		if err == nil {
+			fmt.Println(path)
+		}
+		return nil
+	})
 
 	// Reset memory database if connection exists
 	if ib._db != nil {
