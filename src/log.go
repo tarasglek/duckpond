@@ -200,53 +200,44 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 }
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
+func (l *Log) listFiles(where string) ([]string, error) {
+    db, err := l.getDB()
+    if err != nil {
+        return nil, err
+    }
+
+    rows, err := db.Query("SELECT id FROM insert_log" + where)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var files []string
+    for rows.Next() {
+        var id []byte
+        if err := rows.Scan(&id); err != nil {
+            return nil, err
+        }
+        files = append(files, filepath.Join(l.tableName, "data", uuid.UUID(id).String()+".parquet"))
+    }
+    return files, rows.Err()
+}
+
 func (l *Log) RecreateAsView(tx *sql.Tx) error {
-	db, err := l.getDB()
-	if err != nil {
-		return fmt.Errorf("failed to get log database: %w", err)
-	}
+    files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+    if err != nil || len(files) == 0 {
+        return fmt.Errorf("no active files: %w", err)
+    }
 
-	// Get list of active parquet files from insert_log
-	var files []string
-	rows, err := db.Query(`
-        SELECT id 
-        FROM insert_log
-        WHERE tombstoned_unix_time = 0
-    `)
-	if err != nil {
-		return fmt.Errorf("failed to query insert_log: %w", err)
-	}
-	defer rows.Close()
+    // Map files to DuckDB paths
+    paths := make([]string, len(files))
+    for i, file := range files {
+        paths[i] = fmt.Sprintf("'%s'", l.toDuckDBPath(file))
+    }
 
-	// Build list of parquet file paths
-	for rows.Next() {
-		var id []byte
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan insert_log row: %w", err)
-		}
-
-		// Convert UUID to string and build file path
-		uuidStr := uuid.UUID(id).String()
-		files = append(files, fmt.Sprintf("'%s'", l.toDuckDBPath(filepath.Join(l.tableName, "data", uuidStr+".parquet"))))
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating insert_log: %w", err)
-	}
-
-	viewQuery := "CREATE VIEW " + l.tableName + " "
-
-	// Join files with commas and add to query
-	viewQuery += " AS SELECT * FROM read_parquet([" + strings.Join(files, ", ") + "])"
-
-	// Execute the view creation
-	log.Printf("Creating view with query:\n%s", viewQuery)
-	_, err = tx.Exec(viewQuery)
-	if err != nil {
-		return fmt.Errorf("failed to create view: %w", err)
-	}
-
-	return nil
+    _, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])", 
+        l.tableName, strings.Join(paths, ", ")))
+    return err
 }
 
 func (l *Log) Close() error {
