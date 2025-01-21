@@ -219,13 +219,19 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	defer rows.Close()
 
 	// Build list of parquet file paths
-	dataDir := filepath.Join(l.tableName, "data")
 	for rows.Next() {
-		var id string
+		var id []byte
 		if err := rows.Scan(&id); err != nil {
 			return fmt.Errorf("failed to scan insert_log row: %w", err)
 		}
-		files = append(files, fmt.Sprintf("'%s'", filepath.Join(dataDir, id+".parquet")))
+
+		// Convert UUID to string and build file path
+		uuidStr := uuid.UUID(id).String()
+		files = append(files, fmt.Sprintf("'%s'", filepath.Join(l.storageDir, l.tableName, "data", uuidStr+".parquet")))
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating insert_log: %w", err)
 	}
 
 	viewQuery := "CREATE VIEW " + l.tableName + " "
