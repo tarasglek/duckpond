@@ -46,7 +46,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	}
 
 	// Create database path
-	dbPath := filepath.Join(l.storageDir, logDir, "log.db")
+	dbPath := filepath.Join(logDir, "log.db")
 
 	// Initialize main database connection
 	db, err := InitializeDuckDB()
@@ -274,7 +274,7 @@ func (l *Log) Destroy() error {
 	}
 
 	// Remove entire storage directory using OpenDAL
-	if err := l.op.Delete("/"); err != nil {
+	if err := l.op.Delete(l.tableName); err != nil {
 		return fmt.Errorf("failed to remove storage directory: %w", err)
 	}
 
