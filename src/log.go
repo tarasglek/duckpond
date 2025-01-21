@@ -54,7 +54,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS log_db;USE log_db`, dbPath)
+	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS log_db;USE log_db`, l.toDuckDBPath(dbPath))
 
 	// Attach log database
 	_, err = db.Exec(attachSQL)
@@ -172,7 +172,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	// Copy table data to parquet file
 	copyQuery := fmt.Sprintf(`
 		COPY %s TO '%s' (FORMAT PARQUET);
-	`, table, parquetPath)
+	`, table, l.toDuckDBPath(parquetPath))
 
 	// Execute COPY TO PARQUET using the transaction
 	_, err = tx.Exec(copyQuery)
@@ -227,7 +227,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 
 		// Convert UUID to string and build file path
 		uuidStr := uuid.UUID(id).String()
-		files = append(files, fmt.Sprintf("'%s'", filepath.Join(l.storageDir, l.tableName, "data", uuidStr+".parquet")))
+		files = append(files, fmt.Sprintf("'%s'", l.toDuckDBPath(filepath.Join(l.tableName, "data", uuidStr+".parquet"))))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -274,8 +274,7 @@ func (l *Log) Destroy() error {
 	}
 
 	// Remove entire storage directory using OpenDAL
-	storagePath := filepath.Join(l.storageDir, l.tableName)
-	if err := l.op.Delete(storagePath); err != nil {
+	if err := l.op.Delete("/"); err != nil {
 		return fmt.Errorf("failed to remove storage directory: %w", err)
 	}
 
