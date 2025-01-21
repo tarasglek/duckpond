@@ -180,9 +180,10 @@ func TestHttpQuery(t *testing.T) {
 
 	// start HTTP server
 	referenceDuckDB, err := InitializeDuckDB()
+	assert.NoError(t, err, "Failed to initialize DuckDB")
 	defer referenceDuckDB.Close()
 	_, err = referenceDuckDB.Exec(`
-				INSTALL httpserver;
+				INSTALL httpserver FROM community;
 				LOAD httpserver;
 				SELECT httpserve_start('localhost', '8882', '');`)
 	assert.NoError(t, err, "Failed to setup HTTP server")
