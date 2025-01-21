@@ -256,6 +256,12 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// toDuckDBPath converts a relative path to an absolute path for DuckDB
+// by prepending the storage directory
+func (l *Log) toDuckDBPath(path string) string {
+	return filepath.Join(l.storageDir, path)
+}
+
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)
 func (l *Log) Destroy() error {
