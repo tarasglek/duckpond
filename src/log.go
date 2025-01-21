@@ -46,7 +46,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	}
 
 	// Create database path
-	dbPath := filepath.Join(logDir, "log.db")
+	dbPath := filepath.Join(l.storageDir, logDir, "log.db")
 
 	// Initialize main database connection
 	db, err := InitializeDuckDB()
@@ -54,11 +54,10 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
+	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS log_db;USE log_db`, dbPath)
+
 	// Attach log database
-	_, err = db.Exec(fmt.Sprintf(`
-		ATTACH DATABASE '%s' AS log_db;
-		USE log_db;
-	`, dbPath))
+	_, err = db.Exec(attachSQL)
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to attach log database: %w", err)
