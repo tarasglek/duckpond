@@ -1,0 +1,23 @@
+{
+  "data": [
+    [
+      "01947471-2ded-7812-cafe-34567000b33f",
+      "one"
+    ],
+    [
+      "01947471-2ded-7812-cafe-34567000b33e",
+      "more"
+    ]
+  ],
+  "meta": [
+    {
+      "name": "id",
+      "type": "String"
+    },
+    {
+      "name": "text",
+      "type": "String"
+    }
+  ],
+  "rows": 2
+}
