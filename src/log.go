@@ -201,43 +201,43 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
 func (l *Log) listFiles(where string) ([]string, error) {
-    db, err := l.getDB()
-    if err != nil {
-        return nil, err
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return nil, err
+	}
 
-    rows, err := db.Query("SELECT id FROM insert_log" + where)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.Query("SELECT id FROM insert_log" + where)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var files []string
-    for rows.Next() {
-        var id []byte
-        if err := rows.Scan(&id); err != nil {
-            return nil, err
-        }
-        files = append(files, filepath.Join(l.tableName, "data", uuid.UUID(id).String()+".parquet"))
-    }
-    return files, rows.Err()
+	var files []string
+	for rows.Next() {
+		var id []byte
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		files = append(files, filepath.Join(l.tableName, "data", uuid.UUID(id).String()+".parquet"))
+	}
+	return files, rows.Err()
 }
 
 func (l *Log) RecreateAsView(tx *sql.Tx) error {
-    files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
-    if err != nil || len(files) == 0 {
-        return fmt.Errorf("no active files: %w", err)
-    }
+	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+	if err != nil || len(files) == 0 {
+		return fmt.Errorf("no active files: %w", err)
+	}
 
-    // Map files to DuckDB paths
-    paths := make([]string, len(files))
-    for i, file := range files {
-        paths[i] = fmt.Sprintf("'%s'", l.toDuckDBPath(file))
-    }
+	// Map files to DuckDB paths
+	paths := make([]string, len(files))
+	for i, file := range files {
+		paths[i] = fmt.Sprintf("'%s'", l.toDuckDBPath(file))
+	}
 
-    _, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])", 
-        l.tableName, strings.Join(paths, ", ")))
-    return err
+	_, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+		l.tableName, strings.Join(paths, ", ")))
+	return err
 }
 
 func (l *Log) Close() error {
@@ -256,37 +256,38 @@ func (l *Log) toDuckDBPath(path string) string {
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)
 func (l *Log) Destroy() error {
-    // Get all files (including tombstoned ones)
-    files, err := l.listFiles("")
-    if err != nil {
-        return fmt.Errorf("failed to list files: %w", err)
-    }
+	// Get all files (including tombstoned ones)
+	files, err := l.listFiles("")
+	if err != nil {
+		return fmt.Errorf("failed to list files: %w", err)
+	}
 
-    // Delete each parquet file
-    for _, file := range files {
-        if err := l.op.Delete(file); err != nil {
-            return fmt.Errorf("failed to delete file %s: %w", file, err)
-        }
-    }
+	// Delete each parquet file
+	for _, file := range files {
+		if err := l.op.Delete(file); err != nil {
+			return fmt.Errorf("failed to delete file %s: %w", file, err)
+		}
+	}
 
-    // Delete log.db file
-    logPath := filepath.Join(l.tableName, "log", "log.db")
-    if err := l.op.Delete(logPath); err != nil {
-        return fmt.Errorf("failed to delete log.db: %w", err)
-    }
+	// Delete log.db file
+	logPath := filepath.Join(l.tableName, "log", "log.db")
+	if err := l.op.Delete(logPath); err != nil {
+		return fmt.Errorf("failed to delete log.db: %w", err)
+	}
 
-    // Close database connection if open
-    if l.db != nil {
-        if err := l.db.Close(); err != nil {
-            return fmt.Errorf("failed to close database: %w", err)
-        }
-        l.db = nil
-    }
+	// Close database connection if open
+	if l.db != nil {
+		if err := l.db.Close(); err != nil {
+			return fmt.Errorf("failed to close database: %w", err)
+		}
+		l.db = nil
+	}
 
-    // Remove entire storage directory using OpenDAL
-    if err := l.op.Delete(l.tableName); err != nil {
-        return fmt.Errorf("failed to remove storage directory: %w", err)
-    }
+	// Remove entire storage directory using OpenDAL
+	// but opendal go binding is missing recursive deletes
+	// if err := l.op.Delete(l.tableName); err != nil {
+	//     return fmt.Errorf("failed to remove storage directory: %w", err)
+	// }
 
-    return nil
+	return nil
 }
