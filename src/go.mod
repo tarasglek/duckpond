@@ -11,10 +11,17 @@ require (
 )
 
 require (
+	github.com/apache/opendal-go-services/fs v0.1.6
+	github.com/apache/opendal/bindings/go v0.1.6
+)
+
+require (
 	github.com/apache/arrow-go/v18 v18.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/ebitengine/purego v0.7.1 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
+	github.com/jupiterrider/ffi v0.1.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

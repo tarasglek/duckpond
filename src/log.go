@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/apache/opendal-go-services/fs"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
-	"github.com/apache/opendal/bindings/go"
 )
 
 type Log struct {
@@ -19,13 +20,13 @@ type Log struct {
 }
 
 func NewLog(storageDir, tableName string) *Log {
-	op, err := opendal.NewOperator("fs", opendal.OperatorOptions{
+	op, err := opendal.NewOperator(fs.Scheme, opendal.OperatorOptions{
 		"root": storageDir,
 	})
 	if err != nil {
 		panic(fmt.Errorf("failed to create OpenDAL operator: %w", err))
 	}
-	
+
 	return &Log{
 		tableName:  tableName,
 		storageDir: storageDir,
@@ -201,46 +202,46 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
 func (l *Log) RecreateAsView(tx *sql.Tx) error {
-    db, err := l.getDB()
-    if err != nil {
-        return fmt.Errorf("failed to get log database: %w", err)
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return fmt.Errorf("failed to get log database: %w", err)
+	}
 
-    // Get list of active parquet files from insert_log
-    var files []string
-    rows, err := db.Query(`
+	// Get list of active parquet files from insert_log
+	var files []string
+	rows, err := db.Query(`
         SELECT id 
         FROM insert_log
         WHERE tombstoned_unix_time = 0
     `)
-    if err != nil {
-        return fmt.Errorf("failed to query insert_log: %w", err)
-    }
-    defer rows.Close()
+	if err != nil {
+		return fmt.Errorf("failed to query insert_log: %w", err)
+	}
+	defer rows.Close()
 
-    // Build list of parquet file paths
-    dataDir := filepath.Join(l.tableName, "data")
-    for rows.Next() {
-        var id string
-        if err := rows.Scan(&id); err != nil {
-            return fmt.Errorf("failed to scan insert_log row: %w", err)
-        }
-        files = append(files, fmt.Sprintf("'%s'", filepath.Join(dataDir, id+".parquet")))
-    }
+	// Build list of parquet file paths
+	dataDir := filepath.Join(l.tableName, "data")
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("failed to scan insert_log row: %w", err)
+		}
+		files = append(files, fmt.Sprintf("'%s'", filepath.Join(dataDir, id+".parquet")))
+	}
 
-    viewQuery := "CREATE VIEW " + l.tableName + " "
+	viewQuery := "CREATE VIEW " + l.tableName + " "
 
-    // Join files with commas and add to query
-    viewQuery += " AS SELECT * FROM read_parquet([" + strings.Join(files, ", ") + "])"
+	// Join files with commas and add to query
+	viewQuery += " AS SELECT * FROM read_parquet([" + strings.Join(files, ", ") + "])"
 
-    // Execute the view creation
-    log.Printf("Creating view with query:\n%s", viewQuery)
-    _, err = tx.Exec(viewQuery)
-    if err != nil {
-        return fmt.Errorf("failed to create view: %w", err)
-    }
+	// Execute the view creation
+	log.Printf("Creating view with query:\n%s", viewQuery)
+	_, err = tx.Exec(viewQuery)
+	if err != nil {
+		return fmt.Errorf("failed to create view: %w", err)
+	}
 
-    return nil
+	return nil
 }
 
 func (l *Log) Close() error {
