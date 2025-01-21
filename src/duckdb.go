@@ -80,5 +80,7 @@ func ResetMemoryDB(db *sql.DB) error {
 		}
 	}
 
+	fmt.Println("Reset memory database")
+
 	return nil
 }

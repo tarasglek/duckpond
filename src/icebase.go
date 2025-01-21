@@ -196,6 +196,8 @@ func (ib *IceBase) Destroy() error {
 		delete(ib.logs, tableName)
 	}
 
+	// print that we check the storage directory
+	fmt.Println("Checking storage directory for remaining files:")
 	// Minimal recursive file print
 	filepath.WalkDir(ib.storageDir, func(path string, d os.DirEntry, err error) error {
 		if err == nil {

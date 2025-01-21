@@ -109,6 +109,8 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 		if strings.TrimSpace(query) == "" {
 			continue
 		}
+		// print query
+		fmt.Printf("Running query: %s\n", query)
 		icebaseResp, err = ib.PostEndpoint("/query", query)
 		assert.NoError(t, err, "IceBase request failed")
 	}
@@ -196,8 +198,9 @@ func TestHttpQuery(t *testing.T) {
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
 			// Destroy any existing state after each test
-			defer ib.Destroy()
 			defer func() {
+				fmt.Println("destroying test")
+				defer ib.Destroy()
 				ResetMemoryDB(referenceDuckDB)
 			}()
 			// Create temp schema for this test
@@ -205,7 +208,7 @@ func TestHttpQuery(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create schema %s: %v", schemaName, err)
 			}
-
+			fmt.Printf("Testing %s\n", testFile)
 			// Run the actual test
 			testQuery(t, ib, testFile)
 		})
