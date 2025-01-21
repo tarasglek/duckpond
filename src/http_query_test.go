@@ -200,8 +200,13 @@ func TestHttpQuery(t *testing.T) {
 			// Destroy any existing state after each test
 			defer func() {
 				fmt.Println("destroying test")
-				defer ib.Destroy()
-				ResetMemoryDB(referenceDuckDB)
+				if err := ib.Destroy(); err != nil {
+					t.Fatalf("Failed to destroy IceBase: %v", err)
+				}
+				if err := ResetMemoryDB(referenceDuckDB); err != nil {
+					t.Fatalf("Failed to reset memory DB: %v", err)
+				}
+
 			}()
 			// Create temp schema for this test
 			schemaName := fmt.Sprintf("test_%d", time.Now().UnixNano())

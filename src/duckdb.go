@@ -60,6 +60,7 @@ func ResetMemoryDB(db *sql.DB) error {
 		dbName, // %s
 		dbName, // %s
 	))
+
 	if err != nil {
 		return fmt.Errorf("failed to reset memory database: %w", err)
 	}
@@ -79,8 +80,6 @@ func ResetMemoryDB(db *sql.DB) error {
 			return fmt.Errorf("failed to detach %s: %w", name, err)
 		}
 	}
-
-	fmt.Println("Reset memory database")
 
 	return nil
 }
