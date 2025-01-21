@@ -256,18 +256,31 @@ func (l *Log) toDuckDBPath(path string) string {
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)
 func (l *Log) Destroy() error {
-	// Close database connection if open
-	if l.db != nil {
-		if err := l.db.Close(); err != nil {
-			return fmt.Errorf("failed to close database: %w", err)
-		}
-		l.db = nil
-	}
+    // Get all files (including tombstoned ones)
+    files, err := l.listFiles("")
+    if err != nil {
+        return fmt.Errorf("failed to list files: %w", err)
+    }
 
-	// Remove entire storage directory using OpenDAL
-	if err := l.op.Delete(l.tableName); err != nil {
-		return fmt.Errorf("failed to remove storage directory: %w", err)
-	}
+    // Delete each parquet file
+    for _, file := range files {
+        if err := l.op.Delete(file); err != nil {
+            return fmt.Errorf("failed to delete file %s: %w", file, err)
+        }
+    }
 
-	return nil
+    // Close database connection if open
+    if l.db != nil {
+        if err := l.db.Close(); err != nil {
+            return fmt.Errorf("failed to close database: %w", err)
+        }
+        l.db = nil
+    }
+
+    // Remove entire storage directory using OpenDAL
+    if err := l.op.Delete(l.tableName); err != nil {
+        return fmt.Errorf("failed to remove storage directory: %w", err)
+    }
+
+    return nil
 }
