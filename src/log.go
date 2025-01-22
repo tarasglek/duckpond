@@ -86,6 +86,10 @@ func (l *Log) getDB() (*sql.DB, error) {
 	return l.db, nil
 }
 
+func Export(filename) {
+	// copy (SELECT ARRAY_AGG(struct_pack(...)) AS schema_log, ... as insert_log) to <filename> format json
+}
+
 func (l *Log) createTable(rawCreateTable string) (int, error) {
 	db, err := l.getDB()
 	if err != nil {
