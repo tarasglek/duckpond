@@ -18,8 +18,12 @@ INSERT INTO insert_log VALUES
     (uuid(), '2023', 0, 4096),
     (uuid(), '2023', 0, 2048);
 
-SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
-FROM schema_log;
-
-SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
-FROM insert_log;
+with
+    select 
+        (SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
+            FROM schema_log) as schema_log, 
+        (SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
+            FROM insert_log) as insert_log
+    as json_data
+in
+select * from json_data;
