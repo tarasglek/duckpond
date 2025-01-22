@@ -25,4 +25,9 @@ with json_data as (
         (SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
             FROM insert_log) as insert_log
 )
-select * from json_data;
+select 
+    to_json(struct_pack(
+        schema_log := schema_log,
+        insert_log := insert_log
+    )) as json_result
+from json_data;
