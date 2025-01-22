@@ -26,8 +26,5 @@ with json_data as (
             FROM insert_log) as insert_log
 )
 select 
-    to_json(struct_pack(
-        schema_log := schema_log,
-        insert_log := insert_log
-    )) as json_result
+    to_json(struct_pack( schema_log, insert_log )) as json_result
 from json_data;
