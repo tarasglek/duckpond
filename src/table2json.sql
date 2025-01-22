@@ -15,5 +15,11 @@ CREATE TABLE IF NOT EXISTS insert_log (
 );
 
 INSERT INTO insert_log VALUES
-    (uuidv7(), '2023', 0, 4096),
-    (uuidv7(), '2023', 0, 2048);
+    (uuid(), '2023', 0, 4096),
+    (uuid(), '2023', 0, 2048);
+
+SELECT ARRAY_AGG(struct_pack(timestamp, raw_query)) AS schema_log
+FROM schema_log;
+
+SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size)) AS insert_log
+FROM insert_log;
