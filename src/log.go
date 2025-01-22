@@ -86,8 +86,37 @@ func (l *Log) getDB() (*sql.DB, error) {
 	return l.db, nil
 }
 
-func Export(filename) {
-	// copy (SELECT ARRAY_AGG(struct_pack(...)) AS schema_log, ... as insert_log) to <filename> format json
+func (l *Log) Export(filename string) error {
+	db, err := l.getDB()
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists using OpenDAL
+	dirInStorage := filepath.Dir(filename)
+	if dirInStorage != "." {
+		dirPath := dirInStorage + "/"
+		if err := l.op.CreateDir(dirPath); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dirPath, err)
+		}
+	}
+
+	// Build full path and escape single quotes for SQL
+	duckDBPath := l.toDuckDBPath(filename)
+	escapedPath := strings.ReplaceAll(duckDBPath, "'", "''")
+
+	copyQuery := fmt.Sprintf(`
+		COPY (
+			SELECT
+				(SELECT ARRAY_AGG(struct_pack(timestamp, raw_query)) FROM schema_log) AS schema_log,
+				(SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size)) FROM insert_log) AS insert_log
+		) TO '%s' (FORMAT JSON)
+	`, escapedPath)
+
+	if _, err := db.Exec(copyQuery); err != nil {
+		return fmt.Errorf("failed to export to JSON: %w", err)
+	}
+	return nil
 }
 
 func (l *Log) createTable(rawCreateTable string) (int, error) {
