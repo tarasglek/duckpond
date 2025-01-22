@@ -92,19 +92,28 @@ func (l *Log) Export(filename string) error {
 		return err
 	}
 
-	/*
-			with json_data as (
-		    select
-		        (SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
-		            FROM schema_log) as schema_log,
-		        (SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
-		            FROM insert_log) as insert_log
+	// Execute the export query
+	var jsonResult string
+	err = db.QueryRow(`
+		WITH json_data AS (
+			SELECT
+				(SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
+					FROM schema_log) as schema_log,
+				(SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
+					FROM insert_log) as insert_log
 		)
-		select
-		    to_json(struct_pack( schema_log, insert_log ))::varchar as json_result
-		from json_data;
-	*/
-	//store json_result text as table/log.json
+		SELECT to_json(struct_pack(schema_log, insert_log))::VARCHAR
+		FROM json_data
+	`).Scan(&jsonResult)
+	if err != nil {
+		return fmt.Errorf("failed to execute export query: %w", err)
+	}
+
+	// Write JSON to storage using OpenDAL
+	if err := l.op.Write(filename, []byte(jsonResult)); err != nil {
+		return fmt.Errorf("failed to write export file: %w", err)
+	}
+
 	return nil
 }
 
