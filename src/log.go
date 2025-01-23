@@ -282,6 +282,47 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	return err
 }
 
+func (l *Log) Import(jsonPath string) error {
+	// Read JSON from filesystem using OpenDAL
+	jsonData, err := l.op.Read(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read JSON file: %w", err)
+	}
+
+	db, err := l.getDB()
+	if err != nil {
+		return err
+	}
+
+	// Import schema_log using direct JSON casting
+	_, err = db.Exec(`
+		INSERT INTO schema_log 
+		SELECT rows.*
+		FROM (
+			SELECT unnest(schema_log) AS rows
+			FROM (SELECT ?::JSON AS json_data)
+		)
+	`, string(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to import schema_log: %w", err)
+	}
+
+	// Import insert_log using same pattern
+	_, err = db.Exec(`
+		INSERT INTO insert_log 
+		SELECT rows.*
+		FROM (
+			SELECT unnest(insert_log) AS rows
+			FROM (SELECT ?::JSON AS json_data)
+		)
+	`, string(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to import insert_log: %w", err)
+	}
+
+	return nil
+}
+
 func (l *Log) Close() error {
 	if l.db != nil {
 		return l.db.Close()
