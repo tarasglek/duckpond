@@ -118,27 +118,36 @@ func (l *Log) Export() error {
 	return nil
 }
 
+// Helper function handles DB connection and export logic
+func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
+    db, err := l.getDB()
+    if err != nil {
+        return -1, err
+    }
+
+    result, err := op(db)
+    if err != nil {
+        return result, err
+    }
+
+    if err := l.Export(); err != nil {
+        return result, fmt.Errorf("export failed: %w", err)
+    }
+
+    return result, nil
+}
+
 func (l *Log) createTable(rawCreateTable string) (int, error) {
-	db, err := l.getDB()
-	if err != nil {
-		return -1, err
-	}
-
-	// Insert the raw query
-	_, err = db.Exec(`
-		INSERT INTO schema_log (timestamp, raw_query)
-		VALUES (CURRENT_TIMESTAMP, ?);
-	`, rawCreateTable)
-	if err != nil {
-		return -1, fmt.Errorf("failed to log table creation: %w", err)
-	}
-
-	// Export after table creation
-	if err := l.Export(); err != nil {
-		return -1, fmt.Errorf("failed to export after table creation: %w", err)
-	}
-
-	return 0, nil
+    return l.withPersistedLog(func(db *sql.DB) (int, error) {
+        _, err := db.Exec(`
+            INSERT INTO schema_log (timestamp, raw_query)
+            VALUES (CURRENT_TIMESTAMP, ?);
+        `, rawCreateTable)
+        if err != nil {
+            return -1, fmt.Errorf("failed to log table creation: %w", err)
+        }
+        return 0, nil
+    })
 }
 
 func (l *Log) RecreateSchema(tx *sql.Tx) error {
@@ -175,70 +184,47 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	// First insert into insert_log to generate UUID
-	db, err := l.getDB()
-	if err != nil {
-		return -1, fmt.Errorf("failed to get log database: %w", err)
-	}
+    return l.withPersistedLog(func(db *sql.DB) (int, error) {
+        // Original insert logic wrapped in lambda
+        var uuidBytes []byte
+        err := db.QueryRow(`
+            INSERT INTO insert_log (id, partition)
+            VALUES (uuidv7(), '')
+            RETURNING id;
+        `).Scan(&uuidBytes)
+        if err != nil {
+            return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
+        }
 
-	// Insert and get UUID using RETURNING
-	var uuidBytes []byte
-	err = db.QueryRow(`
-		INSERT INTO insert_log (id, partition)
-		VALUES (uuidv7(), '')
-		RETURNING id;
-	`).Scan(&uuidBytes)
-	if err != nil {
-		return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
-	}
+        uuidStr := uuid.UUID(uuidBytes).String()
+        dataDir := filepath.Join(table, "data")
+        if err := l.op.CreateDir(dataDir + "/"); err != nil {
+            return -1, fmt.Errorf("failed to create data directory: %w", err)
+        }
 
-	// Convert UUID bytes to string for filename
-	uuidStr := uuid.UUID(uuidBytes).String()
-	log.Printf("Generated UUIDv7: %s", uuidStr)
+        parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
+        copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`, 
+            table, l.toDuckDBPath(parquetPath))
 
-	// Create storage directory structure using OpenDAL
-	dataDir := filepath.Join(table, "data")
-	if err := l.op.CreateDir(dataDir + "/"); err != nil {
-		return -1, fmt.Errorf("failed to create data directory: %w", err)
-	}
+        if _, err = tx.Exec(copyQuery); err != nil {
+            return -1, fmt.Errorf("failed to copy to parquet: %w", err)
+        }
 
-	// Create parquet file path using UUID from insert_log
-	parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
-	log.Printf("Parquet file path: %s", parquetPath)
+        meta, err := l.op.Stat(parquetPath)
+        if err != nil {
+            return -1, fmt.Errorf("failed to get file size: %w", err)
+        }
 
-	// Copy table data to parquet file
-	copyQuery := fmt.Sprintf(`
-		COPY %s TO '%s' (FORMAT PARQUET);
-	`, table, l.toDuckDBPath(parquetPath))
+        if _, err = db.Exec(`
+            UPDATE insert_log 
+            SET size = ?
+            WHERE id = ?;
+        `, meta.ContentLength(), uuidStr); err != nil {
+            return -1, fmt.Errorf("failed to update size: %w", err)
+        }
 
-	// Execute COPY TO PARQUET using the transaction
-	_, err = tx.Exec(copyQuery)
-	if err != nil {
-		return -1, fmt.Errorf("failed to copy to parquet with query: %q: %w", copyQuery, err)
-	}
-
-	// Get file size using OpenDAL
-	meta, err := l.op.Stat(parquetPath)
-	if err != nil {
-		return -1, fmt.Errorf("failed to get parquet file size: %w", err)
-	}
-
-	// Update size in insert_log
-	_, err = db.Exec(`
-		UPDATE insert_log 
-		SET size = ?
-		WHERE id = ?;
-	`, meta.ContentLength(), uuidStr)
-	if err != nil {
-		return -1, fmt.Errorf("failed to update insert_log size: %w", err)
-	}
-
-	// Export after insert
-	if err := l.Export(); err != nil {
-		return -1, fmt.Errorf("failed to export after insert: %w", err)
-	}
-
-	return 0, nil
+        return 0, nil
+    })
 }
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
