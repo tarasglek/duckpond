@@ -246,12 +246,6 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
 
 	db := ib.DB()
-	tx, err := db.Begin()
-	if err != nil {
-		log.Printf("Failed to begin transaction: %v", err)
-		return "", fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
 
 	var response *QueryResponse
 	queries := []string{body}
@@ -263,6 +257,11 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		query = strings.TrimSpace(query)
 		if query == "" {
 			continue
+		}
+		tx, err := db.Begin()
+		if err != nil {
+			log.Printf("Failed to begin transaction: %v", err)
+			return "", fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
 		op, table := ib.parser.Parse(query)
@@ -310,6 +309,9 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				return "", fmt.Errorf("failed to log insert: %w", err)
 			}
 		}
+
+		// we don't persist any writes via .db, we persist em via dblog.* ops, so we can rollback here
+		tx.Rollback()
 	}
 
 	jsonData, err := json.Marshal(response)
