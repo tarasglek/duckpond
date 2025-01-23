@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 MINIO_ROOT_USER=${MINIO_ROOT_USER:-demo}
 MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-demo-pass}
 MINIO_API_PORT=${MINIO_API_PORT:-8883}
+S3_BUCKET=${S3_BUCKET:-icebase}  # Default bucket name
 MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT:-$((MINIO_API_PORT + 1))}
 MINIO_HOST=${MINIO_HOST:-localhost}
 MINIO_DATA_DIR=${MINIO_DATA_DIR:-"$SCRIPT_DIR/data"}
@@ -38,6 +39,12 @@ setup_client() {
         "http://${MINIO_HOST}:${MINIO_API_PORT}" \
         "$MINIO_ROOT_USER" \
         "$MINIO_ROOT_PASSWORD"
+
+    # Create default bucket if it doesn't exist
+    if ! mc stat s3/"$S3_BUCKET" &>/dev/null; then
+        echo "Creating default bucket: $S3_BUCKET"
+        mc mb s3/"$S3_BUCKET"
+    fi
 
     # Pass remaining arguments to mc if any
     if [ $# -gt 0 ]; then
@@ -83,6 +90,7 @@ case "$1" in
             echo "MINIO_CONSOLE_PORT=$MINIO_CONSOLE_PORT"
             echo "MINIO_HOST=$MINIO_HOST"
             echo "MINIO_DATA_DIR=$MINIO_DATA_DIR"
+            echo "S3_BUCKET=$S3_BUCKET"
             exit 0
         elif [ "$1" = "--version" ]; then
             echo "MinIO Server:"
