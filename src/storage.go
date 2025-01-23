@@ -108,8 +108,7 @@ func NewS3Storage(config *S3Config) Storage {
 				o.BaseEndpoint = &config.Endpoint
 			}
 		}),
-		config:  config,
-		rootDir: strings.TrimPrefix(rootDir, "/"),
+		config: config,
 	}
 }
 
