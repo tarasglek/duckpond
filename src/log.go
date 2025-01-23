@@ -306,6 +306,9 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 }
 
 func (l *Log) Import(tmpFilename string) error {
+	// Log the filename to stdout
+	fmt.Println("Importing from file:", tmpFilename)
+
 	db, err := l.getDB()
 	if err != nil {
 		return err
