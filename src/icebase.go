@@ -253,65 +253,71 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		queries = strings.Split(body, ";")
 	}
 
-	for i, query := range queries {
-		query = strings.TrimSpace(query)
+	for i, q := range queries {
+		query := strings.TrimSpace(q)
 		if query == "" {
 			continue
 		}
-		tx, err := db.Begin()
-		if err != nil {
-			log.Printf("Failed to begin transaction: %v", err)
-			return "", fmt.Errorf("failed to begin transaction: %w", err)
-		}
 
-		op, table := ib.parser.Parse(query)
-		log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
-		var dblog *Log
-		if table != "" {
-			var err error
-			dblog, err = ib.logByName(table)
+		var handlerErr error
+		func() {
+			tx, err := db.Begin()
 			if err != nil {
-				log.Printf("Failed to get table log for %q: %v", table, err)
-				return "", fmt.Errorf("failed to get table log: %w", err)
+				handlerErr = fmt.Errorf("failed to begin transaction: %w", err)
+				return
 			}
-		}
+			defer tx.Rollback()
 
-		if dblog != nil {
-			if op == OpSelect {
-				if err := dblog.RecreateAsView(tx); err != nil {
-					log.Printf("Failed to RecreateAsView for %q: %v", table, err)
-					return "", fmt.Errorf("failed to RecreateAsView: %w", err)
+			op, table := ib.parser.Parse(query)
+			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
+			
+			var dblog *Log
+			if table != "" {
+				dblog, handlerErr = ib.logByName(table)
+				if handlerErr != nil {
+					log.Printf("Failed to get table log for %q: %v", table, handlerErr)
+					return
 				}
-			} else {
-				if err := dblog.RecreateSchema(tx); err != nil {
-					log.Printf("Failed to recreate schema for %q: %v", table, err)
-					return "", fmt.Errorf("failed to recreate schema: %w", err)
+			}
+
+			if dblog != nil {
+				if op == OpSelect {
+					if handlerErr = dblog.RecreateAsView(tx); handlerErr != nil {
+						log.Printf("Failed to RecreateAsView for %q: %v", table, handlerErr)
+						return
+					}
+				} else {
+					if handlerErr = dblog.RecreateSchema(tx); handlerErr != nil {
+						log.Printf("Failed to recreate schema for %q: %v", table, handlerErr)
+						return
+					}
 				}
 			}
-		}
 
-		response, err = ib.ExecuteQuery(query, tx)
-		if err != nil {
-			log.Printf("Query execution failed: %v\nQuery: %q", err, query)
-			return "", fmt.Errorf("query execution failed: %w", err)
-		}
-
-		if op == OpCreateTable && dblog != nil {
-			if _, err := dblog.createTable(query); err != nil {
-				log.Printf("Failed to log table creation for %q: %v", table, err)
-				return "", fmt.Errorf("failed to log table creation: %w", err)
+			response, handlerErr = ib.ExecuteQuery(query, tx)
+			if handlerErr != nil {
+				log.Printf("Query execution failed: %v\nQuery: %q", handlerErr, query)
+				return
 			}
-		}
 
-		if op == OpInsert && dblog != nil {
-			if _, err := dblog.Insert(tx, table, query); err != nil {
-				log.Printf("Failed to log insert for %q: %v", table, err)
-				return "", fmt.Errorf("failed to log insert: %w", err)
+			if op == OpCreateTable && dblog != nil {
+				if _, handlerErr = dblog.createTable(query); handlerErr != nil {
+					log.Printf("Failed to log table creation for %q: %v", table, handlerErr)
+					return
+				}
 			}
-		}
 
-		// we don't persist any writes via .db, we persist em via dblog.* ops, so we can rollback here
-		tx.Rollback()
+			if op == OpInsert && dblog != nil {
+				if _, handlerErr = dblog.Insert(tx, table, query); handlerErr != nil {
+					log.Printf("Failed to log insert for %q: %v", table, handlerErr)
+					return
+				}
+			}
+		}()
+
+		if handlerErr != nil {
+			return "", handlerErr
+		}
 	}
 
 	jsonData, err := json.Marshal(response)
