@@ -117,9 +117,15 @@ func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 		return nil, err
 	}
 
+	// Handle nil pointer for ContentLength
+	size := int64(0)
+	if resp.ContentLength != nil {
+		size = *resp.ContentLength
+	}
+
 	return &s3FileInfo{
 		name:    filepath.Base(path),
-		size:    resp.ContentLength,
+		size:    size,
 		modTime: aws.ToTime(resp.LastModified),
 	}, nil
 }
