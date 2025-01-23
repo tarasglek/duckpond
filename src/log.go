@@ -308,30 +308,47 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 func (l *Log) Import(tmpFilename string) error {
     fmt.Println("Importing from file:", tmpFilename)
 
+    // First transaction for deletes
     db, err := l.getDB()
     if err != nil {
         return err
     }
 
-    tx, err := db.Begin()
+    // Delete in separate transaction
+    deleteTx, err := db.Begin()
     if err != nil {
         return err
     }
-    defer tx.Rollback()
-
-    // Execute combined statement for deletes and temp table creation
-    _, err = tx.Exec(fmt.Sprintf(`
+    _, err = deleteTx.Exec(`
         DELETE FROM schema_log;
         DELETE FROM insert_log;
+    `)
+    if err != nil {
+        deleteTx.Rollback()
+        return fmt.Errorf("failed to delete existing data: %w", err)
+    }
+    if err := deleteTx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit delete transaction: %w", err)
+    }
+
+    // Second transaction for import
+    importTx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    defer importTx.Rollback()
+
+    // Create temp json_data table
+    _, err = importTx.Exec(fmt.Sprintf(`
         CREATE TEMP TABLE json_data AS 
         SELECT * FROM read_json('%s', auto_detect=true);
     `, tmpFilename))
     if err != nil {
-        return fmt.Errorf("failed to initialize import: %w", err)
+        return fmt.Errorf("failed to create json_data table: %w", err)
     }
 
     // Import schema_log using json_data
-    _, err = tx.Exec(`
+    _, err = importTx.Exec(`
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
@@ -344,7 +361,7 @@ func (l *Log) Import(tmpFilename string) error {
 
     // Check if there are any insert_log entries before importing
     var insertLogLength int
-    err = tx.QueryRow(`
+    err = importTx.QueryRow(`
         SELECT COALESCE(array_length(insert_log::json[]), 0)
         FROM json_data;
     `).Scan(&insertLogLength)
@@ -354,7 +371,7 @@ func (l *Log) Import(tmpFilename string) error {
 
     // Only import insert_log if there are entries
     if insertLogLength > 0 {
-        _, err = tx.Exec(`
+        _, err = importTx.Exec(`
             INSERT INTO insert_log 
             SELECT rows.*
             FROM (
@@ -367,11 +384,11 @@ func (l *Log) Import(tmpFilename string) error {
     }
 
     // Drop the temp table before commit
-    if _, err := tx.Exec("DROP TABLE json_data;"); err != nil {
+    if _, err := importTx.Exec("DROP TABLE json_data;"); err != nil {
         return fmt.Errorf("failed to drop temp table: %w", err)
     }
 
-    return tx.Commit()
+    return importTx.Commit()
 }
 
 func (l *Log) Close() error {
