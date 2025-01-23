@@ -336,13 +336,7 @@ func (l *Log) Import(tmpFilename string) error {
 	}
 
 	// Import schema_log using json_data
-	_, err = importTx.Exec(`
-        INSERT INTO schema_log 
-        SELECT rows.*
-        FROM (
-            SELECT unnest(schema_log) AS rows 
-            FROM json_data
-        )`)
+	_, err = importTx.Exec(l.generateRestoreSQL("schema_log"))
 	if err != nil {
 		return fmt.Errorf("schema_log import failed: %w", err)
 	}
@@ -359,13 +353,7 @@ func (l *Log) Import(tmpFilename string) error {
 
 	// Only import insert_log if there are entries
 	if insertLogLength > 0 {
-		_, err = importTx.Exec(`
-            INSERT INTO insert_log 
-            SELECT rows.*
-            FROM (
-                SELECT unnest(insert_log) AS rows 
-                FROM json_data
-            )`)
+		_, err = importTx.Exec(l.generateRestoreSQL("insert_log"))
 		if err != nil {
 			return fmt.Errorf("insert_log import failed: %w", err)
 		}
@@ -384,6 +372,16 @@ func (l *Log) Close() error {
 		return l.db.Close()
 	}
 	return nil
+}
+
+func (l *Log) generateRestoreSQL(tableName string) string {
+    return fmt.Sprintf(`
+        INSERT INTO %[1]s 
+        SELECT rows.*
+        FROM (
+            SELECT unnest(%[1]s) AS rows 
+            FROM json_data
+        )`, tableName)
 }
 
 // toDuckDBPath converts a relative path to an absolute path for DuckDB
