@@ -125,12 +125,16 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
         if err != nil {
             return -1, fmt.Errorf("failed to create temp file: %w", err)
         }
-        defer os.Remove(tmpFile.Name())
-        defer tmpFile.Close()
+        // Deferred Close() for cleanup
+        defer tmpFile.Close()  // Ensures file is closed even if errors occur
+        defer os.Remove(tmpFile.Name())  // Ensures temp file is deleted
 
         if _, err := tmpFile.Write(data); err != nil {
             return -1, fmt.Errorf("failed to write temp file: %w", err)
         }
+        // Close immediately to ensure data is flushed to disk before import
+        // This is necessary because the import operation needs to read the file
+        // and we can't rely on deferred Close() since it would happen too late
         tmpFile.Close()
 
         if importErr := l.Import(tmpFile.Name()); importErr != nil {
@@ -159,6 +163,9 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
         if _, err := tmpFile.Write(exported); err != nil {
             return -1, fmt.Errorf("failed to write export temp file: %w", err)
         }
+        // Close immediately to ensure export data is flushed to disk before storage
+        // This is necessary because the storage operation needs to read the file
+        // and we can't rely on deferred Close() since it would happen too late
         tmpFile.Close()
 
         if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
