@@ -199,7 +199,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 		parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-			table, l.toDuckDBPath(parquetPath))
+			table, l.storage.ToDuckDBPath(parquetPath))
 
 		if _, err = tx.Exec(copyQuery); err != nil {
 			return -1, fmt.Errorf("failed to copy to parquet: %w", err)
@@ -255,7 +255,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	// Map files to DuckDB paths
 	paths := make([]string, len(files))
 	for i, file := range files {
-		paths[i] = fmt.Sprintf("'%s'", l.toDuckDBPath(file))
+		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
 	}
 
 	_, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
@@ -356,11 +356,6 @@ func (l *Log) generateRestoreSQL(tableName string) string {
         )`, tableName)
 }
 
-// toDuckDBPath converts a relative path to an absolute path for DuckDB
-// by prepending the storage directory
-func (l *Log) toDuckDBPath(path string) string {
-	return filepath.Join(l.storageDir, path)
-}
 
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)

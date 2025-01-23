@@ -69,6 +69,7 @@ type Storage interface {
 	CreateDir(path string) error
 	Stat(path string) (os.FileInfo, error)
 	Delete(path string) error
+	ToDuckDBPath(path string) string
 }
 
 // FSConfig holds configuration for local filesystem storage
@@ -179,6 +180,10 @@ func (s *S3Storage) Delete(path string) error {
 	return err
 }
 
+func (s *S3Storage) ToDuckDBPath(path string) string {
+	return "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
+}
+
 // Helper struct to implement os.FileInfo for S3
 type s3FileInfo struct {
 	name    string
@@ -224,4 +229,8 @@ func (fs *FSStorage) Stat(path string) (os.FileInfo, error) {
 
 func (fs *FSStorage) Delete(path string) error {
 	return os.Remove(fs.fullPath(path))
+}
+
+func (fs *FSStorage) ToDuckDBPath(path string) string {
+	return filepath.Join(fs.config.rootDir, path)
 }
