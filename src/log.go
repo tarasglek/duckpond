@@ -86,7 +86,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	return l.db, nil
 }
 
-func (l *Log) Export(filename string) error {
+func (l *Log) Export() error {
 	db, err := l.getDB()
 	if err != nil {
 		return err
