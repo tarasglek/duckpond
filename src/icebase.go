@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -254,13 +255,14 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		queries = strings.Split(body, ";")
 	}
 
-	for _, query := range queries {
+	for i, query := range queries {
 		query = strings.TrimSpace(query)
 		if query == "" {
 			continue
 		}
 
 		op, table := ib.parser.Parse(query)
+		log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
 		var dblog *Log
 		if table != "" {
 			var err error
