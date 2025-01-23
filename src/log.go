@@ -86,52 +86,56 @@ func (l *Log) getDB() (*sql.DB, error) {
 	return l.db, nil
 }
 
-func (l *Log) Export() error {
-	db, err := l.getDB()
-	if err != nil {
-		return err
-	}
-
-	// Execute the export query
-	var jsonResult string
-	err = db.QueryRow(`
-		WITH json_data AS (
-			SELECT
-				(SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
-					FROM schema_log) as schema_log,
-				(SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
-					FROM insert_log) as insert_log
-		)
-		SELECT to_json(struct_pack(schema_log, insert_log))::VARCHAR
-		FROM json_data
-	`).Scan(&jsonResult)
-	if err != nil {
-		return fmt.Errorf("failed to execute export query: %w", err)
-	}
-
-	// Write JSON to storage using OpenDAL at fixed location
-	exportPath := filepath.Join(l.tableName, "log.json")
-	if err := l.op.Write(exportPath, []byte(jsonResult)); err != nil {
-		return fmt.Errorf("failed to write export file: %w", err)
-	}
-
-	return nil
-}
-
-// Helper function handles DB connection and export logic
-func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
+func (l *Log) Export() ([]byte, error) {
     db, err := l.getDB()
     if err != nil {
-        return -1, err
+        return nil, err
     }
 
+    var jsonResult string
+    err = db.QueryRow(`
+        WITH json_data AS (
+            SELECT
+                (SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
+                    FROM schema_log) as schema_log,
+                (SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
+                    FROM insert_log) as insert_log
+        )
+        SELECT to_json(struct_pack(schema_log, insert_log))::VARCHAR
+        FROM json_data
+    `).Scan(&jsonResult)
+    
+    return []byte(jsonResult), err
+}
+
+// Modified withPersistedLog
+func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
+    const jsonFileName = "log.json"
+    
+    db, err := l.getDB()
+    if err != nil {
+        return -1, fmt.Errorf("failed to open database: %w", err)
+    }
+
+    // Try to read and import existing data
+    jsonPath := filepath.Join(l.tableName, jsonFileName)
+    if data, err := l.op.Read(jsonPath); err == nil {
+        if importErr := l.Import(data); importErr != nil {
+            return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
+        }
+    }
+
+    // Execute the operation
     result, err := op(db)
     if err != nil {
         return result, err
     }
 
-    if err := l.Export(); err != nil {
-        return result, fmt.Errorf("export failed: %w", err)
+    // Export and write new state
+    if exported, exportErr := l.Export(); exportErr != nil {
+        return -1, fmt.Errorf("export failed: %w", exportErr)
+    } else if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
+        return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
     }
 
     return result, nil
@@ -268,41 +272,38 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	return err
 }
 
-func (l *Log) Import(jsonPath string) error {
-	// Read JSON from filesystem using OpenDAL
-	jsonData, err := l.op.Read(jsonPath)
-	if err != nil {
-		return fmt.Errorf("failed to read JSON file: %w", err)
-	}
+func (l *Log) Import(data []byte) error {
+    db, err := l.getDB()
+    if err != nil {
+        return err
+    }
 
-	db, err := l.getDB()
-	if err != nil {
-		return err
-	}
+    // Use transaction for atomic import
+    tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback()
 
-	// Clear and import schema_log
-	_, err = db.Exec(
-		`DELETE FROM schema_log;
-		INSERT INTO schema_log 
-		SELECT rows.*
-		FROM (SELECT unnest(schema_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
-		string(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to import schema_log: %w", err)
-	}
+    _, err = tx.Exec(
+        `DELETE FROM schema_log;
+        INSERT INTO schema_log SELECT rows.*
+        FROM (SELECT unnest(schema_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
+        string(data))
+    if err != nil {
+        return fmt.Errorf("schema_log import failed: %w", err)
+    }
 
-	// Clear and import insert_log
-	_, err = db.Exec(
-		`DELETE FROM insert_log;
-		INSERT INTO insert_log 
-		SELECT rows.*
-		FROM (SELECT unnest(insert_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
-		string(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to import insert_log: %w", err)
-	}
+    _, err = tx.Exec(
+        `DELETE FROM insert_log;
+        INSERT INTO insert_log SELECT rows.*
+        FROM (SELECT unnest(insert_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
+        string(data))
+    if err != nil {
+        return fmt.Errorf("insert_log import failed: %w", err)
+    }
 
-	return nil
+    return tx.Commit()
 }
 
 func (l *Log) Close() error {
