@@ -265,15 +265,15 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			// 1. Scoped defer for transaction rollback - ensures rollback happens before next iteration
 			// 2. Clean error handling isolation between queries
 			// 3. Proper variable capture in loop iterations
-				
+
 			// Begin new transaction
 			tx, err := db.Begin()
 			if err != nil {
 				handlerErr = fmt.Errorf("failed to begin transaction: %w", err)
 				return
 			}
-				
-			// Always rollback unless explicitly committed. This:
+
+			// Always rollback because actual data commit happens via log. This:
 			// - Prevents transaction leaks
 			// - Ensures clean state for next query
 			// - Handles both success and error cases safely
@@ -281,7 +281,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			op, table := ib.parser.Parse(query)
 			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
-				
+
 			var dblog *Log
 			if table != "" {
 				dblog, handlerErr = ib.logByName(table)
@@ -324,14 +324,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 					return
 				}
 			}
-
-			// Only commit if all operations succeeded
-			if handlerErr == nil {
-				if err := tx.Commit(); err != nil {
-					handlerErr = fmt.Errorf("failed to commit transaction: %w", err)
-					return
-				}
-			}
+			// No commit because log handles data persistence above
 		}()
 
 		if handlerErr != nil {
