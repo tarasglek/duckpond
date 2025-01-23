@@ -109,8 +109,9 @@ func (l *Log) Export() error {
 		return fmt.Errorf("failed to execute export query: %w", err)
 	}
 
-	// Write JSON to storage using OpenDAL
-	if err := l.op.Write(filename, []byte(jsonResult)); err != nil {
+	// Write JSON to storage using OpenDAL at fixed location
+	exportPath := filepath.Join(l.tableName, "log.json")
+	if err := l.op.Write(exportPath, []byte(jsonResult)); err != nil {
 		return fmt.Errorf("failed to write export file: %w", err)
 	}
 
