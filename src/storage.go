@@ -14,6 +14,43 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// S3Config holds configuration for S3 storage
+type S3Config struct {
+	AccessKey    string
+	SecretKey    string
+	Endpoint     string
+	Bucket       string
+	UsePathStyle bool
+	Region       string
+}
+
+func LoadS3ConfigFromEnv() *S3Config {
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1" // Default region
+	}
+	return &S3Config{
+		AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		Endpoint:     os.Getenv("S3_ENDPOINT"),
+		Bucket:       os.Getenv("S3_BUCKET"),
+		UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
+		Region:       region,
+	}
+}
+
+func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
+	return config.LoadDefaultConfig(context.Background(),
+		config.WithCredentialsProvider(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     c.AccessKey,
+				SecretAccessKey: c.SecretKey,
+			}, nil
+		})),
+		config.WithRegion(c.Region),
+	)
+}
+
 // Storage interface replaces OpenDAL operations
 type Storage interface {
 	Read(path string) ([]byte, error)
@@ -35,39 +72,25 @@ func NewFSStorage(rootDir string) Storage {
 // S3Storage implements Storage using S3/MinIO
 type S3Storage struct {
 	client   *s3.Client
-	bucket   string
+	config   *S3Config
 	rootDir  string
 }
 
-func NewS3Storage(rootDir string) Storage {
-	// Load configuration from environment variables
-	cfg, err := config.LoadDefaultConfig(context.Background(),
-		config.WithCredentialsProvider(
-			aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-				return aws.Credentials{
-					AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-					SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-				}, nil
-			}),
-		),
-	)
+func NewS3Storage(config *S3Config, rootDir string) Storage {
+	cfg, err := config.LoadAWSConfig()
 	if err != nil {
 		panic("failed to load AWS config: " + err.Error())
 	}
 
-	// Configure MinIO endpoint if specified
-	endpoint := os.Getenv("S3_ENDPOINT")
-	if endpoint != "" {
-		cfg.BaseEndpoint = &endpoint
-	}
-
 	return &S3Storage{
 		client:   s3.NewFromConfig(cfg, func(o *s3.Options) {
-			// Enable path-style addressing for MinIO
-			o.UsePathStyle = os.Getenv("S3_USE_PATH_STYLE") == "true"
+			o.UsePathStyle = config.UsePathStyle
+			if config.Endpoint != "" {
+				o.BaseEndpoint = &config.Endpoint
+			}
 		}),
-		bucket:  os.Getenv("S3_BUCKET"),
-		rootDir: strings.TrimPrefix(rootDir, "/"),
+		config:   config,
+		rootDir:  strings.TrimPrefix(rootDir, "/"),
 	}
 }
 
@@ -77,7 +100,7 @@ func (s *S3Storage) fullKey(path string) string {
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
+		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(s.fullKey(path)),
 	})
 	if err != nil {
@@ -90,7 +113,7 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 
 func (s *S3Storage) Write(path string, data []byte) error {
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
+		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(s.fullKey(path)),
 		Body:   bytes.NewReader(data),
 	})
@@ -101,7 +124,7 @@ func (s *S3Storage) CreateDir(path string) error {
 	// S3 doesn't have directories - create empty "folder" marker
 	key := s.fullKey(path) + "/"
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
+		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader([]byte{}),
 	})
@@ -110,7 +133,7 @@ func (s *S3Storage) CreateDir(path string) error {
 
 func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 	resp, err := s.client.HeadObject(context.Background(), &s3.HeadObjectInput{
-		Bucket: aws.String(s.bucket),
+		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(s.fullKey(path)),
 	})
 	if err != nil {
@@ -154,9 +177,9 @@ func (fi *s3FileInfo) Sys() interface{}   { return nil }
 
 // NewStorage creates either S3 or FS storage based on environment
 func NewStorage(rootDir string) Storage {
-	// Use S3 if bucket is specified in environment
-	if bucket := os.Getenv("S3_BUCKET"); bucket != "" {
-		return NewS3Storage(rootDir)
+	s3Config := LoadS3ConfigFromEnv()
+	if s3Config.Bucket != "" {
+		return NewS3Storage(s3Config, rootDir)
 	}
 	return NewFSStorage(rootDir)
 }
