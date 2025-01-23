@@ -326,7 +326,7 @@ func (l *Log) Import(tmpFilename string) error {
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
-            SELECT unnest(schema_log) AS rows 
+            SELECT unnest(COALESCE(schema_log, [])) AS rows 
             FROM read_json('%s', auto_detect=true)
         )`, tmpFilename))
 	if err != nil {
@@ -338,7 +338,7 @@ func (l *Log) Import(tmpFilename string) error {
         INSERT INTO insert_log 
         SELECT rows.*
         FROM (
-            SELECT unnest(insert_log) AS rows 
+            SELECT unnest(COALESCE(insert_log, [])) AS rows 
             FROM read_json('%s', auto_detect=true)
         )`, tmpFilename))
 	if err != nil {
