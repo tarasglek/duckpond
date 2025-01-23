@@ -25,7 +25,8 @@ type QueryResponse struct {
 }
 
 type IceBaseOptions struct {
-	storageDir string
+	storageDir           string
+	enableQuerySplitting bool
 }
 
 type IceBaseOption func(*IceBaseOptions)
@@ -36,10 +37,17 @@ func WithStorageDir(dir string) IceBaseOption {
 	}
 }
 
+func WithQuerySplittingEnabled() IceBaseOption {
+	return func(o *IceBaseOptions) {
+		o.enableQuerySplitting = true
+	}
+}
+
 type IceBase struct {
 	_db        *sql.DB
 	parser     *Parser
 	logs       map[string]*Log
+	options    IceBaseOptions
 	storageDir string
 }
 
@@ -153,6 +161,7 @@ func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 	return &IceBase{
 		parser:     NewParser(),
 		logs:       make(map[string]*Log),
+		options:    options,
 		storageDir: options.storageDir,
 	}, nil
 }
@@ -232,60 +241,65 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 }
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
-	// Get database connection
 	db := ib.DB()
-
-	// Execute query, then discard results
 	tx, err := db.Begin()
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	op, table := ib.parser.Parse(body)
+	var response *QueryResponse
+	queries := []string{body}
+	if ib.options.enableQuerySplitting {
+		queries = strings.Split(body, ";")
+	}
 
-	// Get dblog if we have a valid table name
-	var dblog *Log
-	if table != "" {
-		var err error
-		dblog, err = ib.logByName(table)
+	for _, query := range queries {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			continue
+		}
+
+		op, table := ib.parser.Parse(query)
+		var dblog *Log
+		if table != "" {
+			var err error
+			dblog, err = ib.logByName(table)
+			if err != nil {
+				return "", fmt.Errorf("failed to get table log: %w", err)
+			}
+		}
+
+		if dblog != nil {
+			if op == OpSelect {
+				if err := dblog.RecreateAsView(tx); err != nil {
+					return "", fmt.Errorf("failed to RecreateAsView: %w", err)
+				}
+			} else {
+				if err := dblog.RecreateSchema(tx); err != nil {
+					return "", fmt.Errorf("failed to recreate schema: %w", err)
+				}
+			}
+		}
+
+		response, err = ib.ExecuteQuery(query, tx)
 		if err != nil {
-			return "", fmt.Errorf("failed to get table log: %w", err)
+			return "", fmt.Errorf("query execution failed: %w", err)
 		}
-	}
-	// Recreate schema before executing user query
-	if dblog != nil {
-		if op == OpSelect {
-			if err := dblog.RecreateAsView(tx); err != nil {
-				return "", fmt.Errorf("failed to RecreateAsView: %w", err)
-			}
-		} else {
-			if err := dblog.RecreateSchema(tx); err != nil {
-				return "", fmt.Errorf("failed to recreate schema: %w", err)
+
+		if op == OpCreateTable && dblog != nil {
+			if _, err := dblog.createTable(query); err != nil {
+				return "", fmt.Errorf("failed to log table creation: %w", err)
 			}
 		}
-	}
 
-	response, err := ib.ExecuteQuery(body, tx)
-	if err != nil {
-		return "", fmt.Errorf("query execution failed: %w", err)
-	}
-
-	// Handle CREATE TABLE logging
-	if op == OpCreateTable && dblog != nil {
-		if _, err := dblog.createTable(body); err != nil {
-			return "", fmt.Errorf("failed to log table creation: %w", err)
+		if op == OpInsert && dblog != nil {
+			if _, err := dblog.Insert(tx, table, query); err != nil {
+				return "", fmt.Errorf("failed to log insert: %w", err)
+			}
 		}
 	}
 
-	// Handle INSERT logging
-	if op == OpInsert && dblog != nil {
-		if _, err := dblog.Insert(tx, table, body); err != nil {
-			return "", fmt.Errorf("failed to log insert: %w", err)
-		}
-	}
-
-	// return response as JSON
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)

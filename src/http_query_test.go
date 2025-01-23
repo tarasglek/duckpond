@@ -98,21 +98,8 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	// Reset the response body for JSON decoding
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	// for icebase manually split query by ;, then run indiv queries and use last response as final response
-	// split query by ;
-	// Can't do this in PostEndpoint because we don't have a proper query parser :(
-	var icebaseResp string
-	all_queries := string(query_bytes)
-	indiv_queries := strings.Split(all_queries, ";")
-	for _, query := range indiv_queries {
-		// continue if trimmed query is empty
-		if strings.TrimSpace(query) == "" {
-			continue
-		}
-		// print query
-		icebaseResp, err = ib.PostEndpoint("/query", query)
-		assert.NoError(t, err, "IceBase request failed")
-	}
+	icebaseResp, err := ib.PostEndpoint("/query", string(query_bytes))
+	assert.NoError(t, err, "IceBase request failed")
 	// Test against IceBase
 	var icebaseJSON map[string]interface{}
 	assert.NoError(t, json.Unmarshal([]byte(icebaseResp), &icebaseJSON),
@@ -175,7 +162,10 @@ func readJSON(t *testing.T, path string) (map[string]interface{}, error) {
 
 func TestHttpQuery(t *testing.T) {
 	// Create IceBase with custom storage directory
-	ib, err := NewIceBase(WithStorageDir("http_query_test_tables"))
+	ib, err := NewIceBase(
+		WithStorageDir("http_query_test_tables"),
+		WithQuerySplittingEnabled(),
+	)
 	assert.NoError(t, err, "Failed to create IceBase")
 	defer ib.Close()
 
