@@ -45,22 +45,10 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// Create database path
-	dbPath := filepath.Join(logDir, "log.db")
-
 	// Initialize main database connection
 	db, err := InitializeDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS log_db;USE log_db`, l.toDuckDBPath(dbPath))
-
-	// Attach log database
-	_, err = db.Exec(attachSQL)
-	if err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to attach log database: %w", err)
 	}
 
 	// Create schema if needed
@@ -126,8 +114,8 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 			return -1, fmt.Errorf("failed to create temp file: %w", err)
 		}
 		// Deferred Close() for cleanup
-		defer tmpFile.Close() // Ensures file is closed even if errors occur
-		// defer os.Remove(tmpFile.Name()) // Ensures temp file is deleted
+		defer tmpFile.Close()           // Ensures file is closed even if errors occur
+		defer os.Remove(tmpFile.Name()) // Ensures temp file is deleted
 
 		if _, err := tmpFile.Write(data); err != nil {
 			return -1, fmt.Errorf("failed to write temp file: %w", err)
@@ -306,89 +294,89 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 }
 
 func (l *Log) Import(tmpFilename string) error {
-    fmt.Println("Importing from file:", tmpFilename)
+	fmt.Println("Importing from file:", tmpFilename)
 
-    // First transaction for deletes
-    db, err := l.getDB()
-    if err != nil {
-        return err
-    }
+	// First transaction for deletes
+	db, err := l.getDB()
+	if err != nil {
+		return err
+	}
 
-    // Delete in separate transaction
-    deleteTx, err := db.Begin()
-    if err != nil {
-        return err
-    }
-    _, err = deleteTx.Exec(`
+	// Delete in separate transaction
+	deleteTx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	_, err = deleteTx.Exec(`
         DELETE FROM schema_log;
         DELETE FROM insert_log;
     `)
-    if err != nil {
-        deleteTx.Rollback()
-        return fmt.Errorf("failed to delete existing data: %w", err)
-    }
-    if err := deleteTx.Commit(); err != nil {
-        return fmt.Errorf("failed to commit delete transaction: %w", err)
-    }
+	if err != nil {
+		deleteTx.Rollback()
+		return fmt.Errorf("failed to delete existing data: %w", err)
+	}
+	if err := deleteTx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit delete transaction: %w", err)
+	}
 
-    // Second transaction for import
-    importTx, err := db.Begin()
-    if err != nil {
-        return err
-    }
-    defer importTx.Rollback()
+	// Second transaction for import
+	importTx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer importTx.Rollback()
 
-    // Create temp json_data table
-    _, err = importTx.Exec(fmt.Sprintf(`
+	// Create temp json_data table
+	_, err = importTx.Exec(fmt.Sprintf(`
         CREATE TEMP TABLE json_data AS 
         SELECT * FROM read_json('%s', auto_detect=true);
     `, tmpFilename))
-    if err != nil {
-        return fmt.Errorf("failed to create json_data table: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to create json_data table: %w", err)
+	}
 
-    // Import schema_log using json_data
-    _, err = importTx.Exec(`
+	// Import schema_log using json_data
+	_, err = importTx.Exec(`
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
             SELECT unnest(schema_log) AS rows 
             FROM json_data
         )`)
-    if err != nil {
-        return fmt.Errorf("schema_log import failed: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("schema_log import failed: %w", err)
+	}
 
-    // Check if there are any insert_log entries before importing
-    var insertLogLength int
-    err = importTx.QueryRow(`
+	// Check if there are any insert_log entries before importing
+	var insertLogLength int
+	err = importTx.QueryRow(`
         SELECT COALESCE(array_length(insert_log::json[]), 0)
         FROM json_data;
     `).Scan(&insertLogLength)
-    if err != nil {
-        return fmt.Errorf("failed to check insert_log length: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to check insert_log length: %w", err)
+	}
 
-    // Only import insert_log if there are entries
-    if insertLogLength > 0 {
-        _, err = importTx.Exec(`
+	// Only import insert_log if there are entries
+	if insertLogLength > 0 {
+		_, err = importTx.Exec(`
             INSERT INTO insert_log 
             SELECT rows.*
             FROM (
                 SELECT unnest(insert_log) AS rows 
                 FROM json_data
             )`)
-        if err != nil {
-            return fmt.Errorf("insert_log import failed: %w", err)
-        }
-    }
+		if err != nil {
+			return fmt.Errorf("insert_log import failed: %w", err)
+		}
+	}
 
-    // Drop the temp table before commit
-    if _, err := importTx.Exec("DROP TABLE json_data;"); err != nil {
-        return fmt.Errorf("failed to drop temp table: %w", err)
-    }
+	// Drop the temp table before commit
+	if _, err := importTx.Exec("DROP TABLE json_data;"); err != nil {
+		return fmt.Errorf("failed to drop temp table: %w", err)
+	}
 
-    return importTx.Commit()
+	return importTx.Commit()
 }
 
 func (l *Log) Close() error {
