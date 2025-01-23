@@ -214,7 +214,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
             UPDATE insert_log 
             SET size = ?
             WHERE id = ?;
-        `, meta.ContentLength(), uuidStr); err != nil {
+        `, meta.Size(), uuidStr); err != nil {
 			return -1, fmt.Errorf("failed to update size: %w", err)
 		}
 
