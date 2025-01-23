@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 
@@ -87,13 +86,13 @@ func (l *Log) getDB() (*sql.DB, error) {
 }
 
 func (l *Log) Export() ([]byte, error) {
-    db, err := l.getDB()
-    if err != nil {
-        return nil, err
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return nil, err
+	}
 
-    var jsonResult string
-    err = db.QueryRow(`
+	var jsonResult string
+	err = db.QueryRow(`
         WITH json_data AS (
             SELECT
                 (SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
@@ -104,54 +103,54 @@ func (l *Log) Export() ([]byte, error) {
         SELECT to_json(struct_pack(schema_log, insert_log))::VARCHAR
         FROM json_data
     `).Scan(&jsonResult)
-    
-    return []byte(jsonResult), err
+
+	return []byte(jsonResult), err
 }
 
 // Modified withPersistedLog
 func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
-    const jsonFileName = "log.json"
-    
-    db, err := l.getDB()
-    if err != nil {
-        return -1, fmt.Errorf("failed to open database: %w", err)
-    }
+	const jsonFileName = "log.json"
 
-    // Try to read and import existing data
-    jsonPath := filepath.Join(l.tableName, jsonFileName)
-    if data, err := l.op.Read(jsonPath); err == nil {
-        if importErr := l.Import(data); importErr != nil {
-            return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
-        }
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return -1, fmt.Errorf("failed to open database: %w", err)
+	}
 
-    // Execute the operation
-    result, err := op(db)
-    if err != nil {
-        return result, err
-    }
+	// Try to read and import existing data
+	jsonPath := filepath.Join(l.tableName, jsonFileName)
+	if data, err := l.op.Read(jsonPath); err == nil {
+		if importErr := l.Import(data); importErr != nil {
+			return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
+		}
+	}
 
-    // Export and write new state
-    if exported, exportErr := l.Export(); exportErr != nil {
-        return -1, fmt.Errorf("export failed: %w", exportErr)
-    } else if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
-        return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
-    }
+	// Execute the operation
+	result, err := op(db)
+	if err != nil {
+		return result, err
+	}
 
-    return result, nil
+	// Export and write new state
+	if exported, exportErr := l.Export(); exportErr != nil {
+		return -1, fmt.Errorf("export failed: %w", exportErr)
+	} else if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
+		return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
+	}
+
+	return result, nil
 }
 
 func (l *Log) createTable(rawCreateTable string) (int, error) {
-    return l.withPersistedLog(func(db *sql.DB) (int, error) {
-        _, err := db.Exec(`
+	return l.withPersistedLog(func(db *sql.DB) (int, error) {
+		_, err := db.Exec(`
             INSERT INTO schema_log (timestamp, raw_query)
             VALUES (CURRENT_TIMESTAMP, ?);
         `, rawCreateTable)
-        if err != nil {
-            return -1, fmt.Errorf("failed to log table creation: %w", err)
-        }
-        return 0, nil
-    })
+		if err != nil {
+			return -1, fmt.Errorf("failed to log table creation: %w", err)
+		}
+		return 0, nil
+	})
 }
 
 func (l *Log) RecreateSchema(tx *sql.Tx) error {
@@ -188,47 +187,47 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 }
 
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-    return l.withPersistedLog(func(db *sql.DB) (int, error) {
-        // Original insert logic wrapped in lambda
-        var uuidBytes []byte
-        err := db.QueryRow(`
+	return l.withPersistedLog(func(db *sql.DB) (int, error) {
+		// Original insert logic wrapped in lambda
+		var uuidBytes []byte
+		err := db.QueryRow(`
             INSERT INTO insert_log (id, partition)
             VALUES (uuidv7(), '')
             RETURNING id;
         `).Scan(&uuidBytes)
-        if err != nil {
-            return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
-        }
+		if err != nil {
+			return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
+		}
 
-        uuidStr := uuid.UUID(uuidBytes).String()
-        dataDir := filepath.Join(table, "data")
-        if err := l.op.CreateDir(dataDir + "/"); err != nil {
-            return -1, fmt.Errorf("failed to create data directory: %w", err)
-        }
+		uuidStr := uuid.UUID(uuidBytes).String()
+		dataDir := filepath.Join(table, "data")
+		if err := l.op.CreateDir(dataDir + "/"); err != nil {
+			return -1, fmt.Errorf("failed to create data directory: %w", err)
+		}
 
-        parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
-        copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`, 
-            table, l.toDuckDBPath(parquetPath))
+		parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
+		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
+			table, l.toDuckDBPath(parquetPath))
 
-        if _, err = tx.Exec(copyQuery); err != nil {
-            return -1, fmt.Errorf("failed to copy to parquet: %w", err)
-        }
+		if _, err = tx.Exec(copyQuery); err != nil {
+			return -1, fmt.Errorf("failed to copy to parquet: %w", err)
+		}
 
-        meta, err := l.op.Stat(parquetPath)
-        if err != nil {
-            return -1, fmt.Errorf("failed to get file size: %w", err)
-        }
+		meta, err := l.op.Stat(parquetPath)
+		if err != nil {
+			return -1, fmt.Errorf("failed to get file size: %w", err)
+		}
 
-        if _, err = db.Exec(`
+		if _, err = db.Exec(`
             UPDATE insert_log 
             SET size = ?
             WHERE id = ?;
         `, meta.ContentLength(), uuidStr); err != nil {
-            return -1, fmt.Errorf("failed to update size: %w", err)
-        }
+			return -1, fmt.Errorf("failed to update size: %w", err)
+		}
 
-        return 0, nil
-    })
+		return 0, nil
+	})
 }
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
@@ -273,37 +272,37 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 }
 
 func (l *Log) Import(data []byte) error {
-    db, err := l.getDB()
-    if err != nil {
-        return err
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return err
+	}
 
-    // Use transaction for atomic import
-    tx, err := db.Begin()
-    if err != nil {
-        return err
-    }
-    defer tx.Rollback()
+	// Use transaction for atomic import
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-    _, err = tx.Exec(
-        `DELETE FROM schema_log;
+	_, err = tx.Exec(
+		`DELETE FROM schema_log;
         INSERT INTO schema_log SELECT rows.*
         FROM (SELECT unnest(schema_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
-        string(data))
-    if err != nil {
-        return fmt.Errorf("schema_log import failed: %w", err)
-    }
+		string(data))
+	if err != nil {
+		return fmt.Errorf("schema_log import failed: %w", err)
+	}
 
-    _, err = tx.Exec(
-        `DELETE FROM insert_log;
+	_, err = tx.Exec(
+		`DELETE FROM insert_log;
         INSERT INTO insert_log SELECT rows.*
         FROM (SELECT unnest(insert_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
-        string(data))
-    if err != nil {
-        return fmt.Errorf("insert_log import failed: %w", err)
-    }
+		string(data))
+	if err != nil {
+		return fmt.Errorf("insert_log import failed: %w", err)
+	}
 
-    return tx.Commit()
+	return tx.Commit()
 }
 
 func (l *Log) Close() error {
