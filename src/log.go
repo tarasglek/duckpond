@@ -21,7 +21,7 @@ func NewLog(storageDir, tableName string) *Log {
 	return &Log{
 		tableName:  tableName,
 		storageDir: storageDir,
-		storage:    NewFSStorage(storageDir),
+		storage:    NewStorage(storageDir),
 	}
 }
 

@@ -5,6 +5,10 @@ go 1.23.0
 toolchain go1.23.4
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.30.0
+	github.com/aws/aws-sdk-go-v2/config v1.27.15
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.15
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.55.1
 	github.com/google/uuid v1.6.0
 	github.com/marcboeker/go-duckdb v1.8.3
 	github.com/stretchr/testify v1.9.0 // Add this line
