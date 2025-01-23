@@ -253,11 +253,16 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		queries = strings.Split(body, ";")
 	}
 
-	for i, q := range queries {
-		query := strings.TrimSpace(q)
-		if query == "" {
-			continue
+	// Filter empty queries first
+	filteredQueries := make([]string, 0, len(queries))
+	for _, q := range queries {
+		if query := strings.TrimSpace(q); query != "" {
+			filteredQueries = append(filteredQueries, query)
 		}
+	}
+
+	for i, q := range filteredQueries {
+		query := q // Already trimmed and filtered
 
 		var handlerErr error
 		func() {
