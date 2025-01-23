@@ -39,12 +39,6 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return l.db, nil
 	}
 
-	// Create storage directory structure using OpenDAL
-	logDir := filepath.Join(l.tableName, "log")
-	if err := l.op.CreateDir(logDir + "/"); err != nil {
-		return nil, fmt.Errorf("failed to create log directory: %w", err)
-	}
-
 	// Initialize main database connection
 	db, err := InitializeDuckDB()
 	if err != nil {
@@ -74,6 +68,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	return l.db, nil
 }
 
+// Exports db state to a JSON file
 func (l *Log) Export() ([]byte, error) {
 	db, err := l.getDB()
 	if err != nil {
@@ -138,22 +133,6 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 	if exported, exportErr := l.Export(); exportErr != nil {
 		return -1, fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		// Write to temp file for export
-		tmpFile, err := os.CreateTemp("", "icebase-export-*.json")
-		if err != nil {
-			return -1, fmt.Errorf("failed to create export temp file: %w", err)
-		}
-		defer os.Remove(tmpFile.Name())
-		defer tmpFile.Close()
-
-		if _, err := tmpFile.Write(exported); err != nil {
-			return -1, fmt.Errorf("failed to write export temp file: %w", err)
-		}
-		// Close immediately to ensure export data is flushed to disk before storage
-		// This is necessary because the storage operation needs to read the file
-		// and we can't rely on deferred Close() since it would happen too late
-		tmpFile.Close()
-
 		if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
 			return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
@@ -293,6 +272,9 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	return err
 }
 
+// Restores db state from a JSON file
+// passing JSON to keep all logic in DB
+// TODO: pass it in via arrow to reduce overhead
 func (l *Log) Import(tmpFilename string) error {
 	db, err := l.getDB()
 	if err != nil {
@@ -403,12 +385,6 @@ func (l *Log) Destroy() error {
 		if err := l.op.Delete(file); err != nil {
 			return fmt.Errorf("failed to delete file %s: %w", file, err)
 		}
-	}
-
-	// Delete log.db file
-	logPath := filepath.Join(l.tableName, "log", "log.db")
-	if err := l.op.Delete(logPath); err != nil {
-		return fmt.Errorf("failed to delete log.db: %w", err)
 	}
 
 	// Delete JSON log file
