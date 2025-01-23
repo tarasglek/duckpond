@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -16,38 +16,38 @@ import (
 
 // StorageConfig interface defines root directory access
 type StorageConfig interface {
-    RootDir() string
+	RootDir() string
 }
 
 // S3Config holds configuration for S3 storage
 type S3Config struct {
-    rootDir      string
-    AccessKey    string
-    SecretKey    string
-    Endpoint     string
-    Bucket       string
-    UsePathStyle bool
-    Region       string
+	rootDir      string
+	AccessKey    string
+	SecretKey    string
+	Endpoint     string
+	Bucket       string
+	UsePathStyle bool
+	Region       string
 }
 
 func (c *S3Config) RootDir() string {
-    return c.rootDir
+	return c.rootDir
 }
 
 func LoadS3ConfigFromEnv(rootDir string) *S3Config {
-    region := os.Getenv("AWS_REGION")
-    if region == "" {
-        region = "us-east-1" // Default region
-    }
-    return &S3Config{
-        rootDir:      rootDir,
-        AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
-        SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-        Endpoint:     os.Getenv("S3_ENDPOINT"),
-        Bucket:       os.Getenv("S3_BUCKET"),
-        UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
-        Region:       region,
-    }
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1" // Default region
+	}
+	return &S3Config{
+		rootDir:      rootDir,
+		AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		Endpoint:     os.Getenv("S3_ENDPOINT"),
+		Bucket:       os.Getenv("S3_BUCKET"),
+		UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
+		Region:       region,
+	}
 }
 
 func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
@@ -73,26 +73,26 @@ type Storage interface {
 
 // FSConfig holds configuration for local filesystem storage
 type FSConfig struct {
-    rootDir string
+	rootDir string
 }
 
 func (c *FSConfig) RootDir() string {
-    return c.rootDir
+	return c.rootDir
 }
 
 // FSStorage implements Storage using local filesystem
 type FSStorage struct {
-    config *FSConfig
+	config *FSConfig
 }
 
 func NewFSStorage(config *FSConfig) Storage {
-    return &FSStorage{config: config}
+	return &FSStorage{config: config}
 }
 
 // S3Storage implements Storage using S3/MinIO
 type S3Storage struct {
-    client *s3.Client
-    config *S3Config
+	client *s3.Client
+	config *S3Config
 }
 
 func NewS3Storage(config *S3Config) Storage {
@@ -102,19 +102,19 @@ func NewS3Storage(config *S3Config) Storage {
 	}
 
 	return &S3Storage{
-		client:   s3.NewFromConfig(cfg, func(o *s3.Options) {
+		client: s3.NewFromConfig(cfg, func(o *s3.Options) {
 			o.UsePathStyle = config.UsePathStyle
 			if config.Endpoint != "" {
 				o.BaseEndpoint = &config.Endpoint
 			}
 		}),
-		config:   config,
-		rootDir:  strings.TrimPrefix(rootDir, "/"),
+		config:  config,
+		rootDir: strings.TrimPrefix(rootDir, "/"),
 	}
 }
 
 func (s *S3Storage) fullKey(path string) string {
-    return strings.TrimPrefix(filepath.Join(s.config.RootDir(), path), "/")
+	return strings.TrimPrefix(filepath.Join(s.config.RootDir(), path), "/")
 }
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
@@ -196,15 +196,15 @@ func (fi *s3FileInfo) Sys() interface{}   { return nil }
 
 // NewStorage creates either S3 or FS storage based on environment
 func NewStorage(rootDir string) Storage {
-    s3Config := LoadS3ConfigFromEnv(rootDir)
-    if s3Config.Bucket != "" {
-        return NewS3Storage(s3Config)
-    }
-    return NewFSStorage(&FSConfig{rootDir: rootDir})
+	s3Config := LoadS3ConfigFromEnv(rootDir)
+	if s3Config.Bucket != "" {
+		return NewS3Storage(s3Config)
+	}
+	return NewFSStorage(&FSConfig{rootDir: rootDir})
 }
 
 func (fs *FSStorage) fullPath(path string) string {
-    return filepath.Join(fs.config.RootDir(), path)
+	return filepath.Join(fs.config.RootDir(), path)
 }
 
 func (fs *FSStorage) Read(path string) ([]byte, error) {
