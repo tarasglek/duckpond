@@ -133,6 +133,11 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 		return -1, fmt.Errorf("failed to log table creation: %w", err)
 	}
 
+	// Export after table creation
+	if err := l.Export(); err != nil {
+		return -1, fmt.Errorf("failed to export after table creation: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -226,6 +231,11 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	`, meta.ContentLength(), uuidStr)
 	if err != nil {
 		return -1, fmt.Errorf("failed to update insert_log size: %w", err)
+	}
+
+	// Export after insert
+	if err := l.Export(); err != nil {
+		return -1, fmt.Errorf("failed to export after insert: %w", err)
 	}
 
 	return 0, nil
