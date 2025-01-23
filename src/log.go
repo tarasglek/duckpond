@@ -374,6 +374,8 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// generateRestoreSQL creates SQL to restore a table from a JSON field
+// with the same name in the json_data temporary table.
 func (l *Log) generateRestoreSQL(tableName string) string {
     return fmt.Sprintf(`
         INSERT INTO %[1]s 
