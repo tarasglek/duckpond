@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apache/opendal-go-services/fs"
-	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 )
 
@@ -16,21 +14,14 @@ type Log struct {
 	db         *sql.DB
 	tableName  string
 	storageDir string
-	op         *opendal.Operator
+	storage    Storage
 }
 
 func NewLog(storageDir, tableName string) *Log {
-	op, err := opendal.NewOperator(fs.Scheme, opendal.OperatorOptions{
-		"root": storageDir,
-	})
-	if err != nil {
-		panic(fmt.Errorf("failed to create OpenDAL operator: %w", err))
-	}
-
 	return &Log{
 		tableName:  tableName,
 		storageDir: storageDir,
-		op:         op,
+		storage:    NewFSStorage(storageDir),
 	}
 }
 
@@ -102,7 +93,7 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 
 	// Try to read and import existing data through temp file
 	jsonPath := filepath.Join(l.tableName, jsonFileName)
-	if data, err := l.op.Read(jsonPath); err == nil {
+	if data, err := l.storage.Read(jsonPath); err == nil {
 		// Write to temp file
 		tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
 		if err != nil {
@@ -133,7 +124,7 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 	if exported, exportErr := l.Export(); exportErr != nil {
 		return -1, fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
+		if writeErr := l.storage.Write(jsonPath, exported); writeErr != nil {
 			return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
 	}
@@ -202,7 +193,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 		uuidStr := uuid.UUID(uuidBytes).String()
 		dataDir := filepath.Join(table, "data")
-		if err := l.op.CreateDir(dataDir + "/"); err != nil {
+		if err := l.storage.CreateDir(dataDir); err != nil {
 			return -1, fmt.Errorf("failed to create data directory: %w", err)
 		}
 
@@ -214,7 +205,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 			return -1, fmt.Errorf("failed to copy to parquet: %w", err)
 		}
 
-		meta, err := l.op.Stat(parquetPath)
+		meta, err := l.storage.Stat(parquetPath)
 		if err != nil {
 			return -1, fmt.Errorf("failed to get file size: %w", err)
 		}
@@ -382,14 +373,14 @@ func (l *Log) Destroy() error {
 
 	// Delete each parquet file
 	for _, file := range files {
-		if err := l.op.Delete(file); err != nil {
+		if err := l.storage.Delete(file); err != nil {
 			return fmt.Errorf("failed to delete file %s: %w", file, err)
 		}
 	}
 
 	// Delete JSON log file
 	jsonLogPath := filepath.Join(l.tableName, "log.json")
-	if err := l.op.Delete(jsonLogPath); err != nil {
+	if err := l.storage.Delete(jsonLogPath); err != nil {
 		return fmt.Errorf("failed to delete log.json: %w", err)
 	}
 
