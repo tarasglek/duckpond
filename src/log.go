@@ -306,48 +306,55 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 }
 
 func (l *Log) Import(tmpFilename string) error {
-	// Log the filename to stdout
-	fmt.Println("Importing from file:", tmpFilename)
+    fmt.Println("Importing from file:", tmpFilename)
 
-	db, err := l.getDB()
-	if err != nil {
-		return err
-	}
+    db, err := l.getDB()
+    if err != nil {
+        return err
+    }
 
-	// Use transaction for atomic import
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+    tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback()
 
-	// create table json_data as select * from read_json(tmpFilename);
+    // Create temp json_data table
+    _, err = tx.Exec(fmt.Sprintf(`
+        CREATE TEMP TABLE json_data AS 
+        SELECT * FROM read_json('%s', auto_detect=true);
+    `, tmpFilename))
+    if err != nil {
+        return fmt.Errorf("failed to create json_data table: %w", err)
+    }
 
-	_, err = tx.Exec(fmt.Sprintf(
-		`DELETE FROM schema_log;
+    // Import schema_log using json_data
+    _, err = tx.Exec(`
+        DELETE FROM schema_log;
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
             SELECT unnest(schema_log) AS rows 
-            FROM read_json('%s', auto_detect=true)
-        )`, tmpFilename))
-	if err != nil {
-		return fmt.Errorf("schema_log import failed: %w", err)
-	}
+            FROM json_data
+        )`)
+    if err != nil {
+        return fmt.Errorf("schema_log import failed: %w", err)
+    }
 
-	_, err = tx.Exec(fmt.Sprintf(
-		`DELETE FROM insert_log;
+    // Import insert_log using json_data
+    _, err = tx.Exec(`
+        DELETE FROM insert_log;
         INSERT INTO insert_log 
         SELECT rows.*
         FROM (
             SELECT unnest(insert_log) AS rows 
-            FROM read_json('%s', auto_detect=true)
-        )`, tmpFilename))
-	if err != nil {
-		return fmt.Errorf("insert_log import failed: %w", err)
-	}
+            FROM json_data
+        )`)
+    if err != nil {
+        return fmt.Errorf("insert_log import failed: %w", err)
+    }
 
-	return tx.Commit()
+    return tx.Commit()
 }
 
 func (l *Log) Close() error {
