@@ -248,6 +248,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	db := ib.DB()
 	tx, err := db.Begin()
 	if err != nil {
+		log.Printf("Failed to begin transaction: %v", err)
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -271,6 +272,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			var err error
 			dblog, err = ib.logByName(table)
 			if err != nil {
+				log.Printf("Failed to get table log for %q: %v", table, err)
 				return "", fmt.Errorf("failed to get table log: %w", err)
 			}
 		}
@@ -278,10 +280,12 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		if dblog != nil {
 			if op == OpSelect {
 				if err := dblog.RecreateAsView(tx); err != nil {
+					log.Printf("Failed to RecreateAsView for %q: %v", table, err)
 					return "", fmt.Errorf("failed to RecreateAsView: %w", err)
 				}
 			} else {
 				if err := dblog.RecreateSchema(tx); err != nil {
+					log.Printf("Failed to recreate schema for %q: %v", table, err)
 					return "", fmt.Errorf("failed to recreate schema: %w", err)
 				}
 			}
@@ -289,17 +293,20 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 		response, err = ib.ExecuteQuery(query, tx)
 		if err != nil {
+			log.Printf("Query execution failed: %v\nQuery: %q", err, query)
 			return "", fmt.Errorf("query execution failed: %w", err)
 		}
 
 		if op == OpCreateTable && dblog != nil {
 			if _, err := dblog.createTable(query); err != nil {
+				log.Printf("Failed to log table creation for %q: %v", table, err)
 				return "", fmt.Errorf("failed to log table creation: %w", err)
 			}
 		}
 
 		if op == OpInsert && dblog != nil {
 			if _, err := dblog.Insert(tx, table, query); err != nil {
+				log.Printf("Failed to log insert for %q: %v", table, err)
 				return "", fmt.Errorf("failed to log insert: %w", err)
 			}
 		}
@@ -307,6 +314,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
+		log.Printf("Failed to marshal JSON response: %v", err)
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 	return string(jsonData), nil
