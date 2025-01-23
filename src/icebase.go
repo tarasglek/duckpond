@@ -261,6 +261,11 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		}
 	}
 
+	// Add validation check here
+	if len(filteredQueries) == 0 {
+		return "", fmt.Errorf("no valid queries")
+	}
+
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
 
