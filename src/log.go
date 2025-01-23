@@ -321,36 +321,28 @@ func (l *Log) Import(tmpFilename string) error {
 	}
 	defer tx.Rollback()
 
-	// Create and print schema_log import query
-	schemaQuery := fmt.Sprintf(
+	// create table json_data as select * from read_json(tmpFilename);
+
+	_, err = tx.Exec(fmt.Sprintf(
 		`DELETE FROM schema_log;
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
-            SELECT unnest(COALESCE(schema_log, [])) AS rows 
+            SELECT unnest(schema_log) AS rows 
             FROM read_json('%s', auto_detect=true)
-        )`, tmpFilename)
-	fmt.Println("Executing schema_log import query:\n", schemaQuery)
-
-	// Execute schema_log import
-	_, err = tx.Exec(schemaQuery)
+        )`, tmpFilename))
 	if err != nil {
 		return fmt.Errorf("schema_log import failed: %w", err)
 	}
 
-	// Create and print insert_log import query
-	insertQuery := fmt.Sprintf(
+	_, err = tx.Exec(fmt.Sprintf(
 		`DELETE FROM insert_log;
         INSERT INTO insert_log 
         SELECT rows.*
         FROM (
-            SELECT unnest(COALESCE(insert_log, [])) AS rows 
+            SELECT unnest(insert_log) AS rows 
             FROM read_json('%s', auto_detect=true)
-        )`, tmpFilename)
-	fmt.Println("Executing insert_log import query:\n", insertQuery)
-
-	// Execute insert_log import
-	_, err = tx.Exec(insertQuery)
+        )`, tmpFilename))
 	if err != nil {
 		return fmt.Errorf("insert_log import failed: %w", err)
 	}
