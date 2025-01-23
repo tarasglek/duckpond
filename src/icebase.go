@@ -263,7 +263,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 	// Add validation check here
 	if len(filteredQueries) == 0 {
-		return "", fmt.Errorf("no valid queries")
+		return "", fmt.Errorf("Could not find a query to run")
 	}
 
 	for i, q := range filteredQueries {
@@ -290,7 +290,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			defer tx.Rollback() // Safe to call multiple times
 
 			op, table := ib.parser.Parse(query)
-			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
+			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(filteredQueries), query)
 
 			var dblog *Log
 			if table != "" {
