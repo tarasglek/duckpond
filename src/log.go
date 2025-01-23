@@ -188,7 +188,12 @@ func (l *Log) RecreateSchema(dataTx *sql.Tx) error {
 	return nil
 }
 
-// here tx refers to another db, need to inject s3 secret here too
+// First writes go into a memory-backed table that can be accessed via dataTx param
+// They are then persisted to a parquet file and tracked in the insert_log table
+// TODO:
+// - persist log for parquet files we gonna upload first
+// - Then modify reading code to detect missing parquet files and to tombstone them in log
+// - This way we wont end up with orphaned parquet files
 func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
 	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
 		// Original insert logic wrapped in lambda
