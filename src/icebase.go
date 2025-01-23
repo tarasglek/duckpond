@@ -261,16 +261,27 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 		var handlerErr error
 		func() {
+			// Wrapping in an anonymous function provides:
+			// 1. Scoped defer for transaction rollback - ensures rollback happens before next iteration
+			// 2. Clean error handling isolation between queries
+			// 3. Proper variable capture in loop iterations
+				
+			// Begin new transaction
 			tx, err := db.Begin()
 			if err != nil {
 				handlerErr = fmt.Errorf("failed to begin transaction: %w", err)
 				return
 			}
-			defer tx.Rollback()
+				
+			// Always rollback unless explicitly committed. This:
+			// - Prevents transaction leaks
+			// - Ensures clean state for next query
+			// - Handles both success and error cases safely
+			defer tx.Rollback() // Safe to call multiple times
 
 			op, table := ib.parser.Parse(query)
 			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(queries), query)
-			
+				
 			var dblog *Log
 			if table != "" {
 				dblog, handlerErr = ib.logByName(table)
@@ -310,6 +321,14 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			if op == OpInsert && dblog != nil {
 				if _, handlerErr = dblog.Insert(tx, table, query); handlerErr != nil {
 					log.Printf("Failed to log insert for %q: %v", table, handlerErr)
+					return
+				}
+			}
+
+			// Only commit if all operations succeeded
+			if handlerErr == nil {
+				if err := tx.Commit(); err != nil {
+					handlerErr = fmt.Errorf("failed to commit transaction: %w", err)
 					return
 				}
 			}
