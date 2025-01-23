@@ -241,6 +241,25 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	return serializedJSON, nil
 }
 
+func (ib *IceBase) splitAndFilterQueries(body string) ([]string, error) {
+	queries := []string{body}
+	if ib.options.enableQuerySplitting {
+		queries = strings.Split(body, ";")
+	}
+
+	filtered := make([]string, 0, len(queries))
+	for _, q := range queries {
+		if trimmed := strings.TrimSpace(q); trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("Could not find a query to run")
+	}
+	return filtered, nil
+}
+
 func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Concise logging for query splitting and storage dir
 	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
@@ -248,22 +267,9 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	db := ib.DB()
 
 	var response *QueryResponse
-	queries := []string{body}
-	if ib.options.enableQuerySplitting {
-		queries = strings.Split(body, ";")
-	}
-
-	// Filter empty queries first
-	filteredQueries := make([]string, 0, len(queries))
-	for _, q := range queries {
-		if query := strings.TrimSpace(q); query != "" {
-			filteredQueries = append(filteredQueries, query)
-		}
-	}
-
-	// Add validation check here
-	if len(filteredQueries) == 0 {
-		return "", fmt.Errorf("Could not find a query to run")
+	filteredQueries, err := ib.splitAndFilterQueries(body)
+	if err != nil {
+		return "", err
 	}
 
 	for i, q := range filteredQueries {
