@@ -341,17 +341,29 @@ func (l *Log) Import(tmpFilename string) error {
         return fmt.Errorf("schema_log import failed: %w", err)
     }
 
-    // Import insert_log using json_data
-    _, err = tx.Exec(`
-        DELETE FROM insert_log;
-        INSERT INTO insert_log 
-        SELECT rows.*
-        FROM (
-            SELECT unnest(insert_log) AS rows 
-            FROM json_data
-        )`)
+    // Check if there are any insert_log entries before importing
+    var insertLogLength int
+    err = tx.QueryRow(`
+        SELECT COALESCE(array_length(insert_log::json[]), 0)
+        FROM json_data;
+    `).Scan(&insertLogLength)
     if err != nil {
-        return fmt.Errorf("insert_log import failed: %w", err)
+        return fmt.Errorf("failed to check insert_log length: %w", err)
+    }
+
+    // Only import insert_log if there are entries
+    if insertLogLength > 0 {
+        _, err = tx.Exec(`
+            DELETE FROM insert_log;
+            INSERT INTO insert_log 
+            SELECT rows.*
+            FROM (
+                SELECT unnest(insert_log) AS rows 
+                FROM json_data
+            )`)
+        if err != nil {
+            return fmt.Errorf("insert_log import failed: %w", err)
+        }
     }
 
     return tx.Commit()
