@@ -294,15 +294,12 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 }
 
 func (l *Log) Import(tmpFilename string) error {
-	fmt.Println("Importing from file:", tmpFilename)
-
-	// First transaction for deletes
 	db, err := l.getDB()
 	if err != nil {
 		return err
 	}
 
-	// Delete in separate transaction
+	// First transaction for deletes
 	deleteTx, err := db.Begin()
 	if err != nil {
 		return err
@@ -377,7 +374,7 @@ func (l *Log) Close() error {
 // generateRestoreSQL creates SQL to restore a table from a JSON field
 // with the same name in the json_data temporary table.
 func (l *Log) generateRestoreSQL(tableName string) string {
-    return fmt.Sprintf(`
+	return fmt.Sprintf(`
         INSERT INTO %[1]s 
         SELECT rows.*
         FROM (

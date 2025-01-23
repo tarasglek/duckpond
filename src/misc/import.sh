@@ -1,1 +1,0 @@
-cat create_tables.sql  import.sql |duckdb
