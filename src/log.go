@@ -110,70 +110,68 @@ func (l *Log) Export() ([]byte, error) {
 
 // Modified withPersistedLog
 func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
-    const jsonFileName = "log.json"
+	const jsonFileName = "log.json"
 
-    db, err := l.getDB()
-    if err != nil {
-        return -1, fmt.Errorf("failed to open database: %w", err)
-    }
+	db, err := l.getDB()
+	if err != nil {
+		return -1, fmt.Errorf("failed to open database: %w", err)
+	}
 
-    // Try to read and import existing data through temp file
-    jsonPath := filepath.Join(l.tableName, jsonFileName)
-    if data, err := l.op.Read(jsonPath); err == nil {
-        // Write to temp file
-        tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
-        if err != nil {
-            return -1, fmt.Errorf("failed to create temp file: %w", err)
-        }
-        // Deferred Close() for cleanup
-        defer tmpFile.Close()  // Ensures file is closed even if errors occur
-        defer os.Remove(tmpFile.Name())  // Ensures temp file is deleted
+	// Try to read and import existing data through temp file
+	jsonPath := filepath.Join(l.tableName, jsonFileName)
+	if data, err := l.op.Read(jsonPath); err == nil {
+		// Write to temp file
+		tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
+		if err != nil {
+			return -1, fmt.Errorf("failed to create temp file: %w", err)
+		}
+		// Deferred Close() for cleanup
+		defer tmpFile.Close() // Ensures file is closed even if errors occur
+		// defer os.Remove(tmpFile.Name()) // Ensures temp file is deleted
 
-        if _, err := tmpFile.Write(data); err != nil {
-            return -1, fmt.Errorf("failed to write temp file: %w", err)
-        }
-        // Close immediately to ensure data is flushed to disk before import
-        // This is necessary because the import operation needs to read the file
-        // and we can't rely on deferred Close() since it would happen too late
-        tmpFile.Close()
+		if _, err := tmpFile.Write(data); err != nil {
+			return -1, fmt.Errorf("failed to write temp file: %w", err)
+		}
+		// Close for writes, it's ready for reads
+		tmpFile.Close()
 
-        if importErr := l.Import(tmpFile.Name()); importErr != nil {
-            return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
-        }
-    }
+		if importErr := l.Import(tmpFile.Name()); importErr != nil {
+			return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
+		}
+	}
 
-    // Execute the operation
-    result, err := op(db)
-    if err != nil {
-        return result, err
-    }
+	// Execute the operation
+	result, err := op(db)
+	if err != nil {
+		return result, err
+	}
 
-    // Export and write new state
-    if exported, exportErr := l.Export(); exportErr != nil {
-        return -1, fmt.Errorf("export failed: %w", exportErr)
-    } else {
-        // Write to temp file for export
-        tmpFile, err := os.CreateTemp("", "icebase-export-*.json")
-        if err != nil {
-            return -1, fmt.Errorf("failed to create export temp file: %w", err)
-        }
-        defer os.Remove(tmpFile.Name())
-        defer tmpFile.Close()
+	// Export and write new state
+	if exported, exportErr := l.Export(); exportErr != nil {
+		return -1, fmt.Errorf("export failed: %w", exportErr)
+	} else {
+		// Write to temp file for export
+		tmpFile, err := os.CreateTemp("", "icebase-export-*.json")
+		if err != nil {
+			return -1, fmt.Errorf("failed to create export temp file: %w", err)
+		}
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
 
-        if _, err := tmpFile.Write(exported); err != nil {
-            return -1, fmt.Errorf("failed to write export temp file: %w", err)
-        }
-        // Close immediately to ensure export data is flushed to disk before storage
-        // This is necessary because the storage operation needs to read the file
-        // and we can't rely on deferred Close() since it would happen too late
-        tmpFile.Close()
+		if _, err := tmpFile.Write(exported); err != nil {
+			return -1, fmt.Errorf("failed to write export temp file: %w", err)
+		}
+		// Close immediately to ensure export data is flushed to disk before storage
+		// This is necessary because the storage operation needs to read the file
+		// and we can't rely on deferred Close() since it would happen too late
+		tmpFile.Close()
 
-        if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
-            return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
-        }
-    }
+		if writeErr := l.op.Write(jsonPath, exported); writeErr != nil {
+			return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
+		}
+	}
 
-    return result, nil
+	return result, nil
 }
 
 func (l *Log) createTable(rawCreateTable string) (int, error) {
@@ -307,47 +305,44 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 	return err
 }
 
-func (l *Log) Import(filename string) error {
-    db, err := l.getDB()
-    if err != nil {
-        return err
-    }
+func (l *Log) Import(tmpFilename string) error {
+	db, err := l.getDB()
+	if err != nil {
+		return err
+	}
 
-    // Use transaction for atomic import
-    tx, err := db.Begin()
-    if err != nil {
-        return err
-    }
-    defer tx.Rollback()
+	// Use transaction for atomic import
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-    // Convert filename to DuckDB compatible path
-    duckDBPath := l.toDuckDBPath(filename)
-
-    _, err = tx.Exec(fmt.Sprintf(
-        `DELETE FROM schema_log;
+	_, err = tx.Exec(fmt.Sprintf(
+		`DELETE FROM schema_log;
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
             SELECT unnest(schema_log) AS rows 
             FROM read_json('%s', auto_detect=true)
-        )`, duckDBPath))
-    if err != nil {
-        return fmt.Errorf("schema_log import failed: %w", err)
-    }
+        )`, tmpFilename))
+	if err != nil {
+		return fmt.Errorf("schema_log import failed: %w", err)
+	}
 
-    _, err = tx.Exec(fmt.Sprintf(
-        `DELETE FROM insert_log;
+	_, err = tx.Exec(fmt.Sprintf(
+		`DELETE FROM insert_log;
         INSERT INTO insert_log 
         SELECT rows.*
         FROM (
             SELECT unnest(insert_log) AS rows 
             FROM read_json('%s', auto_detect=true)
-        )`, duckDBPath))
-    if err != nil {
-        return fmt.Errorf("insert_log import failed: %w", err)
-    }
+        )`, tmpFilename))
+	if err != nil {
+		return fmt.Errorf("insert_log import failed: %w", err)
+	}
 
-    return tx.Commit()
+	return tx.Commit()
 }
 
 func (l *Log) Close() error {
