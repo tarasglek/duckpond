@@ -294,28 +294,24 @@ func (l *Log) Import(jsonPath string) error {
 		return err
 	}
 
-	// Import schema_log using direct JSON casting
-	_, err = db.Exec(`
+	// Clear and import schema_log
+	_, err = db.Exec(
+		`DELETE FROM schema_log;
 		INSERT INTO schema_log 
 		SELECT rows.*
-		FROM (
-			SELECT unnest(schema_log) AS rows
-			FROM (SELECT ?::JSON AS json_data)
-		)
-	`, string(jsonData))
+		FROM (SELECT unnest(schema_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
+		string(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to import schema_log: %w", err)
 	}
 
-	// Import insert_log using same pattern
-	_, err = db.Exec(`
+	// Clear and import insert_log
+	_, err = db.Exec(
+		`DELETE FROM insert_log;
 		INSERT INTO insert_log 
 		SELECT rows.*
-		FROM (
-			SELECT unnest(insert_log) AS rows
-			FROM (SELECT ?::JSON AS json_data)
-		)
-	`, string(jsonData))
+		FROM (SELECT unnest(insert_log) AS rows FROM (SELECT ?::JSON AS json_data))`,
+		string(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to import insert_log: %w", err)
 	}
