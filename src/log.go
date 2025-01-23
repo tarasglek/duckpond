@@ -319,18 +319,19 @@ func (l *Log) Import(tmpFilename string) error {
     }
     defer tx.Rollback()
 
-    // Create temp json_data table
+    // Execute combined statement for deletes and temp table creation
     _, err = tx.Exec(fmt.Sprintf(`
+        DELETE FROM schema_log;
+        DELETE FROM insert_log;
         CREATE TEMP TABLE json_data AS 
         SELECT * FROM read_json('%s', auto_detect=true);
     `, tmpFilename))
     if err != nil {
-        return fmt.Errorf("failed to create json_data table: %w", err)
+        return fmt.Errorf("failed to initialize import: %w", err)
     }
 
     // Import schema_log using json_data
     _, err = tx.Exec(`
-        DELETE FROM schema_log;
         INSERT INTO schema_log 
         SELECT rows.*
         FROM (
@@ -354,7 +355,6 @@ func (l *Log) Import(tmpFilename string) error {
     // Only import insert_log if there are entries
     if insertLogLength > 0 {
         _, err = tx.Exec(`
-            DELETE FROM insert_log;
             INSERT INTO insert_log 
             SELECT rows.*
             FROM (
