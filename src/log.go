@@ -366,6 +366,11 @@ func (l *Log) Import(tmpFilename string) error {
         }
     }
 
+    // Drop the temp table before commit
+    if _, err := tx.Exec("DROP TABLE json_data;"); err != nil {
+        return fmt.Errorf("failed to drop temp table: %w", err)
+    }
+
     return tx.Commit()
 }
 
