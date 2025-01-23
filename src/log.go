@@ -317,6 +317,12 @@ func (l *Log) Destroy() error {
 		return fmt.Errorf("failed to delete log.db: %w", err)
 	}
 
+	// Delete JSON log file
+	jsonLogPath := filepath.Join(l.tableName, "log.json")
+	if err := l.op.Delete(jsonLogPath); err != nil {
+		return fmt.Errorf("failed to delete log.json: %w", err)
+	}
+
 	// Close database connection if open
 	if l.db != nil {
 		if err := l.db.Close(); err != nil {
