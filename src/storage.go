@@ -14,29 +14,40 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// S3Config holds configuration for S3 storage
-type S3Config struct {
-	AccessKey    string
-	SecretKey    string
-	Endpoint     string
-	Bucket       string
-	UsePathStyle bool
-	Region       string
+// StorageConfig interface defines root directory access
+type StorageConfig interface {
+    RootDir() string
 }
 
-func LoadS3ConfigFromEnv() *S3Config {
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "us-east-1" // Default region
-	}
-	return &S3Config{
-		AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
-		SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		Endpoint:     os.Getenv("S3_ENDPOINT"),
-		Bucket:       os.Getenv("S3_BUCKET"),
-		UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
-		Region:       region,
-	}
+// S3Config holds configuration for S3 storage
+type S3Config struct {
+    rootDir      string
+    AccessKey    string
+    SecretKey    string
+    Endpoint     string
+    Bucket       string
+    UsePathStyle bool
+    Region       string
+}
+
+func (c *S3Config) RootDir() string {
+    return c.rootDir
+}
+
+func LoadS3ConfigFromEnv(rootDir string) *S3Config {
+    region := os.Getenv("AWS_REGION")
+    if region == "" {
+        region = "us-east-1" // Default region
+    }
+    return &S3Config{
+        rootDir:      rootDir,
+        AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
+        SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+        Endpoint:     os.Getenv("S3_ENDPOINT"),
+        Bucket:       os.Getenv("S3_BUCKET"),
+        UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
+        Region:       region,
+    }
 }
 
 func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
@@ -60,23 +71,31 @@ type Storage interface {
 	Delete(path string) error
 }
 
-// FSStorage implements Storage using local filesystem
-type FSStorage struct {
-	rootDir string
+// FSConfig holds configuration for local filesystem storage
+type FSConfig struct {
+    rootDir string
 }
 
-func NewFSStorage(rootDir string) Storage {
-	return &FSStorage{rootDir: rootDir}
+func (c *FSConfig) RootDir() string {
+    return c.rootDir
+}
+
+// FSStorage implements Storage using local filesystem
+type FSStorage struct {
+    config *FSConfig
+}
+
+func NewFSStorage(config *FSConfig) Storage {
+    return &FSStorage{config: config}
 }
 
 // S3Storage implements Storage using S3/MinIO
 type S3Storage struct {
-	client   *s3.Client
-	config   *S3Config
-	rootDir  string
+    client *s3.Client
+    config *S3Config
 }
 
-func NewS3Storage(config *S3Config, rootDir string) Storage {
+func NewS3Storage(config *S3Config) Storage {
 	cfg, err := config.LoadAWSConfig()
 	if err != nil {
 		panic("failed to load AWS config: " + err.Error())
@@ -95,7 +114,7 @@ func NewS3Storage(config *S3Config, rootDir string) Storage {
 }
 
 func (s *S3Storage) fullKey(path string) string {
-	return strings.TrimPrefix(filepath.Join(s.rootDir, path), "/")
+    return strings.TrimPrefix(filepath.Join(s.config.RootDir(), path), "/")
 }
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
@@ -155,7 +174,7 @@ func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 
 func (s *S3Storage) Delete(path string) error {
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(s.bucket),
+		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(s.fullKey(path)),
 	})
 	return err
@@ -177,15 +196,15 @@ func (fi *s3FileInfo) Sys() interface{}   { return nil }
 
 // NewStorage creates either S3 or FS storage based on environment
 func NewStorage(rootDir string) Storage {
-	s3Config := LoadS3ConfigFromEnv()
-	if s3Config.Bucket != "" {
-		return NewS3Storage(s3Config, rootDir)
-	}
-	return NewFSStorage(rootDir)
+    s3Config := LoadS3ConfigFromEnv(rootDir)
+    if s3Config.Bucket != "" {
+        return NewS3Storage(s3Config)
+    }
+    return NewFSStorage(&FSConfig{rootDir: rootDir})
 }
 
 func (fs *FSStorage) fullPath(path string) string {
-	return filepath.Join(fs.rootDir, path)
+    return filepath.Join(fs.config.RootDir(), path)
 }
 
 func (fs *FSStorage) Read(path string) ([]byte, error) {
