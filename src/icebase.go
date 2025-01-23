@@ -242,6 +242,13 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 }
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
+	// Add logging for query splitting status
+	if ib.options.enableQuerySplitting {
+		log.Printf("Query splitting enabled - will split queries on semicolons")
+	} else {
+		log.Printf("Query splitting disabled - treating as single query")
+	}
+
 	db := ib.DB()
 	tx, err := db.Begin()
 	if err != nil {
