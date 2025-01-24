@@ -1,0 +1,60 @@
+name: Test Go
+
+# To run locally:
+# 1. Install act: https://github.com/nektos/act
+# 2. Run full workflow: act -W .github/workflows/test-go.yaml
+# 3. Run just tests: act -j testGo -W .github/workflows/test-go.yaml
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**.go"
+      - "go.mod"
+      - "go.sum"
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testGo:  # Matches the act -j testGo parameter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        go-version: ["1.23"] # Must match go.mod version
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
+        working-directory: src
+        run: |
+          # Sync dependencies and run tests with coverage
+          go mod tidy
+          go test -v -coverprofile=coverage.out ./...
+          
+      - name: Upload coverage (CI only)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage-report
+          path: src/coverage.out
