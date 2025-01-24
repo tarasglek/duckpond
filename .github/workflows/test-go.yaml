@@ -20,6 +20,8 @@ concurrency:
 
 jobs:
   testGo:  # Matches the act -j testGo parameter
+    permissions:
+      contents: read  # Only read access to repository contents
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -29,6 +31,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go ${{ matrix.go-version }}
         uses: actions/setup-go@v5
