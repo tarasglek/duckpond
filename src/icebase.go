@@ -52,11 +52,11 @@ type IceBase struct {
 	storageDir string
 }
 
-func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error) {
+func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, error) {
 	start := time.Now()
 
 	// Execute the query within transaction
-	rows, err := tx.Query(query)
+	rows, err := dataTx.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -225,16 +225,16 @@ func (ib *IceBase) Destroy() error {
 }
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
-	db := ib.DataDB()
+	dataDB := ib.DataDB()
 
-	_, err := db.Prepare(query)
+	_, err := dataDB.Prepare(query)
 	if err != nil {
 		return "", fmt.Errorf("invalid query syntax: %w", err)
 	}
 
 	serializedQuery := fmt.Sprintf("SELECT json_serialize_sql('%s')", strings.ReplaceAll(query, "'", "''"))
 	var serializedJSON string
-	err = db.QueryRow(serializedQuery).Scan(&serializedJSON)
+	err = dataDB.QueryRow(serializedQuery).Scan(&serializedJSON)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize query: %w", err)
 	}
@@ -265,7 +265,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
 
 	// Get connection to main DATA database (in-memory DuckDB)
-	dataDB := ib.DataDB()
+	dataConn := ib.DataDB()
 
 	var response *QueryResponse
 	filteredQueries, err := ib.splitAndFilterQueries(body)
@@ -279,7 +279,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 		var handlerErr error
 		func() {
 			// Begin transaction on DATA database (main in-memory DuckDB)
-			dataTx, err := dataDB.Begin()
+			dataTx, err := dataConn.Begin()
 			if err != nil {
 				handlerErr = fmt.Errorf("failed to begin DATA transaction: %w", err)
 				return
