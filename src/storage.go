@@ -166,13 +166,11 @@ func (s *S3Storage) Write(path string, data []byte) error {
 	// Initialize ETag variable
 	var etag string
 
-	// Log with checksum information
+	// Log with size and ETag information
 	defer func() {
-		hexChecksum := fmt.Sprintf("%x", hash.Sum(nil))
 		etagClean := strings.Trim(etag, `"`)
-		
-		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d md5_hex=%s etag=%s",
-			s.config.Bucket, fullKey, len(data), hexChecksum, etagClean)
+		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d etag=%s",
+			s.config.Bucket, fullKey, len(data), etagClean)
 	}()
 
 	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
