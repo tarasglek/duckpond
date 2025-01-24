@@ -277,6 +277,18 @@ func (l *Log) listFiles(where string) ([]string, error) {
 }
 
 func (l *Log) RecreateAsView(dataTx *sql.Tx) error {
+	// Create temporary secret for the view operation
+	secretName := "icebase_view_s3_secret"
+	secretSQL := l.storage.ToDuckDBSecret(secretName)
+	if secretSQL != "" {
+		if _, err := dataTx.Exec(secretSQL); err != nil {
+			return fmt.Errorf("failed to create view secret: %w", err)
+		}
+		defer func() {
+			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+		}()
+	}
+
 	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
 	if err != nil || len(files) == 0 {
 		return fmt.Errorf("no active files: %w", err)
