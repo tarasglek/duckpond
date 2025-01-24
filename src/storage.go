@@ -127,13 +127,7 @@ func (s *S3Storage) fullKey(path string) string {
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	fullKey := s.fullKey(path)
-
-	// Initialize all checksum values
-	sha256Checksum := "none"
-	crc32Checksum := "none"
-	crc32cChecksum := "none"
-	sha1Checksum := "none"
-	etag := "none"
+	var etag string
 	var err error
 
 	defer func() {
@@ -141,8 +135,8 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 		if err != nil {
 			status = fmt.Sprintf("error: %v", err)
 		}
-		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksums=[SHA256=%s, CRC32=%s, CRC32C=%s, SHA1=%s] etag=%s status=%s",
-			s.config.Bucket, fullKey, sha256Checksum, crc32Checksum, crc32cChecksum, sha1Checksum, etag, status)
+		s.logger.Printf("S3 Read operation: bucket=%s key=%s etag=%s status=%s",
+			s.config.Bucket, fullKey, etag, status)
 	}()
 
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -154,25 +148,11 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	// Capture all available checksums
-	if resp.ChecksumSHA256 != nil {
-		sha256Checksum = *resp.ChecksumSHA256
-	}
-	if resp.ChecksumCRC32 != nil {
-		crc32Checksum = *resp.ChecksumCRC32
-	}
-	if resp.ChecksumCRC32C != nil {
-		crc32cChecksum = *resp.ChecksumCRC32C
-	}
-	if resp.ChecksumSHA1 != nil {
-		sha1Checksum = *resp.ChecksumSHA1
-	}
 	if resp.ETag != nil {
 		etag = *resp.ETag
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	return data, err
+	return io.ReadAll(resp.Body)
 }
 
 func (s *S3Storage) Write(path string, data []byte) error {
@@ -247,10 +227,17 @@ func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 		size = *resp.ContentLength
 	}
 
+	// Capture ETag (MD5 for single-part uploads)
+	md5Checksum := ""
+	if resp.ETag != nil {
+		md5Checksum = strings.Trim(*resp.ETag, `"`)
+	}
+
 	return &s3FileInfo{
 		name:    filepath.Base(path),
 		size:    size,
 		modTime: aws.ToTime(resp.LastModified),
+		md5:     md5Checksum,
 	}, nil
 }
 
@@ -336,7 +323,10 @@ type s3FileInfo struct {
 	name    string
 	size    int64
 	modTime time.Time
+	md5     string
 }
+
+func (fi *s3FileInfo) MD5() string { return fi.md5 }
 
 func (fi *s3FileInfo) Name() string       { return fi.name }
 func (fi *s3FileInfo) Size() int64        { return fi.size }
