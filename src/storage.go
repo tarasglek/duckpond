@@ -261,7 +261,25 @@ func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 		strings.Join(parts, ",\n    "),
 	)
 
-	s.logger.Printf("Generated DuckDB secret:\n%s", secret)
+	// Create redacted version for logging
+	redactedParts := make([]string, len(parts))
+	copy(redactedParts, parts)
+	for i, p := range redactedParts {
+		if strings.HasPrefix(p, "KEY_ID") {
+			redactedParts[i] = "KEY_ID '[REDACTED]'"
+		}
+		if strings.HasPrefix(p, "SECRET") {
+			redactedParts[i] = "SECRET '[REDACTED]'"
+		}
+	}
+
+	redactedSecret := fmt.Sprintf(
+		"CREATE OR REPLACE SECRET %s (\n    %s\n);",
+		secretName,
+		strings.Join(redactedParts, ",\n    "),
+	)
+
+	s.logger.Printf("Generated DuckDB secret (redacted):\n%s", redactedSecret)
 	return secret
 }
 
