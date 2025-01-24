@@ -73,7 +73,7 @@ type Storage interface {
 	Read(path string) ([]byte, error)
 	Write(path string, data []byte) error
 	CreateDir(path string) error
-	Stat(path string) (os.FileInfo, error)
+	Stat(path string) (*s3FileInfo, error)
 	Delete(path string) error
 	ToDuckDBPath(path string) string
 	ToDuckDBSecret(secretName string) string
@@ -198,7 +198,7 @@ func (s *S3Storage) CreateDir(path string) error {
 	return nil
 }
 
-func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
+func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 	fullKey := s.fullKey(path)
 	s.logger.Printf("Getting object metadata: bucket=%s key=%s",
 		s.config.Bucket, fullKey)
@@ -353,7 +353,7 @@ func (fs *FSStorage) CreateDir(path string) error {
 	return os.MkdirAll(fs.fullPath(path), 0755)
 }
 
-func (fs *FSStorage) Stat(path string) (os.FileInfo, error) {
+func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 	fullPath := fs.fullPath(path)
 	fi, err := os.Stat(fullPath)
 	if err != nil {
