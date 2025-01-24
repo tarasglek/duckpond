@@ -187,6 +187,7 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 	return nil
 }
 
+// here tx refers to another db, need to inject s3 secret here too
 func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 	return l.withPersistedLog(func(db *sql.DB) (int, error) {
 		// Original insert logic wrapped in lambda
@@ -364,7 +365,6 @@ func (l *Log) generateRestoreSQL(tableName string) string {
             FROM json_data
         )`, tableName)
 }
-
 
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)
