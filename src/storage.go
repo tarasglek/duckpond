@@ -222,7 +222,10 @@ func (s *S3Storage) ToDuckDBPath(path string) string {
 }
 
 func (s *S3Storage) ToDuckDBSecret() string {
+	s.logger.Printf("Generating DuckDB secret for S3 access")
+
 	if s.config.AccessKey == "" || s.config.SecretKey == "" {
+		s.logger.Printf("No access key or secret key configured, returning empty secret")
 		return ""
 	}
 
@@ -241,11 +244,14 @@ func (s *S3Storage) ToDuckDBSecret() string {
 		}
 	}
 
-	return fmt.Sprintf(
+	secret := fmt.Sprintf(
 		"CREATE OR REPLACE SECRET %s (\n    %s\n);",
 		secretName,
 		strings.Join(parts, ",\n    "),
 	)
+
+	s.logger.Printf("Generated DuckDB secret:\n%s", secret)
+	return secret
 }
 
 // Helper struct to implement os.FileInfo for S3
