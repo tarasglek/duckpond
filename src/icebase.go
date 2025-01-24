@@ -45,7 +45,7 @@ func WithQuerySplittingEnabled() IceBaseOption {
 }
 
 type IceBase struct {
-	_db        *sql.DB
+	dataDB     *sql.DB
 	parser     *Parser
 	logs       map[string]*Log
 	options    IceBaseOptions
@@ -135,17 +135,17 @@ func (ib *IceBase) ExecuteQuery(query string, tx *sql.Tx) (*QueryResponse, error
 	return &response, nil
 }
 
-// DB returns the underlying DuckDB instance, initializing it if needed
+// DataDB returns the underlying DuckDB instance, initializing it if needed
 // This is an in-memory db
-func (ib *IceBase) DB() *sql.DB {
-	if ib._db == nil {
+func (ib *IceBase) DataDB() *sql.DB {
+	if ib.dataDB == nil {
 		var err error
-		ib._db, err = InitializeDuckDB()
+		ib.dataDB, err = InitializeDuckDB()
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize database: %v", err))
 		}
 	}
-	return ib._db
+	return ib.dataDB
 }
 
 func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
@@ -188,8 +188,8 @@ func (ib *IceBase) Close() error {
 		}
 	}
 
-	if ib._db != nil {
-		return ib._db.Close()
+	if ib.dataDB != nil {
+		return ib.dataDB.Close()
 	}
 	return nil
 }
@@ -215,8 +215,8 @@ func (ib *IceBase) Destroy() error {
 	// })
 
 	// Reset memory database if connection exists
-	if ib._db != nil {
-		if err := ResetMemoryDB(ib._db); err != nil {
+	if ib.dataDB != nil {
+		if err := ResetMemoryDB(ib.dataDB); err != nil {
 			return fmt.Errorf("failed to reset memory database: %w", err)
 		}
 	}
@@ -225,7 +225,7 @@ func (ib *IceBase) Destroy() error {
 }
 
 func (ib *IceBase) SerializeQuery(query string) (string, error) {
-	db := ib.DB()
+	db := ib.DataDB()
 
 	_, err := db.Prepare(query)
 	if err != nil {
@@ -265,7 +265,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
 
 	// Get connection to main DATA database (in-memory DuckDB)
-	dataDB := ib.DB()
+	dataDB := ib.DataDB()
 
 	var response *QueryResponse
 	filteredQueries, err := ib.splitAndFilterQueries(body)
