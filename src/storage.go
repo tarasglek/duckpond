@@ -73,7 +73,7 @@ type Storage interface {
 	Stat(path string) (os.FileInfo, error)
 	Delete(path string) error
 	ToDuckDBPath(path string) string
-	ToDuckDBSecret() string
+	ToDuckDBSecret(secretName string) string
 }
 
 // FSConfig holds configuration for local filesystem storage
@@ -222,15 +222,13 @@ func (s *S3Storage) ToDuckDBPath(path string) string {
 	return "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
 }
 
-func (s *S3Storage) ToDuckDBSecret() string {
+func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 	s.logger.Printf("Generating DuckDB secret for S3 access")
 
 	if s.config.AccessKey == "" || s.config.SecretKey == "" {
 		s.logger.Printf("No access key or secret key configured, returning empty secret")
 		return ""
 	}
-
-	secretName := "icebase_s3_secret"
 	parts := []string{
 		"TYPE S3",
 		fmt.Sprintf("KEY_ID '%s'", s.config.AccessKey),
@@ -318,6 +316,6 @@ func (fs *FSStorage) ToDuckDBPath(path string) string {
 	return filepath.Join(fs.config.rootDir, path)
 }
 
-func (fs *FSStorage) ToDuckDBSecret() string {
+func (fs *FSStorage) ToDuckDBSecret(secretName string) string {
 	return "" // No secret for filesystem storage
 }

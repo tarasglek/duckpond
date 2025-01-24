@@ -37,7 +37,7 @@ func (l *Log) getDB() (*sql.DB, error) {
 	}
 
 	// Create S3 secret if configured
-	secretSQL := l.storage.ToDuckDBSecret()
+	secretSQL := l.storage.ToDuckDBSecret("icebase_s3_secret")
 	if secretSQL != "" {
 		if _, err := db.Exec(secretSQL); err != nil {
 			db.Close()
@@ -207,9 +207,25 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 			return -1, fmt.Errorf("failed to create data directory: %w", err)
 		}
 
+		// Generate unique secret name for this operation
+		secretName := "icebase_temp_secret_" + uuid.New().String()
+		
+		// Create secret in transaction
+		secretSQL := l.storage.ToDuckDBSecret(secretName)
+		if secretSQL != "" {
+			if _, err := tx.Exec(secretSQL); err != nil {
+				return -1, fmt.Errorf("failed to create secret: %w", err)
+			}
+			defer func() {
+				// Clean up secret after operation completes
+				_, _ = tx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+			}()
+		}
+
+		// Modified copy command to use secret
 		parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
-		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-			table, l.storage.ToDuckDBPath(parquetPath))
+		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET) USING SECRET %s;`,
+			table, l.storage.ToDuckDBPath(parquetPath), secretName)
 
 		if _, err = tx.Exec(copyQuery); err != nil {
 			return -1, fmt.Errorf("failed to copy to parquet: %w", err)
