@@ -285,7 +285,11 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				return
 			}
 			// Rollback DATA transaction if not committed
-			defer dataTx.Rollback() // Safe to call multiple times
+			defer func() {
+				if err := dataTx.Rollback(); err != nil {
+					log.Printf("failed to rollback transaction: %v", err)
+				}
+			}()
 
 			op, table := ib.parser.Parse(query)
 			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(filteredQueries), query)
@@ -402,6 +406,9 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(jsonResponse))
+		if _, err := w.Write([]byte(jsonResponse)); err != nil {
+			log.Printf("failed to write response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 	}
 }

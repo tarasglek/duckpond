@@ -327,7 +327,9 @@ func (l *Log) Import(tmpFilename string) error {
         DELETE FROM insert_log;
     `)
 	if err != nil {
-		deleteTx.Rollback()
+		if rbErr := deleteTx.Rollback(); rbErr != nil {
+			log.Printf("failed to rollback delete transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to delete existing data: %w", err)
 	}
 	if err := deleteTx.Commit(); err != nil {
@@ -339,7 +341,11 @@ func (l *Log) Import(tmpFilename string) error {
 	if err != nil {
 		return err
 	}
-	defer importTx.Rollback()
+	defer func() {
+		if err := importTx.Rollback(); err != nil {
+			log.Printf("failed to rollback import transaction: %v", err)
+		}
+	}()
 
 	// Create temp json_data table
 	_, err = importTx.Exec(fmt.Sprintf(`
