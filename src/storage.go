@@ -128,9 +128,9 @@ func (s *S3Storage) fullKey(path string) string {
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	fullKey := s.fullKey(path)
-	
+
 	// Use defer to log all information at once
-	var sha256Checksum string
+	sha256Checksum := "none"
 	var err error
 	defer func() {
 		status := "success"
@@ -153,8 +153,6 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 	// Store checksum for logging
 	if resp.ChecksumSHA256 != nil {
 		sha256Checksum = *resp.ChecksumSHA256
-	} else {
-		sha256Checksum = "none"
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -163,7 +161,7 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 
 func (s *S3Storage) Write(path string, data []byte) error {
 	fullKey := s.fullKey(path)
-	
+
 	// Compute SHA256 checksum
 	hash := sha256.New()
 	hash.Write(data)
