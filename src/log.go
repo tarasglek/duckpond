@@ -12,7 +12,7 @@ import (
 )
 
 type Log struct {
-	db         *sql.DB
+	logDB      *sql.DB
 	tableName  string
 	storageDir string
 	storage    Storage
@@ -26,9 +26,9 @@ func NewLog(storageDir, tableName string) *Log {
 	}
 }
 
-func (l *Log) getDB() (*sql.DB, error) {
-	if l.db != nil {
-		return l.db, nil
+func (l *Log) getLogDB() (*sql.DB, error) {
+	if l.logDB != nil {
+		return l.logDB, nil
 	}
 
 	// Initialize main database connection
@@ -65,13 +65,13 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 
-	l.db = db
-	return l.db, nil
+	l.logDB = db
+	return l.logDB, nil
 }
 
 // Exports db state to a JSON file
 func (l *Log) Export() ([]byte, error) {
-	db, err := l.getDB()
+	db, err := l.getLogDB()
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (l *Log) Export() ([]byte, error) {
 func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 	const jsonFileName = "log.json"
 
-	db, err := l.getDB()
+	db, err := l.getLogDB()
 	if err != nil {
 		return -1, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -156,7 +156,7 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 }
 
 func (l *Log) RecreateSchema(tx *sql.Tx) error {
-	db, err := l.getDB()
+	db, err := l.getLogDB()
 	if err != nil {
 		return fmt.Errorf("failed to get log database: %w", err)
 	}
@@ -224,16 +224,12 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 		// Modified copy command to use secret
 		parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
-		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET) USING SECRET %s;`,
-			table, l.storage.ToDuckDBPath(parquetPath), secretName)
+		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
+			table, l.storage.ToDuckDBPath(parquetPath))
 
 		_, copyErr := tx.Exec(copyQuery)
 		defer func() {
-			if copyErr != nil {
-				log.Printf("COPY command failed for %s: %v", parquetPath, copyErr)
-			} else {
-				log.Printf("Wrote parquet: %s", parquetPath)
-			}
+			log.Printf("%s err: %v", copyQuery, copyErr)
 		}()
 		if copyErr != nil {
 			return -1, fmt.Errorf("failed to copy to parquet: %w", copyErr)
@@ -258,7 +254,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 
 // Recreates the table described in the schema_log table as a view over partitioned parquet files
 func (l *Log) listFiles(where string) ([]string, error) {
-	db, err := l.getDB()
+	db, err := l.getLogDB()
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +297,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 // passing JSON to keep all logic in DB
 // TODO: pass it in via arrow to reduce overhead
 func (l *Log) Import(tmpFilename string) error {
-	db, err := l.getDB()
+	db, err := l.getLogDB()
 	if err != nil {
 		return err
 	}
@@ -372,8 +368,8 @@ func (l *Log) Import(tmpFilename string) error {
 }
 
 func (l *Log) Close() error {
-	if l.db != nil {
-		return l.db.Close()
+	if l.logDB != nil {
+		return l.logDB.Close()
 	}
 	return nil
 }
@@ -413,11 +409,11 @@ func (l *Log) Destroy() error {
 	}
 
 	// Close database connection if open
-	if l.db != nil {
-		if err := l.db.Close(); err != nil {
+	if l.logDB != nil {
+		if err := l.logDB.Close(); err != nil {
 			return fmt.Errorf("failed to close database: %w", err)
 		}
-		l.db = nil
+		l.logDB = nil
 	}
 
 	// Remove entire storage directory using OpenDAL
