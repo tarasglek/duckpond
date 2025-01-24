@@ -208,9 +208,8 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 			return -1, fmt.Errorf("failed to create data directory: %w", err)
 		}
 
-		// Generate unique secret name for this operation
-		secretName := "icebase_temp_secret_" + uuid.New().String()
-		
+		secretName := "icebase_temp_secret"
+
 		// Create secret in transaction
 		secretSQL := l.storage.ToDuckDBSecret(secretName)
 		if secretSQL != "" {
