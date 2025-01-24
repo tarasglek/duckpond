@@ -174,10 +174,9 @@ func (s *S3Storage) Write(path string, data []byte) error {
 	}()
 
 	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket:     aws.String(s.config.Bucket),
-		Key:        aws.String(fullKey),
-		Body:       bytes.NewReader(data),
-		ContentMD5: aws.String(checksum),
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(fullKey),
+		Body:   bytes.NewReader(data),
 	})
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
