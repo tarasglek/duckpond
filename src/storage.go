@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -156,14 +158,22 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 
 func (s *S3Storage) Write(path string, data []byte) error {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d",
-		s.config.Bucket, fullKey, len(data))
+	
+	// Compute SHA256 checksum
+	hash := sha256.New()
+	hash.Write(data)
+	checksum := base64.StdEncoding.EncodeToString(hash.Sum(nil))
+
+	// Log with checksum information
+	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d checksum=%s",
+		s.config.Bucket, fullKey, len(data), checksum)
 
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket:            aws.String(s.config.Bucket),
 		Key:               aws.String(fullKey),
 		Body:              bytes.NewReader(data),
 		ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
+		ChecksumSHA256:    aws.String(checksum),
 	})
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
