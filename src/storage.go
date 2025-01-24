@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -18,7 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // StorageConfig interface defines root directory access
@@ -137,7 +135,7 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 	sha1Checksum := "none"
 	etag := "none"
 	var err error
-	
+
 	defer func() {
 		status := "success"
 		if err != nil {
@@ -190,10 +188,10 @@ func (s *S3Storage) Write(path string, data []byte) error {
 		s.config.Bucket, fullKey, len(data), checksum)
 
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket:            aws.String(s.config.Bucket),
-		Key:               aws.String(fullKey),
-		Body:              bytes.NewReader(data),
-		ContentMD5:        aws.String(checksum),
+		Bucket:     aws.String(s.config.Bucket),
+		Key:        aws.String(fullKey),
+		Body:       bytes.NewReader(data),
+		ContentMD5: aws.String(checksum),
 	})
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
