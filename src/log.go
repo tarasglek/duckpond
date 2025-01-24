@@ -38,7 +38,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	}
 
 	// Create S3 secret if configured
-	secretSQL := l.storage.ToDuckDBSecret("icebase_s3_secret")
+	secretSQL := l.storage.ToDuckDBSecret("icebase_log_s3_secret")
 	if secretSQL != "" {
 		if _, err := logDB.Exec(secretSQL); err != nil {
 			logDB.Close()
@@ -208,7 +208,7 @@ func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
 			return -1, fmt.Errorf("failed to create data directory: %w", err)
 		}
 
-		secretName := "icebase_temp_secret"
+		secretName := "icebase_data_temp_secret"
 
 		// Create secret in transaction
 		secretSQL := l.storage.ToDuckDBSecret(secretName)
