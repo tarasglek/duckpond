@@ -168,8 +168,11 @@ func (s *S3Storage) Write(path string, data []byte) error {
 
 	// Log with checksum information
 	defer func() {
-		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d checksum=%s etag=%s",
-			s.config.Bucket, fullKey, len(data), checksum, etag)
+		hexChecksum := fmt.Sprintf("%x", hash.Sum(nil))
+		etagClean := strings.Trim(etag, `"`)
+		
+		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d md5_hex=%s etag=%s",
+			s.config.Bucket, fullKey, len(data), hexChecksum, etagClean)
 	}()
 
 	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
