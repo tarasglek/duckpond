@@ -264,7 +264,8 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Concise logging for query splitting and storage dir
 	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
 
-	db := ib.DB()
+	// Get connection to main DATA database (in-memory DuckDB)
+	dataDB := ib.DB()
 
 	var response *QueryResponse
 	filteredQueries, err := ib.splitAndFilterQueries(body)
@@ -277,23 +278,14 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 		var handlerErr error
 		func() {
-			// Wrapping in an anonymous function provides:
-			// 1. Scoped defer for transaction rollback - ensures rollback happens before next iteration
-			// 2. Clean error handling isolation between queries
-			// 3. Proper variable capture in loop iterations
-
-			// Begin new transaction
-			tx, err := db.Begin()
+			// Begin transaction on DATA database (main in-memory DuckDB)
+			dataTx, err := dataDB.Begin()
 			if err != nil {
-				handlerErr = fmt.Errorf("failed to begin transaction: %w", err)
+				handlerErr = fmt.Errorf("failed to begin DATA transaction: %w", err)
 				return
 			}
-
-			// Always rollback because actual data commit happens via log. This:
-			// - Prevents transaction leaks
-			// - Ensures clean state for next query
-			// - Handles both success and error cases safely
-			defer tx.Rollback() // Safe to call multiple times
+			// Rollback DATA transaction if not committed
+			defer dataTx.Rollback() // Safe to call multiple times
 
 			op, table := ib.parser.Parse(query)
 			log.Printf("%s(%d/%d): %s", op.String(), i+1, len(filteredQueries), query)
@@ -309,34 +301,39 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			if dblog != nil {
 				if op == OpSelect {
-					if handlerErr = dblog.RecreateAsView(tx); handlerErr != nil {
+					// Recreate view using LOG database's file list in DATA transaction
+					if handlerErr = dblog.RecreateAsView(dataTx); handlerErr != nil {
 						log.Printf("Failed to RecreateAsView for %q: %v", table, handlerErr)
 						return
 					}
 				} else {
-					if handlerErr = dblog.RecreateSchema(tx); handlerErr != nil {
+					// Recreate schema from LOG database in DATA transaction
+					if handlerErr = dblog.RecreateSchema(dataTx); handlerErr != nil {
 						log.Printf("Failed to recreate schema for %q: %v", table, handlerErr)
 						return
 					}
 				}
 			}
 
-			response, handlerErr = ib.ExecuteQuery(query, tx)
+			// Execute query against DATA database
+			response, handlerErr = ib.ExecuteQuery(query, dataTx)
 			if handlerErr != nil {
 				log.Printf("Query execution failed: %v\nQuery: %q", handlerErr, query)
 				return
 			}
 
 			if op == OpCreateTable && dblog != nil {
+				// Log schema change to LOG database
 				if _, handlerErr = dblog.createTable(query); handlerErr != nil {
-					log.Printf("Failed to log table creation for %q: %v", table, handlerErr)
+					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
 					return
 				}
 			}
 
 			if op == OpInsert && dblog != nil {
-				if _, handlerErr = dblog.Insert(tx, table, query); handlerErr != nil {
-					log.Printf("Failed to log insert for %q: %v", table, handlerErr)
+				// Log insert to LOG database while executing in DATA transaction
+				if _, handlerErr = dblog.Insert(dataTx, table, query); handlerErr != nil {
+					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
 					return
 				}
 			}
