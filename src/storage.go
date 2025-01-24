@@ -183,11 +183,16 @@ func (s *S3Storage) Write(path string, data []byte) error {
 	hash.Write(data)
 	checksum := base64.StdEncoding.EncodeToString(hash.Sum(nil))
 
-	// Log with checksum information
-	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d checksum=%s",
-		s.config.Bucket, fullKey, len(data), checksum)
+	// Initialize ETag variable
+	var etag string
 
-	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
+	// Log with checksum information
+	defer func() {
+		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d checksum=%s etag=%s",
+			s.config.Bucket, fullKey, len(data), checksum, etag)
+	}()
+
+	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket:     aws.String(s.config.Bucket),
 		Key:        aws.String(fullKey),
 		Body:       bytes.NewReader(data),
@@ -195,8 +200,15 @@ func (s *S3Storage) Write(path string, data []byte) error {
 	})
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
+		return err
 	}
-	return err
+
+	// Capture ETag from response
+	if resp.ETag != nil {
+		etag = *resp.ETag
+	}
+
+	return nil
 }
 
 func (s *S3Storage) CreateDir(path string) error {
