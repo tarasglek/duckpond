@@ -191,19 +191,10 @@ func (s *S3Storage) Write(path string, data []byte) error {
 }
 
 func (s *S3Storage) CreateDir(path string) error {
-	key := s.fullKey(path) + "/"
-	s.logger.Printf("Creating directory marker: bucket=%s key=%s",
-		s.config.Bucket, key)
-
-	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(s.config.Bucket),
-		Key:    aws.String(key),
-		Body:   bytes.NewReader([]byte{}),
-	})
-	if err != nil {
-		s.logger.Printf("Error creating directory marker: %v", err)
-	}
-	return err
+	// No-op for S3 since directories are implicit in object keys
+	s.logger.Printf("Skipping directory creation for S3: bucket=%s path=%s", 
+		s.config.Bucket, path)
+	return nil
 }
 
 func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
