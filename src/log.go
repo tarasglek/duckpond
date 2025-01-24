@@ -227,19 +227,24 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET) USING SECRET %s;`,
 			table, l.storage.ToDuckDBPath(parquetPath), secretName)
 
-		log.Printf("Executing COPY statement for table %s\nQuery: %s", table, copyQuery)
-		if _, err = tx.Exec(copyQuery); err != nil {
-			log.Printf("COPY command failed for %s: %v\nQuery: %s", parquetPath, err, copyQuery)
-			return -1, fmt.Errorf("failed to copy to parquet: %w", err)
+		_, copyErr := tx.Exec(copyQuery)
+		defer func() {
+			if copyErr != nil {
+				log.Printf("COPY command failed for %s: %v", parquetPath, copyErr)
+			} else {
+				log.Printf("Wrote parquet: %s", parquetPath)
+			}
+		}()
+		if copyErr != nil {
+			return -1, fmt.Errorf("failed to copy to parquet: %w", copyErr)
 		}
-		log.Printf("Successfully wrote parquet file: %s (using secret: %s)", parquetPath, secretName)
 
-		meta, err := l.storage.Stat(parquetPath)
-		if err != nil {
-			return -1, fmt.Errorf("failed to get file size: %w", err)
+		meta, copyErr := l.storage.Stat(parquetPath)
+		if copyErr != nil {
+			return -1, fmt.Errorf("failed to get file size: %w", copyErr)
 		}
 
-		if _, err = db.Exec(`
+		if _, copyErr = db.Exec(`
             UPDATE insert_log 
             SET size = ?
             WHERE id = ?;
