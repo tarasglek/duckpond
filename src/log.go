@@ -284,9 +284,7 @@ func (l *Log) RecreateAsView(dataTx *sql.Tx) error {
 		if _, err := dataTx.Exec(secretSQL); err != nil {
 			return fmt.Errorf("failed to create view secret: %w", err)
 		}
-		defer func() {
-			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
-		}()
+		// Note we don't drop secret here as the view lifetime persists past this function
 	}
 
 	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")

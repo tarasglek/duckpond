@@ -223,10 +223,7 @@ func (s *S3Storage) ToDuckDBPath(path string) string {
 }
 
 func (s *S3Storage) ToDuckDBSecret(secretName string) string {
-	s.logger.Printf("Generating DuckDB secret for S3 access")
-
 	if s.config.AccessKey == "" || s.config.SecretKey == "" {
-		s.logger.Printf("No access key or secret key configured, returning empty secret")
 		return ""
 	}
 	parts := []string{
