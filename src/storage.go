@@ -126,26 +126,31 @@ func (s *S3Storage) fullKey(path string) string {
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Reading object from S3: bucket=%s key=%s (checksum: SHA256)",
-		s.config.Bucket, fullKey)
+	
+	// Use defer to log all information at once
+	var sha256Checksum string
+	defer func() {
+		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksum=%s",
+			s.config.Bucket, fullKey, sha256Checksum)
+	}()
 
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		s.logger.Printf("Error reading object: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Log actual checksum from response
-	s.logger.Printf("Object SHA256 checksum: %v", *resp.ChecksumSHA256)
+	// Store checksum for logging
+	if resp.ChecksumSHA256 != nil {
+		sha256Checksum = *resp.ChecksumSHA256
+	} else {
+		sha256Checksum = "none"
+	}
 
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		s.logger.Printf("Error reading object body: %v", err)
-	}
 	return data, err
 }
 
