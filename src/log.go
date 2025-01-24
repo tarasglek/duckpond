@@ -36,6 +36,15 @@ func (l *Log) getDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
+	// Create S3 secret if configured
+	secretSQL := l.storage.ToDuckDBSecret()
+	if secretSQL != "" {
+		if _, err := db.Exec(secretSQL); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("failed to create S3 secret: %w", err)
+		}
+	}
+
 	// Create schema if needed
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_log (
