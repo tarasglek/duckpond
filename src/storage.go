@@ -125,47 +125,45 @@ func (s *S3Storage) fullKey(path string) string {
 }
 
 func (s *S3Storage) Read(path string) ([]byte, error) {
-    fullKey := s.fullKey(path)
-    s.logger.Printf("Reading object from S3: bucket=%s key=%s (checksum: SHA256)",
-        s.config.Bucket, fullKey)
+	fullKey := s.fullKey(path)
+	s.logger.Printf("Reading object from S3: bucket=%s key=%s (checksum: SHA256)",
+		s.config.Bucket, fullKey)
 
-    resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
-        Bucket: aws.String(s.config.Bucket),
-        Key:    aws.String(fullKey),
-    })
-    if err != nil {
-        s.logger.Printf("Error reading object: %v", err)
-        return nil, err
-    }
-    defer resp.Body.Close()
+	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(fullKey),
+	})
+	if err != nil {
+		s.logger.Printf("Error reading object: %v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    // Log actual checksum from response
-    if resp.ChecksumSHA256 != nil {
-        s.logger.Printf("Object SHA256 checksum: %s", *resp.ChecksumSHA256)
-    }
+	// Log actual checksum from response
+	s.logger.Printf("Object SHA256 checksum: %v", *resp.ChecksumSHA256)
 
-    data, err := io.ReadAll(resp.Body)
-    if err != nil {
-        s.logger.Printf("Error reading object body: %v", err)
-    }
-    return data, err
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Printf("Error reading object body: %v", err)
+	}
+	return data, err
 }
 
 func (s *S3Storage) Write(path string, data []byte) error {
-    fullKey := s.fullKey(path)
-    s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d",
-        s.config.Bucket, fullKey, len(data))
+	fullKey := s.fullKey(path)
+	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d",
+		s.config.Bucket, fullKey, len(data))
 
-    _, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-        Bucket:            aws.String(s.config.Bucket),
-        Key:               aws.String(fullKey),
-        Body:              bytes.NewReader(data),
-        ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
-    })
-    if err != nil {
-        s.logger.Printf("Error writing object: %v", err)
-    }
-    return err
+	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket:            aws.String(s.config.Bucket),
+		Key:               aws.String(fullKey),
+		Body:              bytes.NewReader(data),
+		ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
+	})
+	if err != nil {
+		s.logger.Printf("Error writing object: %v", err)
+	}
+	return err
 }
 
 func (s *S3Storage) CreateDir(path string) error {
