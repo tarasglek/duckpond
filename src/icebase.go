@@ -306,13 +306,13 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			if dblog != nil {
 				if op == OpSelect {
 					// Recreate view using LOG database's file list in DATA transaction
-					if handlerErr = dblog.RecreateAsView(dataTx); handlerErr != nil {
+					if handlerErr = dblog.CreateViewOfParquet(dataTx); handlerErr != nil {
 						log.Printf("Failed to RecreateAsView for %q: %v", table, handlerErr)
 						return
 					}
 				} else {
 					// Recreate schema from LOG database in DATA transaction
-					if handlerErr = dblog.RecreateSchema(dataTx); handlerErr != nil {
+					if handlerErr = dblog.PlaySchemaLogForward(dataTx); handlerErr != nil {
 						log.Printf("Failed to recreate schema for %q: %v", table, handlerErr)
 						return
 					}
@@ -328,7 +328,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			if op == OpCreateTable && dblog != nil {
 				// Log schema change to LOG database
-				if _, handlerErr = dblog.createTable(query); handlerErr != nil {
+				if _, handlerErr = dblog.logDDL(query); handlerErr != nil {
 					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
 					return
 				}

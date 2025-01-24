@@ -69,7 +69,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	return l.logDB, nil
 }
 
-// Exports db state to a JSON file
+// Exports log state to a JSON file
 func (l *Log) Export() ([]byte, error) {
 	db, err := l.getLogDB()
 	if err != nil {
@@ -92,7 +92,7 @@ func (l *Log) Export() ([]byte, error) {
 	return []byte(jsonResult), err
 }
 
-// Modified withPersistedLog
+// Runs callback that does SQL while properly persisting it via log
 func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error) {
 	const jsonFileName = "log.json"
 
@@ -142,7 +142,8 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 	return result, nil
 }
 
-func (l *Log) createTable(rawCreateTable string) (int, error) {
+// Logs a DDL statement to the schema_log table
+func (l *Log) logDDL(rawCreateTable string) (int, error) {
 	return l.withPersistedLog(func(db *sql.DB) (int, error) {
 		_, err := db.Exec(`
             INSERT INTO schema_log (timestamp, raw_query)
@@ -155,7 +156,8 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 	})
 }
 
-func (l *Log) RecreateSchema(dataTx *sql.Tx) error {
+// Gets us to most recent state of schema by replaying schema_log from scratch
+func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 	logDB, err := l.getLogDB()
 	if err != nil {
 		return fmt.Errorf("failed to get log database: %w", err)
@@ -257,7 +259,7 @@ func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
 	})
 }
 
-// Recreates the table described in the schema_log table as a view over partitioned parquet files
+// Lists parquet files managed by insert_log table
 func (l *Log) listFiles(where string) ([]string, error) {
 	db, err := l.getLogDB()
 	if err != nil {
@@ -281,7 +283,8 @@ func (l *Log) listFiles(where string) ([]string, error) {
 	return files, rows.Err()
 }
 
-func (l *Log) RecreateAsView(dataTx *sql.Tx) error {
+// Fake a table for reading by creating a view of live parquet files
+func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	// Create temporary secret for the view operation
 	secretName := "icebase_view_s3_secret"
 	secretSQL := l.storage.ToDuckDBSecret(secretName)
