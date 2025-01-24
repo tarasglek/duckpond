@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -228,6 +229,7 @@ func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 		size:    size,
 		modTime: aws.ToTime(resp.LastModified),
 		md5:     md5Checksum,
+		isDir:   strings.HasSuffix(path, "/"),  // Detect directory markers
 	}, nil
 }
 
@@ -314,6 +316,7 @@ type s3FileInfo struct {
 	size    int64
 	modTime time.Time
 	md5     string
+	isDir   bool
 }
 
 func (fi *s3FileInfo) MD5() string { return fi.md5 }
@@ -322,7 +325,7 @@ func (fi *s3FileInfo) Name() string       { return fi.name }
 func (fi *s3FileInfo) Size() int64        { return fi.size }
 func (fi *s3FileInfo) Mode() os.FileMode  { return 0644 }
 func (fi *s3FileInfo) ModTime() time.Time { return fi.modTime }
-func (fi *s3FileInfo) IsDir() bool        { return false }
+func (fi *s3FileInfo) IsDir() bool        { return fi.isDir }
 func (fi *s3FileInfo) Sys() interface{}   { return nil }
 
 // NewStorage creates either S3 or FS storage based on environment
@@ -351,7 +354,35 @@ func (fs *FSStorage) CreateDir(path string) error {
 }
 
 func (fs *FSStorage) Stat(path string) (os.FileInfo, error) {
-	return os.Stat(fs.fullPath(path))
+	fullPath := fs.fullPath(path)
+	fi, err := os.Stat(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compute MD5 checksum for filesystem files
+	var md5Checksum string
+	if !fi.IsDir() {
+		file, err := os.Open(fullPath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		hash := md5.New()
+		if _, err := io.Copy(hash, file); err != nil {
+			return nil, err
+		}
+		md5Checksum = hex.EncodeToString(hash.Sum(nil))
+	}
+
+	return &s3FileInfo{
+		name:    fi.Name(),
+		size:    fi.Size(),
+		modTime: fi.ModTime(),
+		md5:     md5Checksum,
+		isDir:   fi.IsDir(),
+	}, nil
 }
 
 func (fs *FSStorage) Delete(path string) error {
