@@ -61,7 +61,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 		);
 	`)
 	if err != nil {
-		db.Close()
+		logDB.Close()
 		return nil, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 

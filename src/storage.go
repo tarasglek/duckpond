@@ -126,7 +126,7 @@ func (s *S3Storage) fullKey(path string) string {
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	fullKey := s.fullKey(path)
 	s.logger.Printf("Reading object from S3: bucket=%s key=%s", s.config.Bucket, fullKey)
-	
+
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fullKey),
@@ -146,7 +146,7 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 
 func (s *S3Storage) Write(path string, data []byte) error {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d", 
+	s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d",
 		s.config.Bucket, fullKey, len(data))
 
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
@@ -162,7 +162,7 @@ func (s *S3Storage) Write(path string, data []byte) error {
 
 func (s *S3Storage) CreateDir(path string) error {
 	key := s.fullKey(path) + "/"
-	s.logger.Printf("Creating directory marker: bucket=%s key=%s", 
+	s.logger.Printf("Creating directory marker: bucket=%s key=%s",
 		s.config.Bucket, key)
 
 	_, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
@@ -178,7 +178,7 @@ func (s *S3Storage) CreateDir(path string) error {
 
 func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Getting object metadata: bucket=%s key=%s", 
+	s.logger.Printf("Getting object metadata: bucket=%s key=%s",
 		s.config.Bucket, fullKey)
 
 	resp, err := s.client.HeadObject(context.Background(), &s3.HeadObjectInput{
@@ -205,7 +205,7 @@ func (s *S3Storage) Stat(path string) (os.FileInfo, error) {
 
 func (s *S3Storage) Delete(path string) error {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Deleting object: bucket=%s key=%s", 
+	s.logger.Printf("Deleting object: bucket=%s key=%s",
 		s.config.Bucket, fullKey)
 
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{

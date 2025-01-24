@@ -181,7 +181,7 @@ func (ib *IceBase) logByName(tableName string) (*Log, error) {
 func (ib *IceBase) Close() error {
 	// Close all table logs
 	for _, log := range ib.logs {
-		if log.db != nil {
+		if log.logDB != nil {
 			if err := log.Close(); err != nil {
 				return fmt.Errorf("failed to close log: %w", err)
 			}
