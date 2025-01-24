@@ -131,14 +131,15 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 
 	// Use defer to log all information at once
 	sha256Checksum := "none"
+	etag := "none"
 	var err error
 	defer func() {
 		status := "success"
 		if err != nil {
 			status = fmt.Sprintf("error: %v", err)
 		}
-		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksum=%s status=%s",
-			s.config.Bucket, fullKey, sha256Checksum, status)
+		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksum=%s etag=%s status=%s",
+			s.config.Bucket, fullKey, sha256Checksum, etag, status)
 	}()
 
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -150,9 +151,12 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	// Store checksum for logging
+	// Store checksum and ETag for logging
 	if resp.ChecksumSHA256 != nil {
 		sha256Checksum = *resp.ChecksumSHA256
+	}
+	if resp.ETag != nil {
+		etag = *resp.ETag
 	}
 
 	data, err := io.ReadAll(resp.Body)
