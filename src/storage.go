@@ -163,20 +163,19 @@ func (s *S3Storage) Write(path string, data []byte) error {
 	hash.Write(data)
 	checksum := base64.StdEncoding.EncodeToString(hash.Sum(nil))
 
-	// Initialize ETag variable
 	var etag string
-
-	// Log with size and ETag information
 	defer func() {
 		etagClean := strings.Trim(etag, `"`)
 		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d etag=%s",
 			s.config.Bucket, fullKey, len(data), etagClean)
 	}()
 
+	// Add ContentMD5 to PutObjectInput and capture ETag from response
 	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(s.config.Bucket),
-		Key:    aws.String(fullKey),
-		Body:   bytes.NewReader(data),
+		Bucket:      aws.String(s.config.Bucket),
+		Key:         aws.String(fullKey),
+		Body:        bytes.NewReader(data),
+		ContentMD5:  aws.String(checksum), // This ensures S3 validates the MD5
 	})
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
