@@ -32,7 +32,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	}
 
 	// Initialize main database connection
-	db, err := InitializeDuckDB()
+	logDB, err := InitializeDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
@@ -40,14 +40,14 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	// Create S3 secret if configured
 	secretSQL := l.storage.ToDuckDBSecret("icebase_s3_secret")
 	if secretSQL != "" {
-		if _, err := db.Exec(secretSQL); err != nil {
-			db.Close()
+		if _, err := logDB.Exec(secretSQL); err != nil {
+			logDB.Close()
 			return nil, fmt.Errorf("failed to create S3 secret: %w", err)
 		}
 	}
 
 	// Create schema if needed
-	_, err = db.Exec(`
+	_, err = logDB.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_log (
 			timestamp TIMESTAMP PRIMARY KEY,
 			raw_query TEXT NOT NULL
@@ -65,7 +65,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to create schema_log table: %w", err)
 	}
 
-	l.logDB = db
+	l.logDB = logDB
 	return l.logDB, nil
 }
 
@@ -93,10 +93,10 @@ func (l *Log) Export() ([]byte, error) {
 }
 
 // Modified withPersistedLog
-func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
+func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error) {
 	const jsonFileName = "log.json"
 
-	db, err := l.getLogDB()
+	logDB, err := l.getLogDB()
 	if err != nil {
 		return -1, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -125,7 +125,7 @@ func (l *Log) withPersistedLog(op func(*sql.DB) (int, error)) (int, error) {
 	}
 
 	// Execute the operation
-	result, err := op(db)
+	result, err := op(logDB)
 	if err != nil {
 		return result, err
 	}
@@ -155,14 +155,14 @@ func (l *Log) createTable(rawCreateTable string) (int, error) {
 	})
 }
 
-func (l *Log) RecreateSchema(tx *sql.Tx) error {
-	db, err := l.getLogDB()
+func (l *Log) RecreateSchema(dataTx *sql.Tx) error {
+	logDB, err := l.getLogDB()
 	if err != nil {
 		return fmt.Errorf("failed to get log database: %w", err)
 	}
 
 	// Query schema_log for all create table statements
-	rows, err := db.Query(`
+	rows, err := logDB.Query(`
 		SELECT raw_query 
 		FROM schema_log
 		ORDER BY timestamp ASC
@@ -180,7 +180,7 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 		}
 
 		// Execute the create table statement
-		if _, err := tx.Exec(createQuery); err != nil {
+		if _, err := dataTx.Exec(createQuery); err != nil {
 			return fmt.Errorf("failed to execute schema_log query: %w", err)
 		}
 	}
@@ -189,11 +189,11 @@ func (l *Log) RecreateSchema(tx *sql.Tx) error {
 }
 
 // here tx refers to another db, need to inject s3 secret here too
-func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
-	return l.withPersistedLog(func(db *sql.DB) (int, error) {
+func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
+	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
 		// Original insert logic wrapped in lambda
 		var uuidBytes []byte
-		err := db.QueryRow(`
+		err := logDB.QueryRow(`
             INSERT INTO insert_log (id, partition)
             VALUES (uuidv7(), '')
             RETURNING id;
@@ -213,12 +213,12 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		// Create secret in transaction
 		secretSQL := l.storage.ToDuckDBSecret(secretName)
 		if secretSQL != "" {
-			if _, err := tx.Exec(secretSQL); err != nil {
+			if _, err := dataTx.Exec(secretSQL); err != nil {
 				return -1, fmt.Errorf("failed to create secret: %w", err)
 			}
 			defer func() {
 				// Clean up secret after operation completes
-				_, _ = tx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+				_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
 			}()
 		}
 
@@ -227,7 +227,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
 			table, l.storage.ToDuckDBPath(parquetPath))
 
-		_, copyErr := tx.Exec(copyQuery)
+		_, copyErr := dataTx.Exec(copyQuery)
 		defer func() {
 			log.Printf("%s err: %v", copyQuery, copyErr)
 		}()
@@ -240,7 +240,7 @@ func (l *Log) Insert(tx *sql.Tx, table string, query string) (int, error) {
 			return -1, fmt.Errorf("failed to get file size: %w", copyErr)
 		}
 
-		if _, copyErr = db.Exec(`
+		if _, copyErr = logDB.Exec(`
             UPDATE insert_log 
             SET size = ?
             WHERE id = ?;
@@ -276,7 +276,7 @@ func (l *Log) listFiles(where string) ([]string, error) {
 	return files, rows.Err()
 }
 
-func (l *Log) RecreateAsView(tx *sql.Tx) error {
+func (l *Log) RecreateAsView(dataTx *sql.Tx) error {
 	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
 	if err != nil || len(files) == 0 {
 		return fmt.Errorf("no active files: %w", err)
@@ -288,7 +288,7 @@ func (l *Log) RecreateAsView(tx *sql.Tx) error {
 		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
 	}
 
-	_, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+	_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
 		l.tableName, strings.Join(paths, ", ")))
 	return err
 }
