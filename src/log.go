@@ -103,7 +103,7 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 
 	// Try to read and import existing data through temp file
 	jsonPath := filepath.Join(l.tableName, jsonFileName)
-	if data, err := l.storage.Read(jsonPath); err == nil {
+	if data, _, err := l.storage.Read(jsonPath); err == nil {
 		// Write to temp file
 		tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
 		if err != nil {

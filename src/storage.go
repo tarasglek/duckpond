@@ -70,7 +70,7 @@ func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
 
 // Storage interface replaces OpenDAL operations
 type Storage interface {
-	Read(path string) ([]byte, error)
+	Read(path string) ([]byte, *s3FileInfo, error)
 	Write(path string, data []byte) error
 	CreateDir(path string) error
 	Stat(path string) (*s3FileInfo, error)
@@ -126,9 +126,9 @@ func (s *S3Storage) fullKey(path string) string {
 	return strings.TrimPrefix(filepath.Join(s.config.RootDir(), path), "/")
 }
 
-func (s *S3Storage) Read(path string) ([]byte, error) {
+func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 	fullKey := s.fullKey(path)
-	var etag string
+	var fileInfo *s3FileInfo
 	var err error
 
 	defer func() {
@@ -136,8 +136,13 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 		if err != nil {
 			status = fmt.Sprintf("error: %v", err)
 		}
-		s.logger.Printf("S3 Read operation: bucket=%s key=%s etag=%s status=%s",
-			s.config.Bucket, fullKey, etag, status)
+		if fileInfo != nil {
+			s.logger.Printf("S3 Read operation: bucket=%s key=%s size=%d etag=%s mod_time=%s status=%s",
+				s.config.Bucket, fullKey, fileInfo.size, fileInfo.md5, fileInfo.modTime.Format(time.RFC3339), status)
+		} else {
+			s.logger.Printf("S3 Read operation: bucket=%s key=%s status=%s",
+				s.config.Bucket, fullKey, status)
+		}
 	}()
 
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -145,15 +150,28 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.ETag != nil {
-		etag = *resp.ETag
+	// Build file info from response headers
+	fileInfo = &s3FileInfo{
+		name:    filepath.Base(path),
+		isDir:   strings.HasSuffix(path, "/"),
 	}
 
-	return io.ReadAll(resp.Body)
+	if resp.ContentLength != nil {
+		fileInfo.size = *resp.ContentLength
+	}
+	if resp.LastModified != nil {
+		fileInfo.modTime = *resp.LastModified
+	}
+	if resp.ETag != nil {
+		fileInfo.md5 = strings.Trim(*resp.ETag, `"`)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	return data, fileInfo, err
 }
 
 func (s *S3Storage) Write(path string, data []byte) error {
@@ -341,8 +359,36 @@ func (fs *FSStorage) fullPath(path string) string {
 	return filepath.Join(fs.config.RootDir(), path)
 }
 
-func (fs *FSStorage) Read(path string) ([]byte, error) {
-	return os.ReadFile(fs.fullPath(path))
+func (fs *FSStorage) Read(path string) ([]byte, *s3FileInfo, error) {
+	fullPath := fs.fullPath(path)
+	
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	hash := md5.New()
+	hash.Write(data)
+	md5Checksum := hex.EncodeToString(hash.Sum(nil))
+
+	return data, &s3FileInfo{
+		name:    fi.Name(),
+		size:    fi.Size(),
+		modTime: fi.ModTime(),
+		md5:     md5Checksum,
+		isDir:   fi.IsDir(),
+	}, nil
 }
 
 func (fs *FSStorage) Write(path string, data []byte) error {
