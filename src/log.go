@@ -440,11 +440,5 @@ func (l *Log) Destroy() error {
 		l.logDB = nil
 	}
 
-	// Remove entire storage directory using OpenDAL
-	// but opendal go binding is missing recursive deletes
-	// if err := l.op.Delete(l.tableName); err != nil {
-	//     return fmt.Errorf("failed to remove storage directory: %w", err)
-	// }
-
 	return nil
 }
