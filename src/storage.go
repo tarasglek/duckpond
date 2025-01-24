@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -238,10 +239,22 @@ func (s *S3Storage) ToDuckDBSecret() string {
 	}
 
 	if s.config.Endpoint != "" {
-		parts = append(parts, fmt.Sprintf("ENDPOINT '%s'", s.config.Endpoint))
-		if s.config.UsePathStyle {
-			parts = append(parts, "URL_STYLE 'path'")
+		// Parse endpoint to extract host:port without protocol
+		endpointURL, err := url.Parse(s.config.Endpoint)
+		if err != nil {
+			s.logger.Printf("Invalid endpoint URL: %v", err)
+			return ""
 		}
+
+		parts = append(parts,
+			fmt.Sprintf("ENDPOINT '%s'", endpointURL.Host),
+			fmt.Sprintf("USE_SSL '%t'", endpointURL.Scheme == "https"),
+		)
+	}
+
+	// Add path style configuration separately from endpoint
+	if s.config.UsePathStyle {
+		parts = append(parts, "URL_STYLE 'path'")
 	}
 
 	secret := fmt.Sprintf(
