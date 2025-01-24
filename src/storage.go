@@ -129,17 +129,21 @@ func (s *S3Storage) fullKey(path string) string {
 func (s *S3Storage) Read(path string) ([]byte, error) {
 	fullKey := s.fullKey(path)
 
-	// Use defer to log all information at once
+	// Initialize all checksum values
 	sha256Checksum := "none"
+	crc32Checksum := "none"
+	crc32cChecksum := "none"
+	sha1Checksum := "none"
 	etag := "none"
 	var err error
+	
 	defer func() {
 		status := "success"
 		if err != nil {
 			status = fmt.Sprintf("error: %v", err)
 		}
-		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksum=%s etag=%s status=%s",
-			s.config.Bucket, fullKey, sha256Checksum, etag, status)
+		s.logger.Printf("S3 Read operation: bucket=%s key=%s checksums=[SHA256=%s, CRC32=%s, CRC32C=%s, SHA1=%s] etag=%s status=%s",
+			s.config.Bucket, fullKey, sha256Checksum, crc32Checksum, crc32cChecksum, sha1Checksum, etag, status)
 	}()
 
 	resp, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -151,9 +155,18 @@ func (s *S3Storage) Read(path string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	// Store checksum and ETag for logging
+	// Capture all available checksums
 	if resp.ChecksumSHA256 != nil {
 		sha256Checksum = *resp.ChecksumSHA256
+	}
+	if resp.ChecksumCRC32 != nil {
+		crc32Checksum = *resp.ChecksumCRC32
+	}
+	if resp.ChecksumCRC32C != nil {
+		crc32cChecksum = *resp.ChecksumCRC32C
+	}
+	if resp.ChecksumSHA1 != nil {
+		sha1Checksum = *resp.ChecksumSHA1
 	}
 	if resp.ETag != nil {
 		etag = *resp.ETag
