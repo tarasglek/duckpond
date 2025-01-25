@@ -138,7 +138,7 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 		}
 		if fileInfo != nil {
 			s.logger.Printf("S3 Read operation: bucket=%s key=%s size=%d etag=%s mod_time=%s status=%s",
-				s.config.Bucket, fullKey, fileInfo.size, fileInfo.md5, fileInfo.modTime.Format(time.RFC3339), status)
+				s.config.Bucket, fullKey, fileInfo.size, fileInfo.etag, fileInfo.modTime.Format(time.RFC3339), status)
 		} else {
 			s.logger.Printf("S3 Read operation: bucket=%s key=%s status=%s",
 				s.config.Bucket, fullKey, status)
@@ -167,7 +167,7 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 		fileInfo.modTime = *resp.LastModified
 	}
 	if resp.ETag != nil {
-		fileInfo.md5 = strings.Trim(*resp.ETag, `"`)
+		fileInfo.etag = strings.Trim(*resp.ETag, `"`)
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -237,16 +237,16 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 	}
 
 	// Capture ETag (MD5 for single-part uploads)
-	md5Checksum := ""
+	etag := ""
 	if resp.ETag != nil {
-		md5Checksum = strings.Trim(*resp.ETag, `"`)
+		etag = strings.Trim(*resp.ETag, `"`)
 	}
 
 	return &s3FileInfo{
 		name:    filepath.Base(path),
 		size:    size,
 		modTime: aws.ToTime(resp.LastModified),
-		md5:     md5Checksum,
+		etag:    etag,
 		isDir:   strings.HasSuffix(path, "/"),  // Detect directory markers
 	}, nil
 }
@@ -333,11 +333,11 @@ type s3FileInfo struct {
 	name    string
 	size    int64
 	modTime time.Time
-	md5     string
+	etag    string
 	isDir   bool
 }
 
-func (fi *s3FileInfo) MD5() string { return fi.md5 }
+func (fi *s3FileInfo) ETag() string { return fi.etag }
 
 func (fi *s3FileInfo) Name() string       { return fi.name }
 func (fi *s3FileInfo) Size() int64        { return fi.size }
@@ -380,13 +380,13 @@ func (fs *FSStorage) Read(path string) ([]byte, *s3FileInfo, error) {
 
 	hash := md5.New()
 	hash.Write(data)
-	md5Checksum := hex.EncodeToString(hash.Sum(nil))
+	etagChecksum := hex.EncodeToString(hash.Sum(nil))
 
 	return data, &s3FileInfo{
 		name:    fi.Name(),
 		size:    fi.Size(),
 		modTime: fi.ModTime(),
-		md5:     md5Checksum,
+		etag:    etagChecksum,
 		isDir:   fi.IsDir(),
 	}, nil
 }
@@ -406,8 +406,8 @@ func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 		return nil, err
 	}
 
-	// Compute MD5 checksum for filesystem files
-	var md5Checksum string
+	// Compute etag for filesystem files
+	var etagChecksum string
 	if !fi.IsDir() {
 		file, err := os.Open(fullPath)
 		if err != nil {
@@ -419,14 +419,14 @@ func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 		if _, err := io.Copy(hash, file); err != nil {
 			return nil, err
 		}
-		md5Checksum = hex.EncodeToString(hash.Sum(nil))
+		etagChecksum = hex.EncodeToString(hash.Sum(nil))
 	}
 
 	return &s3FileInfo{
 		name:    fi.Name(),
 		size:    fi.Size(),
 		modTime: fi.ModTime(),
-		md5:     md5Checksum,
+		etag:    etagChecksum,
 		isDir:   fi.IsDir(),
 	}, nil
 }
