@@ -68,10 +68,23 @@ func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
 	)
 }
 
+// WriteOption configures write operations
+type WriteOption func(*writeConfig)
+
+type writeConfig struct {
+    ifMatch string
+}
+
+func WithIfMatch(etag string) WriteOption {
+    return func(c *writeConfig) {
+        c.ifMatch = etag
+    }
+}
+
 // Storage interface replaces OpenDAL operations
 type Storage interface {
 	Read(path string) ([]byte, *s3FileInfo, error)
-	Write(path string, data []byte) error
+	Write(path string, data []byte, opts ...WriteOption) error
 	CreateDir(path string) error
 	Stat(path string) (*s3FileInfo, error)
 	Delete(path string) error
@@ -174,8 +187,12 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 	return data, fileInfo, err
 }
 
-func (s *S3Storage) Write(path string, data []byte) error {
+func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	fullKey := s.fullKey(path)
+	var cfg writeConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
 	// Compute MD5 checksum
 	hash := md5.New()
@@ -189,13 +206,19 @@ func (s *S3Storage) Write(path string, data []byte) error {
 			s.config.Bucket, fullKey, len(data), etagClean)
 	}()
 
-	// Add ContentMD5 to PutObjectInput and capture ETag from response
-	resp, err := s.client.PutObject(context.Background(), &s3.PutObjectInput{
+	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(s.config.Bucket),
 		Key:         aws.String(fullKey),
 		Body:        bytes.NewReader(data),
-		ContentMD5:  aws.String(checksum), // This ensures S3 validates the MD5
-	})
+		ContentMD5:  aws.String(checksum),
+	}
+
+	if cfg.ifMatch != "" {
+		putInput.IfMatch = aws.String(cfg.ifMatch)
+		s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
+	}
+
+	resp, err := s.client.PutObject(context.Background(), putInput)
 	if err != nil {
 		s.logger.Printf("Error writing object: %v", err)
 		return err
@@ -391,8 +414,27 @@ func (fs *FSStorage) Read(path string) ([]byte, *s3FileInfo, error) {
 	}, nil
 }
 
-func (fs *FSStorage) Write(path string, data []byte) error {
-	return os.WriteFile(fs.fullPath(path), data, 0644)
+func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error {
+	fullPath := fs.fullPath(path)
+	var cfg writeConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if cfg.ifMatch != "" {
+		fi, err := fs.Stat(path)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("precondition failed: file does not exist")
+		}
+		if err != nil {
+			return fmt.Errorf("failed to stat file: %w", err)
+		}
+		if fi.ETag() != cfg.ifMatch {
+			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
+		}
+	}
+
+	return os.WriteFile(fullPath, data, 0644)
 }
 
 func (fs *FSStorage) CreateDir(path string) error {
