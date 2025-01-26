@@ -9,6 +9,13 @@ import (
 	"io"
 	"log"
 	"net/url"
+)
+
+// bytesToETag generates an MD5-based ETag from byte data
+func bytesToETag(data []byte) string {
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:])
+}
 	"os"
 	"path/filepath"
 	"strings"
@@ -394,9 +401,7 @@ func (fs *FSStorage) Read(path string) ([]byte, *s3FileInfo, error) {
 		return nil, nil, err
 	}
 
-	hash := md5.New()
-	hash.Write(data)
-	etagChecksum := hex.EncodeToString(hash.Sum(nil))
+	etagChecksum := bytesToETag(data)
 
 	return data, &s3FileInfo{
 		name:    fi.Name(),
