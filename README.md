@@ -54,6 +54,9 @@ icebase diverges in following ways from icedb principles:
 - icedb requires separate configuration for every table, icebase has a single global configuration and tracks `create table` params internally
 - cheap writes: The most simple write is an upload of a parquet file + log update
 
+### Transactional updates for log
+- Single log file that gets overwritten using IfMatch: <prior-etag>
+
 ## Inspired by clickhouse
 - deletes/updates: will use the clickhouse [approach](https://clickhouse.com/docs/en/sql-reference/statements/delete#how-lightweight-deletes-work-internally-in-clickhouse)
 - cheapest delete will work by removing whole partitions (eg if a table is partitioned by user)
