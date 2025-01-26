@@ -446,20 +446,13 @@ func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 		return nil, err
 	}
 
-	// Compute etag for filesystem files
 	var etagChecksum string
 	if !fi.IsDir() {
-		file, err := os.Open(fullPath)
+		data, err := os.ReadFile(fullPath)  // Read file once
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
-
-		hash := md5.New()
-		if _, err := io.Copy(hash, file); err != nil {
-			return nil, err
-		}
-		etagChecksum = hex.EncodeToString(hash.Sum(nil))
+		etagChecksum = bytesToETag(data)  // Use shared helper
 	}
 
 	return &s3FileInfo{
