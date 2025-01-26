@@ -351,7 +351,7 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 	}()
 
 	// Set log_json_etag variable from parameter
-	_, err = importTx.Exec(fmt.Sprintf("SET log_json_etag = '%s';", strings.ReplaceAll(etag, "'", "''")))
+	_, err = importTx.Exec(fmt.Sprintf("SET VARIABLE log_json_etag = '%s';", strings.ReplaceAll(etag, "'", "''")))
 	if err != nil {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
