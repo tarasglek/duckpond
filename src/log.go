@@ -76,9 +76,10 @@ func (l *Log) Export() ([]byte, string, error) {
 		return nil, "", fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Get the current etag value
+	// Get and log etag in one operation
 	var etag string
 	err = db.QueryRow("SELECT getvariable('etag')").Scan(&etag)
+	log.Printf("Export: etag=%v (err=%v)", etag, err)
 	if err != nil {
 		etag = ""
 	}
@@ -358,8 +359,9 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 		}
 	}()
 
-	// Set log_json_etag variable from parameter
+	// Set and log etag in one operation
 	_, err = importTx.Exec(fmt.Sprintf("SET VARIABLE log_json_etag = '%s';", strings.ReplaceAll(etag, "'", "''")))
+	log.Printf("Import: setting etag=%v (err=%v)", etag, err)
 	if err != nil {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
