@@ -429,8 +429,8 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		if fi.ETag() != cfg.ifMatch {
 			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
 		}
-		log.Printf("FS ETag precondition satisfied for %s (expected: %s, actual: %s)", 
-			fullPath, cfg.ifMatch, fi.ETag())
+		log.Printf("FS.Write(ETag=%s) etag as expected in pre-existing file %s)",
+			fi.ETag(), fullPath)
 	}
 
 	return os.WriteFile(fullPath, data, 0644)
@@ -449,11 +449,11 @@ func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 
 	var etagChecksum string
 	if !fi.IsDir() {
-		data, err := os.ReadFile(fullPath)  // Read file once
+		data, err := os.ReadFile(fullPath) // Read file once
 		if err != nil {
 			return nil, err
 		}
-		etagChecksum = bytesToETag(data)  // Use shared helper
+		etagChecksum = bytesToETag(data) // Use shared helper
 	}
 
 	return &s3FileInfo{

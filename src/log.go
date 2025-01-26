@@ -78,7 +78,7 @@ func (l *Log) Export() ([]byte, string, error) {
 
 	// Get and log etag in one operation
 	var etag string
-	err = db.QueryRow("SELECT COALESCE(getvariable('etag'), '')").Scan(&etag)
+	err = db.QueryRow("SELECT COALESCE(getvariable('log_json_etag'), '')").Scan(&etag)
 	log.Printf("Export: etag=%v (err=%v)", etag, err)
 	if err != nil {
 		etag = ""
@@ -355,7 +355,7 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 	}
 	defer func() {
 		if err := importTx.Rollback(); err != nil {
-			log.Printf("failed to rollback import transaction: %v", err)
+			_ = err // ignore rollback errors
 		}
 	}()
 
