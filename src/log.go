@@ -69,13 +69,21 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	return l.logDB, nil
 }
 
-// Exports log state to a JSON file
-func (l *Log) Export() ([]byte, error) {
+// Exports log state to a JSON file and returns the current etag
+func (l *Log) Export() ([]byte, string, error) {
 	db, err := l.getLogDB()
 	if err != nil {
-		return nil, err
+		return nil, "", fmt.Errorf("failed to get database: %w", err)
 	}
 
+	// Get the current etag value
+	var etag string
+	err = db.QueryRow("SELECT getvariable('etag')").Scan(&etag)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get etag: %w", err)
+	}
+
+	// Get the JSON data (existing query unchanged)
 	var jsonResult string
 	err = db.QueryRow(`
         WITH json_data AS (
@@ -89,7 +97,7 @@ func (l *Log) Export() ([]byte, error) {
         FROM json_data
     `).Scan(&jsonResult)
 
-	return []byte(jsonResult), err
+	return []byte(jsonResult), etag, err
 }
 
 // Runs callback that does SQL while properly persisting it via log
@@ -131,7 +139,7 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 	}
 
 	// Export and write new state
-	if exported, exportErr := l.Export(); exportErr != nil {
+	if exported, _, exportErr := l.Export(); exportErr != nil {
 		return -1, fmt.Errorf("export failed: %w", exportErr)
 	} else {
 		if writeErr := l.storage.Write(jsonPath, exported); writeErr != nil {
