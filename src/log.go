@@ -352,7 +352,7 @@ func (l *Log) Import(tmpFilename string) error {
 
 	// Create temp json_data table
 	_, err = importTx.Exec(fmt.Sprintf(`
-        CREATE TEMP TABLE json_data AS 
+        CREATE TEMP TABLE log_json AS 
         SELECT * FROM read_json('%s', auto_detect=true);
     `, tmpFilename))
 	if err != nil {
@@ -369,7 +369,7 @@ func (l *Log) Import(tmpFilename string) error {
 	var insertLogLength int
 	err = importTx.QueryRow(`
         SELECT COALESCE(array_length(insert_log::json[]), 0)
-        FROM json_data;
+        FROM log_json;
     `).Scan(&insertLogLength)
 	if err != nil {
 		return fmt.Errorf("failed to check insert_log length: %w", err)
@@ -384,7 +384,7 @@ func (l *Log) Import(tmpFilename string) error {
 	}
 
 	// Drop the temp table before commit
-	if _, err := importTx.Exec("DROP TABLE json_data;"); err != nil {
+	if _, err := importTx.Exec("DROP TABLE log_json;"); err != nil {
 		return fmt.Errorf("failed to drop temp table: %w", err)
 	}
 
@@ -406,7 +406,7 @@ func (l *Log) generateRestoreSQL(tableName string) string {
         SELECT rows.*
         FROM (
             SELECT unnest(%[1]s) AS rows 
-            FROM json_data
+            FROM log_json
         )`, tableName)
 }
 
