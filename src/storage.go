@@ -418,19 +418,18 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		opt(&cfg)
 	}
 
-	/*
-		if cfg.ifMatch != "" {
-			fi, err := fs.Stat(path)
+	if cfg.ifMatch != "" {
+		fi, err := fs.Stat(path)
+		if err != nil {
 			if os.IsNotExist(err) {
 				return fmt.Errorf("precondition failed: file does not exist")
 			}
-			if err != nil {
-				return fmt.Errorf("failed to stat file: %w", err)
-			}
-			if fi.ETag() != cfg.ifMatch {
-				return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
-			}
-		}*/
+			return fmt.Errorf("failed to stat file: %w", err)
+		}
+		if fi.ETag() != cfg.ifMatch {
+			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
+		}
+	}
 
 	return os.WriteFile(fullPath, data, 0644)
 }
