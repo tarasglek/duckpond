@@ -119,7 +119,7 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 		// Close for writes, it's ready for reads
 		tmpFile.Close()
 
-		if importErr := l.Import(tmpFile.Name()); importErr != nil {
+		if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
 			return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
 		}
 	}
@@ -314,7 +314,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 // Restores db state from a JSON file
 // passing JSON to keep all logic in DB
 // TODO: pass it in via arrow to reduce overhead
-func (l *Log) Import(tmpFilename string) error {
+func (l *Log) Import(tmpFilename string, etag string) error {
 	db, err := l.getLogDB()
 	if err != nil {
 		return err
@@ -349,6 +349,12 @@ func (l *Log) Import(tmpFilename string) error {
 			log.Printf("failed to rollback import transaction: %v", err)
 		}
 	}()
+
+	// Set log_json_etag variable from parameter
+	_, err = importTx.Exec(fmt.Sprintf("SET log_json_etag = '%s';", strings.ReplaceAll(etag, "'", "''")))
+	if err != nil {
+		return fmt.Errorf("failed to set log_json_etag: %w", err)
+	}
 
 	// Create temp json_data table
 	_, err = importTx.Exec(fmt.Sprintf(`
