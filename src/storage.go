@@ -429,6 +429,8 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		if fi.ETag() != cfg.ifMatch {
 			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
 		}
+		log.Printf("FS ETag precondition satisfied for %s (expected: %s, actual: %s)", 
+			fullPath, cfg.ifMatch, fi.ETag())
 	}
 
 	return os.WriteFile(fullPath, data, 0644)
