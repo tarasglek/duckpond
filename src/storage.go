@@ -194,11 +194,6 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 		opt(&cfg)
 	}
 
-	// Compute MD5 checksum
-	hash := md5.New()
-	hash.Write(data)
-	checksum := base64.StdEncoding.EncodeToString(hash.Sum(nil))
-
 	var etag string
 	defer func() {
 		etagClean := strings.Trim(etag, `"`)
@@ -210,7 +205,6 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 		Bucket:      aws.String(s.config.Bucket),
 		Key:         aws.String(fullKey),
 		Body:        bytes.NewReader(data),
-		ContentMD5:  aws.String(checksum),
 	}
 
 	if cfg.ifMatch != "" {
