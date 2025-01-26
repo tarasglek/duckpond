@@ -80,7 +80,7 @@ func (l *Log) Export() ([]byte, string, error) {
 	var etag string
 	err = db.QueryRow("SELECT getvariable('etag')").Scan(&etag)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get etag: %w", err)
+		etag = ""
 	}
 
 	// Get the JSON data (existing query unchanged)

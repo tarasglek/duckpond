@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -72,13 +71,13 @@ func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
 type WriteOption func(*writeConfig)
 
 type writeConfig struct {
-    ifMatch string
+	ifMatch string
 }
 
 func WithIfMatch(etag string) WriteOption {
-    return func(c *writeConfig) {
-        c.ifMatch = etag
-    }
+	return func(c *writeConfig) {
+		c.ifMatch = etag
+	}
 }
 
 // Storage interface replaces OpenDAL operations
@@ -169,8 +168,8 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 
 	// Build file info from response headers
 	fileInfo = &s3FileInfo{
-		name:    filepath.Base(path),
-		isDir:   strings.HasSuffix(path, "/"),
+		name:  filepath.Base(path),
+		isDir: strings.HasSuffix(path, "/"),
 	}
 
 	if resp.ContentLength != nil {
@@ -202,14 +201,14 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	}()
 
 	putInput := &s3.PutObjectInput{
-		Bucket:      aws.String(s.config.Bucket),
-		Key:         aws.String(fullKey),
-		Body:        bytes.NewReader(data),
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(fullKey),
+		Body:   bytes.NewReader(data),
 	}
 
 	if cfg.ifMatch != "" {
-		putInput.IfMatch = aws.String(cfg.ifMatch)
-		s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
+		// putInput.IfMatch = aws.String(cfg.ifMatch)
+		// s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
 	}
 
 	resp, err := s.client.PutObject(context.Background(), putInput)
@@ -228,7 +227,7 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 
 func (s *S3Storage) CreateDir(path string) error {
 	// No-op for S3 since directories are implicit in object keys
-	s.logger.Printf("Skipping directory creation for S3: bucket=%s path=%s", 
+	s.logger.Printf("Skipping directory creation for S3: bucket=%s path=%s",
 		s.config.Bucket, path)
 	return nil
 }
@@ -264,7 +263,7 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 		size:    size,
 		modTime: aws.ToTime(resp.LastModified),
 		etag:    etag,
-		isDir:   strings.HasSuffix(path, "/"),  // Detect directory markers
+		isDir:   strings.HasSuffix(path, "/"), // Detect directory markers
 	}, nil
 }
 
@@ -378,7 +377,7 @@ func (fs *FSStorage) fullPath(path string) string {
 
 func (fs *FSStorage) Read(path string) ([]byte, *s3FileInfo, error) {
 	fullPath := fs.fullPath(path)
-	
+
 	file, err := os.Open(fullPath)
 	if err != nil {
 		return nil, nil, err
@@ -415,18 +414,19 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		opt(&cfg)
 	}
 
-	if cfg.ifMatch != "" {
-		fi, err := fs.Stat(path)
-		if os.IsNotExist(err) {
-			return fmt.Errorf("precondition failed: file does not exist")
-		}
-		if err != nil {
-			return fmt.Errorf("failed to stat file: %w", err)
-		}
-		if fi.ETag() != cfg.ifMatch {
-			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
-		}
-	}
+	/*
+		if cfg.ifMatch != "" {
+			fi, err := fs.Stat(path)
+			if os.IsNotExist(err) {
+				return fmt.Errorf("precondition failed: file does not exist")
+			}
+			if err != nil {
+				return fmt.Errorf("failed to stat file: %w", err)
+			}
+			if fi.ETag() != cfg.ifMatch {
+				return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
+			}
+		}*/
 
 	return os.WriteFile(fullPath, data, 0644)
 }
