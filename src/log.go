@@ -139,10 +139,10 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 	}
 
 	// Export and write new state
-	if exported, _, exportErr := l.Export(); exportErr != nil {
+	if exported, etag, exportErr := l.Export(); exportErr != nil {
 		return -1, fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		if writeErr := l.storage.Write(jsonPath, exported); writeErr != nil {
+		if writeErr := l.storage.Write(jsonPath, exported, WithIfMatch(etag)); writeErr != nil {
 			return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
 	}
