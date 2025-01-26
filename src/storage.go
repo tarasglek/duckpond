@@ -9,13 +9,6 @@ import (
 	"io"
 	"log"
 	"net/url"
-)
-
-// bytesToETag generates an MD5-based ETag from byte data
-func bytesToETag(data []byte) string {
-	sum := md5.Sum(data)
-	return hex.EncodeToString(sum[:])
-}
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,11 +17,13 @@ func bytesToETag(data []byte) string {
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
+
+// bytesToETag generates an MD5-based ETag from byte data
+func bytesToETag(data []byte) string {
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:])
+}
 
 // StorageConfig interface defines root directory access
 type StorageConfig interface {
