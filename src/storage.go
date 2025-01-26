@@ -196,8 +196,8 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	var etag string
 	defer func() {
 		etagClean := strings.Trim(etag, `"`)
-		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d etag=%s",
-			s.config.Bucket, fullKey, len(data), etagClean)
+		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d etag=%s cfg=%+v",
+			s.config.Bucket, fullKey, len(data), etagClean, cfg)
 	}()
 
 	putInput := &s3.PutObjectInput{
@@ -207,8 +207,8 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	}
 
 	if cfg.ifMatch != "" {
-		// putInput.IfMatch = aws.String(cfg.ifMatch)
-		// s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
+		putInput.IfMatch = aws.String(cfg.ifMatch)
+		s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
 	}
 
 	resp, err := s.client.PutObject(context.Background(), putInput)
