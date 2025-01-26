@@ -52,7 +52,7 @@ icebase diverges in following ways from icedb principles:
 - No python/go/js exposed, everything via duckdb primitives
 - No S3 list operations, instead the plan is to use a single log file that keeps getting replaced(or appended to if using newer s3 features)
 - icedb requires separate configuration for every table, icebase has a single global configuration and tracks `create table` params internally
-- cheap writes: The most simple write is an upload of a parquet file
+- cheap writes: The most simple write is an upload of a parquet file + log update
 
 ## Inspired by clickhouse
 - deletes/updates: will use the clickhouse [approach](https://clickhouse.com/docs/en/sql-reference/statements/delete#how-lightweight-deletes-work-internally-in-clickhouse)
