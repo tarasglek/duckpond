@@ -78,7 +78,7 @@ func (l *Log) Export() ([]byte, string, error) {
 
 	// Get and log etag in one operation
 	var etag string
-	err = db.QueryRow("SELECT getvariable('etag')").Scan(&etag)
+	err = db.QueryRow("SELECT COALESCE(getvariable('etag'), '')").Scan(&etag)
 	log.Printf("Export: etag=%v (err=%v)", etag, err)
 	if err != nil {
 		etag = ""
