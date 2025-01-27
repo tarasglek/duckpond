@@ -102,13 +102,8 @@ func (l *Log) Export() ([]byte, string, error) {
 }
 
 // Runs callback that does SQL while properly persisting it via log
-func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error) {
+func (l *Log) withPersistedLog(op func() (int, error)) (int, error) {
 	const jsonFileName = "log.json"
-
-	logDB, err := l.getLogDB()
-	if err != nil {
-		return -1, fmt.Errorf("failed to open database: %w", err)
-	}
 
 	// Try to read and import existing data through temp file
 	jsonPath := filepath.Join(l.tableName, jsonFileName)
@@ -153,8 +148,13 @@ func (l *Log) withPersistedLog(op func(logDB *sql.DB) (int, error)) (int, error)
 
 // Logs a DDL statement to the schema_log table
 func (l *Log) logDDL(rawCreateTable string) (int, error) {
-	return l.withPersistedLog(func(db *sql.DB) (int, error) {
-		_, err := db.Exec(`
+	return l.withPersistedLog(func() (int, error) {
+		db, err := l.getLogDB()
+		if err != nil {
+			return -1, fmt.Errorf("failed to get database: %w", err)
+		}
+		
+		_, err = db.Exec(`
             INSERT INTO schema_log (timestamp, raw_query)
             VALUES (CURRENT_TIMESTAMP, ?);
         `, rawCreateTable)
@@ -201,8 +201,7 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 
 // Commits in-memory data table to log and parquet files
 func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
-	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
-
+	return l.withPersistedLog(func() (int, error) {
 		_, res, error := l.CopyToLoggedPaquet(dataTx, table, query, table)
 		return res, error
 	})
@@ -282,7 +281,12 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, query string, 
 // Merge combines all active parquet files into a single file and tombstones the old ones
 // dataTx is the transaction for the main data database operations
 func (l *Log) Merge(tableName string, dataTx *sql.Tx) (int, error) {
-	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
+	return l.withPersistedLog(func() (int, error) {
+		logDB, err := l.getLogDB()
+		if err != nil {
+			return -1, fmt.Errorf("failed to get database: %w", err)
+		}
+
 		// 1. Get list of active files (not tombstoned)
 		activeFiles, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
 		if err != nil {
