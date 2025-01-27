@@ -282,11 +282,15 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return 0, nil // Nothing to merge
 		}
 
-		// 2. Generate new UUID for merged file
+		// 2. Generate UUID through insert_log insertion first
 		var newUUID []byte
-		err = logDB.QueryRow("SELECT uuidv7()").Scan(&newUUID)
+		err = tx.QueryRow(`
+			INSERT INTO insert_log (id, partition)
+			VALUES (uuidv7(), '')
+			RETURNING id;
+		`).Scan(&newUUID)
 		if err != nil {
-			return -1, fmt.Errorf("failed to generate UUID: %w", err)
+			return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
 		}
 		uuidStr := uuid.UUID(newUUID).String()
 
@@ -326,20 +330,24 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return -1, fmt.Errorf("failed to get merged file stats: %w", err)
 		}
 
-		// 7. Update insert_log in single transaction:
-		// - Add new merged file entry
-		// - Tombstone old entries
+		// 7. Update size of new entry
 		_, err = tx.Exec(`
-            INSERT INTO insert_log (id, partition, size)
-            VALUES (?, '', ?);
-            
-            UPDATE insert_log 
-            SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
-            WHERE tombstoned_unix_time = 0;
-        `, newUUID, meta.Size())
-
+			UPDATE insert_log 
+			SET size = ?
+			WHERE id = ?;
+		`, meta.Size(), newUUID)
 		if err != nil {
-			return -1, fmt.Errorf("failed to update insert_log: %w", err)
+			return -1, fmt.Errorf("failed to update size: %w", err)
+		}
+
+		// 8. Tombstone old entries
+		_, err = tx.Exec(`
+			UPDATE insert_log 
+			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
+			WHERE tombstoned_unix_time = 0;
+		`)
+		if err != nil {
+			return -1, fmt.Errorf("failed to tombstone old entries: %w", err)
 		}
 
 		if err := tx.Commit(); err != nil {
