@@ -355,7 +355,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				}
 
 				// Call merge on the log with table name
-				if handlerErr = dblog.Merge(table); handlerErr != nil {
+				if _, handlerErr = dblog.Merge(table, dataTx); handlerErr != nil {
 					handlerErr = fmt.Errorf("VACUUM failed: %w", handlerErr)
 					return
 				}

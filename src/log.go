@@ -269,7 +269,8 @@ func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
 }
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
-func (l *Log) Merge(tableName string) (int, error) {
+// dataTx is the transaction for the main data database operations
+func (l *Log) Merge(tableName string, dataTx *sql.Tx) (int, error) {
 	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
 		// 1. Get list of active files (not tombstoned)
 		activeFiles, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
@@ -282,9 +283,9 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return 0, nil // Nothing to merge
 		}
 
-		// 2. Generate UUID through insert_log insertion first
+		// 2. Generate UUID through insert_log insertion first (logDB operation)
 		var newUUID []byte
-		err = tx.QueryRow(`
+		err = logDB.QueryRow(`
 			INSERT INTO insert_log (id, partition)
 			VALUES (uuidv7(), '')
 			RETURNING id;
@@ -302,25 +303,18 @@ func (l *Log) Merge(tableName string) (int, error) {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET)`,
 			l.tableName, l.storage.ToDuckDBPath(parquetPath))
 
-		// Execute in transaction with the view
-		tx, err := logDB.Begin()
-		if err != nil {
-			return -1, fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer tx.Rollback()
-
-		// 4. Create temporary secret if needed
+		// 4. Create temporary secret on DATA transaction
 		secretName := "icebase_merge_s3_secret"
 		secretSQL := l.storage.ToDuckDBSecret(secretName)
 		if secretSQL != "" {
-			if _, err := tx.Exec(secretSQL); err != nil {
+			if _, err := dataTx.Exec(secretSQL); err != nil {
 				return -1, fmt.Errorf("failed to create secret: %w", err)
 			}
-			defer tx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+			defer dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
 		}
 
-		// 5. Execute the copy command
-		if _, err := tx.Exec(copyQuery); err != nil {
+		// Execute copy on DATA transaction
+		if _, err := dataTx.Exec(copyQuery); err != nil {
 			return -1, fmt.Errorf("failed to copy merged data: %w", err)
 		}
 
@@ -330,8 +324,15 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return -1, fmt.Errorf("failed to get merged file stats: %w", err)
 		}
 
-		// 7. Update size of new entry
-		_, err = tx.Exec(`
+		// 5. Log database updates (logDB transaction)
+		logTx, err := logDB.Begin()
+		if err != nil {
+			return -1, fmt.Errorf("failed to start log transaction: %w", err)
+		}
+		defer logTx.Rollback()
+
+		// Update size of new entry
+		_, err = logTx.Exec(`
 			UPDATE insert_log 
 			SET size = ?
 			WHERE id = ?;
@@ -340,8 +341,8 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return -1, fmt.Errorf("failed to update size: %w", err)
 		}
 
-		// 8. Tombstone old entries (excluding the new UUID we just created)
-		_, err = tx.Exec(`
+		// Tombstone old entries (excluding the new UUID we just created)
+		_, err = logTx.Exec(`
 			UPDATE insert_log 
 			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
 			WHERE tombstoned_unix_time = 0
@@ -351,8 +352,8 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return -1, fmt.Errorf("failed to tombstone old entries: %w", err)
 		}
 
-		if err := tx.Commit(); err != nil {
-			return -1, fmt.Errorf("commit failed: %w", err)
+		if err := logTx.Commit(); err != nil {
+			return -1, fmt.Errorf("log commit failed: %w", err)
 		}
 
 		// 8. Delete old files in background (eventually consistent)
