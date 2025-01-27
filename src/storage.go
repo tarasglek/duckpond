@@ -421,13 +421,11 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 	if cfg.ifMatch != "" {
 		fi, err := fs.Stat(path)
 		if err != nil {
-			if os.IsNotExist(err) {
-				return fmt.Errorf("precondition failed: file does not exist")
-			}
-			return fmt.Errorf("failed to stat file: %w", err)
+			// complain that path does not exist
+			return fmt.Errorf("Failed to check etag, %s does not exist: %w", path, err)
 		}
 		if fi.ETag() != cfg.ifMatch {
-			return fmt.Errorf("precondition failed: ETag mismatch (current: %s)", fi.ETag())
+			return fmt.Errorf("IfMatch: ETag mismatch (current: %s)", fi.ETag())
 		}
 		log.Printf("FS.Write(ETag=%s) etag as expected in pre-existing file %s)",
 			fi.ETag(), fullPath)
