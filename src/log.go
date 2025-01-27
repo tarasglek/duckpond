@@ -293,7 +293,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		}
 
 		// Tombstone old entries (excluding the new UUID we just created)
-		_, err = logDB.Exec(`
+		result, err := logDB.Exec(`
 			UPDATE insert_log 
 			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
 			WHERE tombstoned_unix_time = 0
@@ -301,6 +301,9 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		`, newUUID)
 		if err != nil {
 			return fmt.Errorf("failed to tombstone old entries: %w", err)
+		}
+		if count, err := result.RowsAffected(); err == nil {
+			log.Printf("Tombstoned %d files during merge", count)
 		}
 
 		return nil
