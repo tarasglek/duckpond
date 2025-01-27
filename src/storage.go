@@ -433,7 +433,18 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 			fi.ETag(), fullPath)
 	}
 
-	return os.WriteFile(fullPath, data, 0644)
+	err := os.WriteFile(fullPath, data, 0644)
+	if err != nil && os.IsNotExist(err) {
+		// Only check/create directory if initial write failed
+		dir := filepath.Dir(fullPath)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dir, err)
+			}
+			return os.WriteFile(fullPath, data, 0644)
+		}
+	}
+	return err
 }
 
 func (fs *FSStorage) CreateDir(path string) error {
