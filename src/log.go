@@ -428,10 +428,9 @@ func (l *Log) generateRestoreSQL(tableName string) string {
 
 // Destroy completely removes the log and all associated data
 // does not Close the database connection (useful for testing)
-func (l *Log) Merge() error {
+func (l *Log) Merge(tableName string) error {
     // TODO: Implement actual merge logic
-    // This is a placeholder to satisfy the interface
-    log.Printf("Merge called for table %s - no-op in current implementation", l.tableName)
+    log.Printf("Merge called for table %s - no-op in current implementation", tableName)
     return nil
 }
 
