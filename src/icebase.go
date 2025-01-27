@@ -328,7 +328,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			if op == OpCreateTable && dblog != nil {
 				// Log schema change to LOG database
-				if _, handlerErr = dblog.logDDL(query); handlerErr != nil {
+				if handlerErr = dblog.logDDL(query); handlerErr != nil {
 					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
 					return
 				}
@@ -336,7 +336,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			if op == OpInsert && dblog != nil {
 				// Log insert to LOG database while executing in DATA transaction
-				if _, handlerErr = dblog.Insert(dataTx, table, query); handlerErr != nil {
+				if handlerErr = dblog.Insert(dataTx, table, query); handlerErr != nil {
 					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
 					return
 				}
@@ -355,7 +355,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				}
 
 				// Call merge on the log with table name
-				if _, handlerErr = dblog.Merge(table, dataTx); handlerErr != nil {
+				if handlerErr = dblog.Merge(table, dataTx); handlerErr != nil {
 					handlerErr = fmt.Errorf("VACUUM failed: %w", handlerErr)
 					return
 				}

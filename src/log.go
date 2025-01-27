@@ -305,7 +305,7 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 			RETURNING id;
 		`).Scan(&newUUID)
 		if err != nil {
-			return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
+			return fmt.Errorf("failed to insert into insert_log: %w", err)
 		}
 		uuidStr := uuid.UUID(newUUID).String()
 
@@ -322,20 +322,20 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 		secretSQL := l.storage.ToDuckDBSecret(secretName)
 		if secretSQL != "" {
 			if _, err := dataTx.Exec(secretSQL); err != nil {
-				return -1, fmt.Errorf("failed to create secret: %w", err)
+				return fmt.Errorf("failed to create secret: %w", err)
 			}
 			defer dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
 		}
 
 		// Execute copy on DATA transaction
 		if _, err := dataTx.Exec(copyQuery); err != nil {
-			return -1, fmt.Errorf("failed to copy merged data: %w", err)
+			return fmt.Errorf("failed to copy merged data: %w", err)
 		}
 
 		// 6. Get file metadata
 		meta, err := l.storage.Stat(parquetPath)
 		if err != nil {
-			return -1, fmt.Errorf("failed to get merged file stats: %w", err)
+			return fmt.Errorf("failed to get merged file stats: %w", err)
 		}
 
 		// 5. Log database updates (logDB transaction)
@@ -352,7 +352,7 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 			WHERE id = ?;
 		`, meta.Size(), newUUID)
 		if err != nil {
-			return -1, fmt.Errorf("failed to update size: %w", err)
+			return fmt.Errorf("failed to update size: %w", err)
 		}
 
 		// Tombstone old entries (excluding the new UUID we just created)
@@ -363,11 +363,11 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 			AND id != ?;
 		`, newUUID)
 		if err != nil {
-			return -1, fmt.Errorf("failed to tombstone old entries: %w", err)
+			return fmt.Errorf("failed to tombstone old entries: %w", err)
 		}
 
 		if err := logTx.Commit(); err != nil {
-			return -1, fmt.Errorf("log commit failed: %w", err)
+			return fmt.Errorf("log commit failed: %w", err)
 		}
 
 		// 8. Delete old files in background (eventually consistent)
@@ -379,7 +379,7 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 			}
 		}()
 
-		return 0, nil
+		return nil
 	})
 }
 
