@@ -304,7 +304,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			}
 
 			if dblog != nil {
-				if op == OpSelect {
+				if op == OpSelect || op == OpVacuum {
 					// Recreate view using LOG database's file list in DATA transaction
 					if handlerErr = dblog.CreateViewOfParquet(dataTx); handlerErr != nil {
 						log.Printf("Failed to RecreateAsView for %q: %v", table, handlerErr)
@@ -341,25 +341,25 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 					return
 				}
 			}
-			
+
 			if op == OpVacuum {
 				if table == "" {
 					handlerErr = fmt.Errorf("VACUUM requires a table name")
 					return
 				}
-				
+
 				dblog, handlerErr = ib.logByName(table)
 				if handlerErr != nil {
 					handlerErr = fmt.Errorf("failed to get log for VACUUM: %w", handlerErr)
 					return
 				}
-				
+
 				// Call merge on the log with table name
 				if handlerErr = dblog.Merge(table); handlerErr != nil {
 					handlerErr = fmt.Errorf("VACUUM failed: %w", handlerErr)
 					return
 				}
-				
+
 				// Return empty response since VACUUM doesn't produce data
 				response = &QueryResponse{Data: make([][]interface{}, 0)}
 			}
