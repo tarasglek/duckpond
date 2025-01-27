@@ -422,7 +422,7 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		fi, err := fs.Stat(path)
 		if err != nil {
 			// complain that path does not exist
-			return fmt.Errorf("Failed to check etag, %s does not exist: %w", path, err)
+			return fmt.Errorf("failed to check etag, %s does not exist: %w", path, err)
 		}
 		if fi.ETag() != cfg.ifMatch {
 			return fmt.Errorf("IfMatch: ETag mismatch (current: %s)", fi.ETag())
