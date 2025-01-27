@@ -319,29 +319,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				}
 			}
 
-			// Execute query against DATA database
-			response, handlerErr = ib.ExecuteQuery(query, dataTx)
-			if handlerErr != nil {
-				log.Printf("Query execution failed: %v\nQuery: %q", handlerErr, query)
-				return
-			}
-
-			if op == OpCreateTable && dblog != nil {
-				// Log schema change to LOG database
-				if handlerErr = dblog.logDDL(query); handlerErr != nil {
-					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
-					return
-				}
-			}
-
-			if op == OpInsert && dblog != nil {
-				// Log insert to LOG database while executing in DATA transaction
-				if handlerErr = dblog.Insert(dataTx, table); handlerErr != nil {
-					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
-					return
-				}
-			}
-
+			// Duckdb doesn't actually support vacuum yet, so fake it
 			if op == OpVacuum {
 				if table == "" {
 					handlerErr = fmt.Errorf("VACUUM requires a table name")
@@ -362,6 +340,28 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 				// Return empty response since VACUUM doesn't produce data
 				response = &QueryResponse{Data: make([][]interface{}, 0)}
+			} else {
+				// Execute query against DATA database
+				response, handlerErr = ib.ExecuteQuery(query, dataTx)
+				if handlerErr != nil {
+					log.Printf("Query execution failed: %v\nQuery: %q", handlerErr, query)
+					return
+				}
+			}
+			if op == OpCreateTable && dblog != nil {
+				// Log schema change to LOG database
+				if handlerErr = dblog.logDDL(query); handlerErr != nil {
+					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
+					return
+				}
+			}
+
+			if op == OpInsert && dblog != nil {
+				// Log insert to LOG database while executing in DATA transaction
+				if handlerErr = dblog.Insert(dataTx, table); handlerErr != nil {
+					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
+					return
+				}
 			}
 			// No commit because log handles data persistence above
 		}()

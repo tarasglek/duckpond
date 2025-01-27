@@ -298,7 +298,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		// Tombstone old entries (excluding the new UUID we just created)
 		result, err := logDB.Exec(`
 			UPDATE insert_log 
-			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
+			SET tombstoned_unix_time = EPOCH_MS(CURRENT_TIMESTAMP) 
 			WHERE tombstoned_unix_time = 0
 			AND id != ?;
 		`, newUUID)
