@@ -426,12 +426,93 @@ func (l *Log) generateRestoreSQL(tableName string) string {
         )`, tableName)
 }
 
-// Destroy completely removes the log and all associated data
-// does not Close the database connection (useful for testing)
+// Merge combines all active parquet files into a single file and tombstones the old ones
 func (l *Log) Merge(tableName string) error {
-    // TODO: Implement actual merge logic
-    log.Printf("Merge called for table %s - no-op in current implementation", tableName)
-    return nil
+    return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
+        // 1. Get list of active files (not tombstoned)
+        activeFiles, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+        if err != nil {
+            return -1, fmt.Errorf("failed to list active files: %w", err)
+        }
+        if len(activeFiles) == 0 {
+            return 0, nil // Nothing to merge
+        }
+
+        // 2. Generate new UUID for merged file
+        var newUUID []byte
+        err = logDB.QueryRow("SELECT uuidv7()").Scan(&newUUID)
+        if err != nil {
+            return -1, fmt.Errorf("failed to generate UUID: %w", err)
+        }
+        uuidStr := uuid.UUID(newUUID).String()
+
+        // 3. Create merged parquet file
+        dataDir := filepath.Join(l.tableName, "data")
+        parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
+        
+        // Use the existing view to copy all data
+        copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET)`, 
+            l.tableName, l.storage.ToDuckDBPath(parquetPath))
+        
+        // Execute in transaction with the view
+        tx, err := logDB.Begin()
+        if err != nil {
+            return -1, fmt.Errorf("failed to start transaction: %w", err)
+        }
+        defer tx.Rollback()
+
+        // 4. Create temporary secret if needed
+        secretName := "icebase_merge_s3_secret"
+        secretSQL := l.storage.ToDuckDBSecret(secretName)
+        if secretSQL != "" {
+            if _, err := tx.Exec(secretSQL); err != nil {
+                return -1, fmt.Errorf("failed to create secret: %w", err)
+            }
+            defer tx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+        }
+
+        // 5. Execute the copy command
+        if _, err := tx.Exec(copyQuery); err != nil {
+            return -1, fmt.Errorf("failed to copy merged data: %w", err)
+        }
+
+        // 6. Get file metadata
+        meta, err := l.storage.Stat(parquetPath)
+        if err != nil {
+            return -1, fmt.Errorf("failed to get merged file stats: %w", err)
+        }
+
+        // 7. Update insert_log in single transaction:
+        // - Add new merged file entry
+        // - Tombstone old entries
+        _, err = tx.Exec(`
+            INSERT INTO insert_log (id, partition, size)
+            VALUES (?, '', ?);
+            
+            UPDATE insert_log 
+            SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
+            WHERE tombstoned_unix_time = 0;
+        `, newUUID, meta.Size())
+        
+        if err != nil {
+            return -1, fmt.Errorf("failed to update insert_log: %w", err)
+        }
+
+        if err := tx.Commit(); err != nil {
+            return -1, fmt.Errorf("commit failed: %w", err)
+        }
+
+        // 8. Delete old files in background (eventually consistent)
+        go func() {
+            for _, file := range activeFiles {
+                if err := l.storage.Delete(file); err != nil {
+                    log.Printf("failed to clean up old file %s: %v", file, err)
+                }
+            }
+        }()
+
+        return 0, nil
+    })
 }
 
 func (l *Log) Destroy() error {
