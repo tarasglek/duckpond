@@ -340,6 +340,7 @@ func (l *Log) listFiles(where string) ([]string, error) {
 // Fake a table for reading by creating a view of live parquet files
 func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	// Create permanent secret for the view operation
+	// TODO: would be better to wrap this around select-style operations :(
 	secretSQL := l.storage.ToDuckDBSecret("icebase_view_s3_secret")
 	if secretSQL != "" {
 		if _, err := dataTx.Exec(secretSQL); err != nil {
