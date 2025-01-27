@@ -286,6 +286,9 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 	return l.withPersistedLog(func() error {
 		newUUID, err := l.CopyToLoggedPaquet(dataTx, table, table)
+		if err != nil {
+			return fmt.Errorf("failed to merge: %w", err)
+		}
 
 		logDB, err := l.getLogDB()
 		if err != nil {
