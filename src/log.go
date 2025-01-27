@@ -102,7 +102,7 @@ func (l *Log) Export() ([]byte, string, error) {
 }
 
 // Runs callback that does SQL while properly persisting it via log
-func (l *Log) withPersistedLog(op func() (int, error)) (int, error) {
+func (l *Log) withPersistedLog(op func() error) error {
 	const jsonFileName = "log.json"
 
 	// Try to read and import existing data through temp file
@@ -111,47 +111,46 @@ func (l *Log) withPersistedLog(op func() (int, error)) (int, error) {
 		// Write to temp file
 		tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
 		if err != nil {
-			return -1, fmt.Errorf("failed to create temp file: %w", err)
+			return fmt.Errorf("failed to create temp file: %w", err)
 		}
 		// Deferred Close() for cleanup
 		defer tmpFile.Close()           // Ensures file is closed even if errors occur
 		defer os.Remove(tmpFile.Name()) // Ensures temp file is deleted
 
 		if _, err := tmpFile.Write(data); err != nil {
-			return -1, fmt.Errorf("failed to write temp file: %w", err)
+			return fmt.Errorf("failed to write temp file: %w", err)
 		}
 		// Close for writes, it's ready for reads
 		tmpFile.Close()
 
 		if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
-			return -1, fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
+			return fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
 		}
 	}
 
 	// Execute the operation
-	result, err := op()
-	if err != nil {
-		return result, err
+	if err := op(); err != nil {
+		return err
 	}
 
 	// Export and write new state
 	if exported, etag, exportErr := l.Export(); exportErr != nil {
-		return -1, fmt.Errorf("export failed: %w", exportErr)
+		return fmt.Errorf("export failed: %w", exportErr)
 	} else {
 		if writeErr := l.storage.Write(jsonPath, exported, WithIfMatch(etag)); writeErr != nil {
-			return -1, fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
+			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
 	}
 
-	return result, nil
+	return nil
 }
 
 // Logs a DDL statement to the schema_log table
-func (l *Log) logDDL(rawCreateTable string) (int, error) {
-	return l.withPersistedLog(func() (int, error) {
+func (l *Log) logDDL(rawCreateTable string) error {
+	return l.withPersistedLog(func() error {
 		db, err := l.getLogDB()
 		if err != nil {
-			return -1, fmt.Errorf("failed to get database: %w", err)
+			return fmt.Errorf("failed to get database: %w", err)
 		}
 
 		_, err = db.Exec(`
@@ -159,9 +158,9 @@ func (l *Log) logDDL(rawCreateTable string) (int, error) {
             VALUES (CURRENT_TIMESTAMP, ?);
         `, rawCreateTable)
 		if err != nil {
-			return -1, fmt.Errorf("failed to log table creation: %w", err)
+			return fmt.Errorf("failed to log table creation: %w", err)
 		}
-		return 0, nil
+		return nil
 	})
 }
 
@@ -200,10 +199,10 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 }
 
 // Commits in-memory data table to log and parquet files
-func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
-	return l.withPersistedLog(func() (int, error) {
-		_, res, error := l.CopyToLoggedPaquet(dataTx, table, query, table)
-		return res, error
+func (l *Log) Insert(dataTx *sql.Tx, table string, query string) error {
+	return l.withPersistedLog(func() error {
+		_, _, err := l.CopyToLoggedPaquet(dataTx, table, query, table)
+		return err
 	})
 }
 
@@ -280,22 +279,22 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, query string, 
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
 // dataTx is the transaction for the main data database operations
-func (l *Log) Merge(tableName string, dataTx *sql.Tx) (int, error) {
-	return l.withPersistedLog(func() (int, error) {
+func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
+	return l.withPersistedLog(func() error {
 		logDB, err := l.getLogDB()
 		if err != nil {
-			return -1, fmt.Errorf("failed to get database: %w", err)
+			return fmt.Errorf("failed to get database: %w", err)
 		}
 
 		// 1. Get list of active files (not tombstoned)
 		activeFiles, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
 		if err != nil {
-			return -1, fmt.Errorf("failed to list active files: %w", err)
+			return fmt.Errorf("failed to list active files: %w", err)
 		}
 		// If there is only one file, there is nothing to merge
 		// if no files, means table is empty
 		if len(activeFiles) <= 1 {
-			return 0, nil // Nothing to merge
+			return nil // Nothing to merge
 		}
 
 		// 2. Generate UUID through insert_log insertion first (logDB operation)
