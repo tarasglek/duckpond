@@ -336,7 +336,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 			if op == OpInsert && dblog != nil {
 				// Log insert to LOG database while executing in DATA transaction
-				if handlerErr = dblog.Insert(dataTx, table, query); handlerErr != nil {
+				if handlerErr = dblog.Insert(dataTx, table); handlerErr != nil {
 					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
 					return
 				}

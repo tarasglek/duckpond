@@ -98,3 +98,6 @@ uuidv7, enum_of_event, struct_of_event
 
 ## Partitioning
 Partitioning should not be too much work
+
+## Transactionality for .parquet uploads
+Atm .parquet gets uploaded before log
