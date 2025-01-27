@@ -86,3 +86,15 @@ Example output:
 |--------------------|
 | u=123/d=2023-10-31 |
 
+# See Also
+* https://github.com/kylebarron/parquet-wasm
+
+# TODO
+
+## Log Schema
+Switch to a single table of type
+
+uuidv7, enum_of_event, struct_of_event
+
+## Partitioning
+Partitioning should not be too much work
