@@ -339,22 +339,29 @@ func (l *Log) listFiles(where string) ([]string, error) {
 
 // Fake a table for reading by creating a view of live parquet files
 func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
-	return l.WithDuckDBSecret(dataTx, func() error {
-		files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
-		if err != nil || len(files) == 0 {
-			return fmt.Errorf("no active files: %w", err)
+	// Create permanent secret for the view operation
+	secretSQL := l.storage.ToDuckDBSecret("icebase_view_s3_secret")
+	if secretSQL != "" {
+		if _, err := dataTx.Exec(secretSQL); err != nil {
+			return fmt.Errorf("failed to create view secret: %w", err)
 		}
+		// Note we don't drop secret here as the view lifetime persists past this function
+	}
 
-		// Map files to DuckDB paths
-		paths := make([]string, len(files))
-		for i, file := range files {
-			paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
-		}
+	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+	if err != nil || len(files) == 0 {
+		return fmt.Errorf("no active files: %w", err)
+	}
 
-		_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
-			l.tableName, strings.Join(paths, ", ")))
-		return err
-	})
+	// Map files to DuckDB paths
+	paths := make([]string, len(files))
+	for i, file := range files {
+		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
+	}
+
+	_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+		l.tableName, strings.Join(paths, ", ")))
+	return err
 }
 
 // Restores db state from a JSON file
