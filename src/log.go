@@ -199,73 +199,84 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 	return nil
 }
 
-// First writes go into a memory-backed table that can be accessed via dataTx param
+// Commits in-memory data table to log and parquet files
+func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
+	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
+
+		_, res, error := l.CopyToLoggedPaquet(dataTx, table, query, table)
+		return res, error
+	})
+}
+
+// Commits writes from <table> (accessed via dataTx param) to log + parquet files
 // They are then persisted to a parquet file and tracked in the insert_log table
 // TODO:
 // - persist log for parquet files we gonna upload first
 // - Then modify reading code to detect missing parquet files and to tombstone them in log
 // - This way we wont end up with orphaned parquet files
-func (l *Log) Insert(dataTx *sql.Tx, table string, query string) (int, error) {
-	return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
-		// Original insert logic wrapped in lambda
-		var uuidBytes []byte
-		err := logDB.QueryRow(`
+func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, query string, srcSQL string) (string, int, error) {
+	logDB, err := l.getLogDB()
+	if err != nil {
+		return "", -1, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	var uuidBytes []byte
+	err = logDB.QueryRow(`
             INSERT INTO insert_log (id, partition)
             VALUES (uuidv7(), '')
             RETURNING id;
         `).Scan(&uuidBytes)
-		if err != nil {
-			return -1, fmt.Errorf("failed to insert into insert_log: %w", err)
+	if err != nil {
+		return "", -1, fmt.Errorf("failed to insert into insert_log: %w", err)
+	}
+
+	uuidOfNewFile := uuid.UUID(uuidBytes).String()
+	dataDir := filepath.Join(dstTable, "data")
+	if err := l.storage.CreateDir(dataDir); err != nil {
+		return uuidOfNewFile, -1, fmt.Errorf("failed to create data directory: %w", err)
+	}
+
+	secretName := "icebase_data_temp_secret"
+
+	// Create secret in transaction
+	secretSQL := l.storage.ToDuckDBSecret(secretName)
+	if secretSQL != "" {
+		if _, err := dataTx.Exec(secretSQL); err != nil {
+			return "", -1, fmt.Errorf("failed to create secret: %w", err)
 		}
-
-		uuidStr := uuid.UUID(uuidBytes).String()
-		dataDir := filepath.Join(table, "data")
-		if err := l.storage.CreateDir(dataDir); err != nil {
-			return -1, fmt.Errorf("failed to create data directory: %w", err)
-		}
-
-		secretName := "icebase_data_temp_secret"
-
-		// Create secret in transaction
-		secretSQL := l.storage.ToDuckDBSecret(secretName)
-		if secretSQL != "" {
-			if _, err := dataTx.Exec(secretSQL); err != nil {
-				return -1, fmt.Errorf("failed to create secret: %w", err)
-			}
-			defer func() {
-				// Clean up secret after operation completes
-				_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
-			}()
-		}
-
-		// Modified copy command to use secret
-		parquetPath := filepath.Join(dataDir, uuidStr+".parquet")
-		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-			table, l.storage.ToDuckDBPath(parquetPath))
-
-		_, copyErr := dataTx.Exec(copyQuery)
 		defer func() {
-			log.Printf("%s err: %v", copyQuery, copyErr)
+			// Clean up secret after operation completes
+			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
 		}()
-		if copyErr != nil {
-			return -1, fmt.Errorf("failed to copy to parquet: %w", copyErr)
-		}
+	}
 
-		meta, copyErr := l.storage.Stat(parquetPath)
-		if copyErr != nil {
-			return -1, fmt.Errorf("failed to get file size: %w", copyErr)
-		}
+	// Modified copy command to use secret
+	parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
+	copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
+		dstTable, l.storage.ToDuckDBPath(parquetPath))
 
-		if _, copyErr = logDB.Exec(`
+	_, copyErr := dataTx.Exec(copyQuery)
+	defer func() {
+		log.Printf("%s err: %v", copyQuery, copyErr)
+	}()
+	if copyErr != nil {
+		return "", -1, fmt.Errorf("failed to copy to parquet: %w", copyErr)
+	}
+
+	meta, copyErr := l.storage.Stat(parquetPath)
+	if copyErr != nil {
+		return uuidOfNewFile, -1, fmt.Errorf("failed to get file size: %w", copyErr)
+	}
+
+	if _, copyErr = logDB.Exec(`
             UPDATE insert_log 
             SET size = ?
             WHERE id = ?;
-        `, meta.Size(), uuidStr); err != nil {
-			return -1, fmt.Errorf("failed to update size: %w", err)
-		}
+        `, meta.Size(), uuidOfNewFile); err != nil {
+		return uuidOfNewFile, -1, fmt.Errorf("failed to update size: %w", err)
+	}
 
-		return 0, nil
-	})
+	return uuidOfNewFile, 0, nil
 }
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
