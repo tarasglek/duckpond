@@ -341,7 +341,7 @@ func (l *Log) Merge(tableName string, dataTx *sql.Tx) error {
 		// 5. Log database updates (logDB transaction)
 		logTx, err := logDB.Begin()
 		if err != nil {
-			return -1, fmt.Errorf("failed to start log transaction: %w", err)
+			return fmt.Errorf("failed to start log transaction: %w", err)
 		}
 		defer logTx.Rollback()
 
