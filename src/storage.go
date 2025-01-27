@@ -289,7 +289,9 @@ func (s *S3Storage) Delete(path string) error {
 }
 
 func (s *S3Storage) ToDuckDBPath(path string) string {
-	return "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
+	ret := "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
+	fmt.Printf("ToDuckDBPath: %s\n", ret)
+	return ret
 }
 
 func (s *S3Storage) ToDuckDBSecret(secretName string) string {
