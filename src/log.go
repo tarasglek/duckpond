@@ -26,7 +26,7 @@ func NewLog(storageDir, tableName string) *Log {
 	}
 }
 
-func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func(*sql.Tx) error) error {
+func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func() error) error {
 	secretName := "icebase_temp_secret"
 	if secretSQL := l.storage.ToDuckDBSecret(secretName); secretSQL != "" {
 		if _, err := dataTx.Exec(secretSQL); err != nil {
@@ -36,7 +36,7 @@ func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func(*sql.Tx) error) error {
 			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
 		}()
 	}
-	return cb(dataTx)
+	return cb()
 }
 
 func (l *Log) getLogDB() (*sql.DB, error) {
@@ -250,11 +250,11 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
 
 	var copyErr error
-	err = l.WithDuckDBSecret(dataTx, func(tx *sql.Tx) error {
+	err = l.WithDuckDBSecret(dataTx, func() error {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
 			dstTable, l.storage.ToDuckDBPath(parquetPath))
 
-		_, copyErr = tx.Exec(copyQuery)
+		_, copyErr = dataTx.Exec(copyQuery)
 		log.Printf("%s err: %v", copyQuery, copyErr)
 		if copyErr != nil {
 			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
@@ -339,7 +339,7 @@ func (l *Log) listFiles(where string) ([]string, error) {
 
 // Fake a table for reading by creating a view of live parquet files
 func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
-	return l.WithDuckDBSecret(dataTx, func(tx *sql.Tx) error {
+	return l.WithDuckDBSecret(dataTx, func() error {
 		files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
 		if err != nil || len(files) == 0 {
 			return fmt.Errorf("no active files: %w", err)
@@ -351,7 +351,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 			paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
 		}
 
-		_, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+		_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
 			l.tableName, strings.Join(paths, ", ")))
 		return err
 	})
