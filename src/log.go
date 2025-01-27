@@ -129,7 +129,7 @@ func (l *Log) withPersistedLog(op func() (int, error)) (int, error) {
 	}
 
 	// Execute the operation
-	result, err := op(logDB)
+	result, err := op()
 	if err != nil {
 		return result, err
 	}
