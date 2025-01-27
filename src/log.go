@@ -340,12 +340,13 @@ func (l *Log) Merge(tableName string) (int, error) {
 			return -1, fmt.Errorf("failed to update size: %w", err)
 		}
 
-		// 8. Tombstone old entries
+		// 8. Tombstone old entries (excluding the new UUID we just created)
 		_, err = tx.Exec(`
 			UPDATE insert_log 
 			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
-			WHERE tombstoned_unix_time = 0;
-		`)
+			WHERE tombstoned_unix_time = 0
+			AND id != ?;
+		`, newUUID)
 		if err != nil {
 			return -1, fmt.Errorf("failed to tombstone old entries: %w", err)
 		}
