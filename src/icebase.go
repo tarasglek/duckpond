@@ -341,6 +341,28 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 					return
 				}
 			}
+			
+			if op == OpVacuum {
+				if table == "" {
+					handlerErr = fmt.Errorf("VACUUM requires a table name")
+					return
+				}
+				
+				dblog, handlerErr = ib.logByName(table)
+				if handlerErr != nil {
+					handlerErr = fmt.Errorf("failed to get log for VACUUM: %w", handlerErr)
+					return
+				}
+				
+				// Call merge on the log
+				if handlerErr = dblog.Merge(); handlerErr != nil {
+					handlerErr = fmt.Errorf("VACUUM failed: %w", handlerErr)
+					return
+				}
+				
+				// Return empty response since VACUUM doesn't produce data
+				response = &QueryResponse{Data: make([][]interface{}, 0)}
+			}
 			// No commit because log handles data persistence above
 		}()
 
