@@ -427,7 +427,7 @@ func (l *Log) generateRestoreSQL(tableName string) string {
 }
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
-func (l *Log) Merge(tableName string) error {
+func (l *Log) Merge(tableName string) (int, error) {
     return l.withPersistedLog(func(logDB *sql.DB) (int, error) {
         // 1. Get list of active files (not tombstoned)
         activeFiles, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
