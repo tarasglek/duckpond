@@ -26,6 +26,19 @@ func NewLog(storageDir, tableName string) *Log {
 	}
 }
 
+func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func(*sql.Tx) error) error {
+    secretName := "icebase_temp_secret"
+    if secretSQL := l.storage.ToDuckDBSecret(secretName); secretSQL != "" {
+        if _, err := dataTx.Exec(secretSQL); err != nil {
+            return fmt.Errorf("failed to create secret %s: %w", secretName, err)
+        }
+        defer func() {
+            _, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+        }()
+    }
+    return cb(dataTx)
+}
+
 func (l *Log) getLogDB() (*sql.DB, error) {
 	if l.logDB != nil {
 		return l.logDB, nil
@@ -234,31 +247,23 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	secretName := "icebase_data_temp_secret"
+	var copyErr error
+	err = l.WithDuckDBSecret(dataTx, func(tx *sql.Tx) error {
+		parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
+		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
+			dstTable, l.storage.ToDuckDBPath(parquetPath))
 
-	// Create secret in transaction
-	secretSQL := l.storage.ToDuckDBSecret(secretName)
-	if secretSQL != "" {
-		if _, err := dataTx.Exec(secretSQL); err != nil {
-			return "", fmt.Errorf("failed to create secret: %w", err)
-		}
+		_, copyErr = tx.Exec(copyQuery)
 		defer func() {
-			// Clean up secret after operation completes
-			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+			log.Printf("%s err: %v", copyQuery, copyErr)
 		}()
-	}
-
-	// Modified copy command to use secret
-	parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
-	copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-		dstTable, l.storage.ToDuckDBPath(parquetPath))
-
-	_, copyErr := dataTx.Exec(copyQuery)
-	defer func() {
-		log.Printf("%s err: %v", copyQuery, copyErr)
-	}()
-	if copyErr != nil {
-		return "", fmt.Errorf("failed to copy to parquet: %w", copyErr)
+		if copyErr != nil {
+			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 
 	meta, copyErr := l.storage.Stat(parquetPath)
@@ -349,30 +354,22 @@ func (l *Log) listFiles(where string) ([]string, error) {
 
 // Fake a table for reading by creating a view of live parquet files
 func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
-	// Create temporary secret for the view operation
-	secretName := "icebase_view_s3_secret"
-	secretSQL := l.storage.ToDuckDBSecret(secretName)
-	if secretSQL != "" {
-		if _, err := dataTx.Exec(secretSQL); err != nil {
-			return fmt.Errorf("failed to create view secret: %w", err)
+	return l.WithDuckDBSecret(dataTx, func(tx *sql.Tx) error {
+		files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+		if err != nil || len(files) == 0 {
+			return fmt.Errorf("no active files: %w", err)
 		}
-		// Note we don't drop secret here as the view lifetime persists past this function
-	}
 
-	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
-	if err != nil || len(files) == 0 {
-		return fmt.Errorf("no active files: %w", err)
-	}
+		// Map files to DuckDB paths
+		paths := make([]string, len(files))
+		for i, file := range files {
+			paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
+		}
 
-	// Map files to DuckDB paths
-	paths := make([]string, len(files))
-	for i, file := range files {
-		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
-	}
-
-	_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
-		l.tableName, strings.Join(paths, ", ")))
-	return err
+		_, err = tx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+			l.tableName, strings.Join(paths, ", ")))
+		return err
+	})
 }
 
 // Restores db state from a JSON file
