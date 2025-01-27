@@ -37,6 +37,12 @@ func TestParser(t *testing.T) {
 		{"SELECT 1 + 1", OpSelect, ""},
 		{"SELECT NOW()", OpSelect, ""},
 
+		// Vacuum tests
+		{"VACUUM", OpVacuum, ""},
+		{"VACUUM users", OpVacuum, "users"},
+		{"  VACUUM schema.users", OpVacuum, "schema.users"},
+		{"VACUUM\tmy_table", OpVacuum, "my_table"},
+
 		// Negative tests
 		{"UPDATE users", OpUnknown, ""},
 	}

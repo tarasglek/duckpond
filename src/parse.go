@@ -11,6 +11,7 @@ const (
 	OpCreateTable
 	OpSelect
 	OpAlterTable
+	OpVacuum
 	OpUnknown
 )
 
@@ -24,6 +25,8 @@ func (o Operation) String() string {
 		return "select"
 	case OpAlterTable:
 		return "alter_table"
+	case OpVacuum:
+		return "vacuum"
 	default:
 		return "unknown"
 	}
@@ -34,6 +37,7 @@ type Parser struct {
 	createRe *regexp.Regexp
 	selectRe *regexp.Regexp
 	alterRe  *regexp.Regexp
+	vacuumRe *regexp.Regexp
 }
 
 func NewParser() *Parser {
@@ -42,6 +46,7 @@ func NewParser() *Parser {
 		createRe: regexp.MustCompile(`(?i)^\s*CREATE\s+(OR\s+REPLACE\s+)?(TEMP(?:ORARY)?\s+)?TABLE\s+(\w+)`),
 		selectRe: regexp.MustCompile(`(?i)^\s*SELECT\s+.*?(?:\s+FROM\s+([.\w]+))?[\s;]*$`),
 		alterRe:  regexp.MustCompile(`(?i)^\s*ALTER\s+TABLE\s+([.\w]+)`),
+		vacuumRe: regexp.MustCompile(`(?i)^\s*VACUUM(?:\s+(\S+))?`),
 	}
 }
 
@@ -61,6 +66,13 @@ func (p *Parser) Parse(query string) (Operation, string) {
 	}
 	if matches := p.alterRe.FindStringSubmatch(query); matches != nil {
 		return OpAlterTable, matches[len(matches)-1]
+	}
+	if matches := p.vacuumRe.FindStringSubmatch(query); matches != nil {
+		table := ""
+		if len(matches) > 1 {
+			table = matches[1]
+		}
+		return OpVacuum, table
 	}
 	return OpUnknown, ""
 }
