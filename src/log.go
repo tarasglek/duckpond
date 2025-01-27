@@ -153,7 +153,7 @@ func (l *Log) logDDL(rawCreateTable string) (int, error) {
 		if err != nil {
 			return -1, fmt.Errorf("failed to get database: %w", err)
 		}
-		
+
 		_, err = db.Exec(`
             INSERT INTO schema_log (timestamp, raw_query)
             VALUES (CURRENT_TIMESTAMP, ?);
