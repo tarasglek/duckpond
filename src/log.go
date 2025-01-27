@@ -27,16 +27,16 @@ func NewLog(storageDir, tableName string) *Log {
 }
 
 func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func(*sql.Tx) error) error {
-    secretName := "icebase_temp_secret"
-    if secretSQL := l.storage.ToDuckDBSecret(secretName); secretSQL != "" {
-        if _, err := dataTx.Exec(secretSQL); err != nil {
-            return fmt.Errorf("failed to create secret %s: %w", secretName, err)
-        }
-        defer func() {
-            _, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
-        }()
-    }
-    return cb(dataTx)
+	secretName := "icebase_temp_secret"
+	if secretSQL := l.storage.ToDuckDBSecret(secretName); secretSQL != "" {
+		if _, err := dataTx.Exec(secretSQL); err != nil {
+			return fmt.Errorf("failed to create secret %s: %w", secretName, err)
+		}
+		defer func() {
+			_, _ = dataTx.Exec(fmt.Sprintf("DROP SECRET IF EXISTS %s", secretName))
+		}()
+	}
+	return cb(dataTx)
 }
 
 func (l *Log) getLogDB() (*sql.DB, error) {
@@ -247,16 +247,15 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
+	parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
+
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func(tx *sql.Tx) error {
-		parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
 			dstTable, l.storage.ToDuckDBPath(parquetPath))
 
 		_, copyErr = tx.Exec(copyQuery)
-		defer func() {
-			log.Printf("%s err: %v", copyQuery, copyErr)
-		}()
+		log.Printf("%s err: %v", copyQuery, copyErr)
 		if copyErr != nil {
 			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
 		}
@@ -293,15 +292,8 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 			return fmt.Errorf("failed to get database: %w", err)
 		}
 
-		// 5. Log database updates (logDB transaction)
-		logTx, err := logDB.Begin()
-		if err != nil {
-			return fmt.Errorf("failed to start log transaction: %w", err)
-		}
-		defer logTx.Rollback()
-
 		// Tombstone old entries (excluding the new UUID we just created)
-		_, err = logTx.Exec(`
+		_, err = logDB.Exec(`
 			UPDATE insert_log 
 			SET tombstoned_unix_time = UNIX_EPOCH(CURRENT_TIMESTAMP)
 			WHERE tombstoned_unix_time = 0
@@ -310,19 +302,6 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		if err != nil {
 			return fmt.Errorf("failed to tombstone old entries: %w", err)
 		}
-
-		if err := logTx.Commit(); err != nil {
-			return fmt.Errorf("log commit failed: %w", err)
-		}
-
-		// 8. Delete old files in background (eventually consistent)
-		go func() {
-			for _, file := range activeFiles {
-				if err := l.storage.Delete(file); err != nil {
-					log.Printf("failed to clean up old file %s: %v", file, err)
-				}
-			}
-		}()
 
 		return nil
 	})
