@@ -86,8 +86,6 @@ Example output:
 |--------------------|
 | u=123/d=2023-10-31 |
 
-# See Also
-* https://github.com/kylebarron/parquet-wasm
 
 # TODO
 
@@ -101,3 +99,7 @@ Partitioning should not be too much work
 
 ## Transactionality for .parquet uploads
 Atm .parquet gets uploaded before log
+
+# See Also
+* https://github.com/kylebarron/parquet-wasm
+* https://www.tigrisdata.com/blog/tigris-vs-s3-cloudfront/

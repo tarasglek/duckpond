@@ -30,3 +30,8 @@ We have a special cli flag to short-circuit this for testing:
 ```bash
 echo 'select now()' | ./icebase -post /query
 ```
+
+
+```
+github-to-sops sops exec-env ../credentials/tigris.enc.json "go test -run TestStressTest"
+```
