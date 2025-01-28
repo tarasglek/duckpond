@@ -11,9 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const assertPrefix = "-- ASSERT"
+
 func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
-    // Strip "-- ASSERT" prefix
-    assertionParts := strings.SplitN(strings.TrimPrefix(comment, "-- ASSERT"), ":", 2)
+    // Strip assertPrefix
+    assertionParts := strings.SplitN(strings.TrimPrefix(comment, assertPrefix), ":", 2)
     fmt.Printf("------------------%v\n", assertionParts)
     if len(assertionParts) != 2 {
         t.Fatalf("Invalid assert format: %s", comment)
@@ -80,7 +82,7 @@ func TestStressTest(t *testing.T) {
 			for _, query := range queries {
 				cleanQuery := strings.TrimSpace(query)
 
-				if strings.HasPrefix(cleanQuery, "-- ASSERT") {
+				if strings.HasPrefix(cleanQuery, assertPrefix) {
 					fmt.Println("--------------", cleanQuery)
 					handleAssertActionInComment(t, ib, cleanQuery)
 				} else {
