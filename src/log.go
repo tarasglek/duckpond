@@ -252,7 +252,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-			dstTable, l.storage.ToDuckDBPath(parquetPath))
+			dstTable, l.storage.ToDuckDBWritePath(parquetPath))
 
 		_, copyErr = dataTx.Exec(copyQuery)
 		log.Printf("%s err: %v", copyQuery, copyErr)
