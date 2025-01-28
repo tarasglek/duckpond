@@ -13,6 +13,17 @@ import (
 
 const assertCommandPrefix = "-- ASSERT"
 
+// handleAssertActionInComment processes assertion comments in test SQL files.
+// These comments must be in the format: "-- ASSERT <command> <args>: <expected>"
+// and must end with a semicolon like any other SQL statement.
+//
+// Currently supported commands:
+//   - COUNT_PARQUET: Checks the number of parquet files for a table
+//
+// Example:
+//
+//	-- ASSERT COUNT_PARQUET mytable: 3;
+//	       ^ checks that table "mytable" has exactly 3 parquet files
 func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
 	// Strip assertPrefix
 	assertionParts := strings.SplitN(strings.TrimPrefix(comment, assertCommandPrefix), ":", 2)
