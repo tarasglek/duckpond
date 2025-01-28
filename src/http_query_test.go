@@ -162,7 +162,7 @@ func readJSON(t *testing.T, path string) (map[string]interface{}, error) {
 func TestHttpQuery(t *testing.T) {
 	// Create IceBase with custom storage directory
 	ib, err := NewIceBase(
-		WithStorageDir("http_query_test_tables"),
+		WithStorageDir("testdata/http_query_test_tables"),
 		WithQuerySplittingEnabled(),
 	)
 	assert.NoError(t, err, "Failed to create IceBase")
@@ -180,7 +180,7 @@ func TestHttpQuery(t *testing.T) {
 	assert.NoError(t, waitForServerReady(), "Server not ready")
 
 	// Run tests for all query files
-	testFiles, err := filepath.Glob("query_test/query_*.sql")
+	testFiles, err := filepath.Glob("test/query/query_*.sql")
 	assert.NoError(t, err, "Failed to find test files")
 
 	for _, testFile := range testFiles {

@@ -11,7 +11,7 @@ MINIO_API_PORT=${MINIO_API_PORT:-8883}
 S3_BUCKET=${S3_BUCKET:-icebase}  # Default bucket name
 MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT:-$((MINIO_API_PORT + 1))}
 MINIO_HOST=${MINIO_HOST:-localhost}
-MINIO_DATA_DIR=${MINIO_DATA_DIR:-"$SCRIPT_DIR/data"}
+MINIO_DATA_DIR=${MINIO_DATA_DIR:-"$SCRIPT_DIR/../src/testdata/minio"}
 
 # Export for MinIO server to use
 export MINIO_ROOT_USER
