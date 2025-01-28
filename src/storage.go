@@ -527,9 +527,10 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() || relPath == "." {
-			files = append(files, relPath)
+		if d.IsDir() || relPath == "." {
+			return nil
 		}
+		files = append(files, relPath)
 		return nil
 	})
 	return files, err

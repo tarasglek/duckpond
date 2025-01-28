@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,7 +14,6 @@ const assertCommandPrefix = "-- ASSERT"
 
 // handleAssertActionInComment processes assertion comments in test SQL files.
 // These comments must be in the format: "-- ASSERT <command> <args>: <expected>"
-// and must end with a semicolon like any other SQL statement.
 //
 // Currently supported commands:
 //   - COUNT_PARQUET: Checks the number of parquet files for a table
@@ -27,7 +25,7 @@ const assertCommandPrefix = "-- ASSERT"
 func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
 	// Strip assertPrefix
 	assertionParts := strings.SplitN(strings.TrimPrefix(comment, assertCommandPrefix), ":", 2)
-	fmt.Printf("------------------%v\n", assertionParts)
+	// fmt.Printf("------------------%v\n", assertionParts)
 	if len(assertionParts) != 2 {
 		t.Fatalf("Invalid assert format: %s", comment)
 	}
@@ -44,9 +42,12 @@ func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
 	switch directiveParts[0] {
 	case "COUNT_PARQUET":
 		assertCountParquet(t, ib, directiveParts[1], expected)
+	default:
+		t.Fatalf("Unknown assert directive: %s", directiveParts[0])
 	}
 }
 
+// assertCountParquet checks that a table has the expected number of parquet files.
 func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string) {
 	tableName := args // args is the table name for COUNT_PARQUET
 	expectedCount, err := strconv.Atoi(expected)
@@ -73,7 +74,6 @@ func TestStressTest(t *testing.T) {
 			prefix := "testdata/stress_test_tables"
 			ib, err := NewIceBase(
 				WithStorageDir(prefix),
-				WithQuerySplittingEnabled(),
 			)
 			assert.NoError(t, err, "Failed to create IceBase")
 			defer ib.Close()
@@ -86,16 +86,14 @@ func TestStressTest(t *testing.T) {
 			assert.NoError(t, err, "Failed to read test file")
 
 			// Split into individual queries
-			queries, err := ib.SplitNonEmptyQueries(string(content))
-			assert.NoError(t, err, "Failed to split queries")
-
+			queries := SplitNonEmptyQueries(string(content))
 			// Execute each query against /query endpoint
 			for _, query := range queries {
 				cleanQuery := strings.TrimSpace(query)
-
-				if strings.HasPrefix(cleanQuery, assertCommandPrefix) {
-					fmt.Println("--------------", cleanQuery)
-					handleAssertActionInComment(t, ib, cleanQuery)
+				if strings.HasPrefix(cleanQuery, "--") {
+					if strings.HasPrefix(cleanQuery, assertCommandPrefix) {
+						handleAssertActionInComment(t, ib, cleanQuery)
+					}
 				} else {
 					_, err = ib.PostEndpoint("/query", cleanQuery)
 					assert.NoError(t, err, "Query failed: %s", cleanQuery)

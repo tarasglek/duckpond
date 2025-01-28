@@ -243,7 +243,7 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 
 // SplitNonEmptyQueries splits a string of queries by semicolon
 // also splits comments from the queries by newline
-func (ib *IceBase) SplitNonEmptyQueries(body string) ([]string, error) {
+func SplitNonEmptyQueries(body string) []string {
 	// fmt.Printf("SplitNonEmptyQueries: %q\n", body)
 	queries := strings.Split(body, ";")
 
@@ -251,8 +251,11 @@ func (ib *IceBase) SplitNonEmptyQueries(body string) ([]string, error) {
 	// Recursive func that checks if the split query is a comment
 	var separateComments func(string)
 	separateComments = func(s string) {
-		fmt.Printf("SeparateComments: `%q`\n", s)
+		// fmt.Printf("SeparateComments: `%q`\n", s)
 		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			return
+		}
 		if !strings.HasPrefix(trimmed, "--") {
 			filtered = append(filtered, trimmed)
 			return
@@ -270,11 +273,8 @@ func (ib *IceBase) SplitNonEmptyQueries(body string) ([]string, error) {
 		separateComments(q)
 	}
 
-	if len(filtered) == 0 {
-		return nil, fmt.Errorf("Could not find a query to run")
-	}
 	// fmt.Printf("Filtered queries: %v\n", strings.Join(filtered, "\n\n"))
-	return filtered, nil
+	return filtered
 }
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
@@ -289,10 +289,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	var err error
 
 	if ib.options.enableQuerySplitting {
-		filteredQueries, err = ib.SplitNonEmptyQueries(body)
-		if err != nil {
-			return "", err
-		}
+		filteredQueries = SplitNonEmptyQueries(body)
 	} else {
 		// When query splitting is disabled, treat entire body as single query
 		filteredQueries = []string{strings.TrimSpace(body)}
