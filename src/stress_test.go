@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func StressTest(t *testing.T) {
+func TestStressTest(t *testing.T) {
 	testFiles, err := filepath.Glob("test/stress/query_*.sql")
 	assert.NoError(t, err, "Failed to find test files")
 
