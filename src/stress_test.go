@@ -40,10 +40,12 @@ func TestStressTest(t *testing.T) {
 			// Execute each query against /query endpoint
 			for _, query := range queries {
 				cleanQuery := strings.TrimSpace(query)
-				
+
 				if strings.HasPrefix(cleanQuery, "-- ASSERT") {
+					fmt.Println("--------------", cleanQuery)
 					// Handle assertion directive
 					assertionParts := strings.SplitN(strings.TrimPrefix(cleanQuery, "-- ASSERT"), ":", 2)
+					fmt.Printf("------------------%v\n", assertionParts)
 					if len(assertionParts) != 2 {
 						t.Fatalf("Invalid assert format: %s", cleanQuery)
 					}
@@ -58,26 +60,22 @@ func TestStressTest(t *testing.T) {
 					}
 
 					switch directiveParts[0] {
-					case "LIST":
+					case "COUNT_PARQUET":
 						// Format: "LIST table/path"
-						pathParts := strings.SplitN(directiveParts[1], "/", 2)
-						tableName := pathParts[0]
-						subpath := ""
-						if len(pathParts) > 1 {
-							subpath = pathParts[1]
-						}
+						tableName := directiveParts[1]
 
 						log, exists := ib.logs[tableName]
 						if !exists {
 							t.Fatalf("Table %s not found for LIST assertion", tableName)
 						}
+						storagePath := tableName + "/data"
 
-						files, err := log.storage.List(subpath)
-						assert.NoError(t, err, "Failed to list storage path %s", subpath)
-						
+						files, err := log.storage.List(storagePath)
+						assert.NoError(t, err, "Failed to list storage path %s", storagePath)
+
 						expectedCount, err := strconv.Atoi(expected)
 						assert.NoError(t, err, "Invalid expected count format: %s", expected)
-						assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", directiveParts[1])
+						assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", tableName)
 					}
 				} else {
 					_, err = ib.PostEndpoint("/query", cleanQuery)
