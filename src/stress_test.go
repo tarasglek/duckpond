@@ -1,37 +1,42 @@
 package main
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func StressTest(t *testing.T) {
-	// Create IceBase with custom storage directory
-	ib, err := NewIceBase(
-		WithStorageDir("tmp/stress_test_tables"),
-		WithQuerySplittingEnabled(),
-	)
-	assert.NoError(t, err, "Failed to create IceBase")
-	defer ib.Close()
-
-	// Run tests for all query files
 	testFiles, err := filepath.Glob("test/stress/query_*.sql")
 	assert.NoError(t, err, "Failed to find test files")
+
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
-			// Destroy any existing state after each test
+			// Create fresh IceBase for each test file
+			ib, err := NewIceBase(
+				WithStorageDir("tmp/stress_test_tables"),
+				WithQuerySplittingEnabled(),
+			)
+			assert.NoError(t, err, "Failed to create IceBase")
+			defer ib.Close()
 			defer func() {
-				if err := ib.Destroy(); err != nil {
-					t.Fatalf("Failed to destroy IceBase: %v", err)
-				}
+				assert.NoError(t, ib.Destroy(), "Failed to clean up after test")
 			}()
-			testSQLs = ReadFile(testFile)
-			for query in SplitNonEmptyQueries testSQLs {
-				ib.PostEndpoint(query) and check for errors
+
+			// Read test SQL file
+			content, err := os.ReadFile(testFile)
+			assert.NoError(t, err, "Failed to read test file")
+
+			// Split into individual queries
+			queries, err := ib.SplitNonEmptyQueries(string(content))
+			assert.NoError(t, err, "Failed to split queries")
+
+			// Execute each query against /query endpoint
+			for _, query := range queries {
+				_, err = ib.PostEndpoint("/query", query)
+				assert.NoError(t, err, "Query failed: %s", query)
 			}
 		})
 	}
