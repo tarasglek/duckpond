@@ -282,9 +282,43 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 }
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
+//
 // dataTx is the transaction for the main data database operations
 func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 	return l.withPersistedLog(func() error {
+		// Phase 1: Delete tombstoned files
+		files, err := l.listFiles(" WHERE tombstoned_unix_time != 0")
+		if err != nil {
+			return fmt.Errorf("failed to list tombstoned files: %w", err)
+		}
+		// we try to not be transactional here
+		// so delete files before we remove them from the log
+		if len(files) > 0 {
+			deletedFiles := 0
+			// delete tombstoned files
+			for _, file := range files {
+				if err := l.storage.Delete(file); err != nil {
+					log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
+					continue
+				}
+				deletedFiles++
+				log.Printf("Permanently deleting tombstoned file %s", file)
+			}
+			if deletedFiles > 0 {
+				log.Printf("Deleted %d tombstoned files, issue VACUUM again to merge", deletedFiles)
+				return nil
+			}
+		}
+		// Phase 2: Merge active files
+		// first list active files
+		files, err = l.listFiles(" WHERE tombstoned_unix_time = 0")
+		if err != nil {
+			return fmt.Errorf("failed to list live files: %w", err)
+		}
+		if len(files) <= 1 {
+			log.Printf("%d live files, nothing to merge", len(files))
+			return nil
+		}
 		newUUID, err := l.CopyToLoggedPaquet(dataTx, table, table)
 		if err != nil {
 			return fmt.Errorf("failed to merge: %w", err)
@@ -481,7 +515,8 @@ func (l *Log) Destroy() error {
 	// Delete each parquet file
 	for _, file := range files {
 		if err := l.storage.Delete(file); err != nil {
-			return fmt.Errorf("failed to delete file %s: %w", file, err)
+			// it's ok if files are missing, they might've been deleted during VACUUM
+			log.Printf("failed to delete file %s: %v. Maybe it was deleted during VACUUM?", file, err)
 		}
 	}
 
