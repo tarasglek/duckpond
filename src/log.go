@@ -391,7 +391,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	// Map files to DuckDB paths
 	paths := make([]string, len(files))
 	for i, file := range files {
-		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBPath(file))
+		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(file))
 	}
 
 	_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",

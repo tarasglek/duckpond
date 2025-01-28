@@ -32,13 +32,14 @@ type StorageConfig interface {
 
 // S3Config holds configuration for S3 storage
 type S3Config struct {
-	rootDir      string
-	AccessKey    string
-	SecretKey    string
-	Endpoint     string
-	Bucket       string
-	UsePathStyle bool
-	Region       string
+	rootDir         string
+	AccessKey       string
+	SecretKey       string
+	Endpoint        string
+	Bucket          string
+	UsePathStyle    bool
+	Region          string
+	PublicURLPrefix string
 }
 
 func (c *S3Config) RootDir() string {
@@ -51,13 +52,14 @@ func LoadS3ConfigFromEnv(rootDir string) *S3Config {
 		region = "us-east-1" // Default region
 	}
 	return &S3Config{
-		rootDir:      rootDir,
-		AccessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
-		SecretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		Endpoint:     os.Getenv("S3_ENDPOINT"),
-		Bucket:       os.Getenv("S3_BUCKET"),
-		UsePathStyle: os.Getenv("S3_USE_PATH_STYLE") == "true",
-		Region:       region,
+		rootDir:         rootDir,
+		AccessKey:       os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretKey:       os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		Endpoint:        os.Getenv("S3_ENDPOINT"),
+		Bucket:          os.Getenv("S3_BUCKET"),
+		UsePathStyle:    os.Getenv("S3_USE_PATH_STYLE") == "true",
+		Region:          region,
+		PublicURLPrefix: os.Getenv("S3_PUBLIC_URL_PREFIX"),
 	}
 }
 
@@ -93,7 +95,8 @@ type Storage interface {
 	CreateDir(path string) error
 	Stat(path string) (*s3FileInfo, error)
 	Delete(path string) error
-	ToDuckDBPath(path string) string
+	ToDuckDBWritePath(path string) string
+	ToDuckDBReadPath(path string) string
 	List(prefix string) ([]string, error)
 	ToDuckDBSecret(secretName string) string
 }
@@ -321,10 +324,19 @@ func (s *S3Storage) Delete(path string) error {
 	return err
 }
 
-func (s *S3Storage) ToDuckDBPath(path string) string {
+func (s *S3Storage) ToDuckDBWritePath(path string) string {
 	ret := "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
-	fmt.Printf("ToDuckDBPath: %s\n", ret)
+	fmt.Printf("ToDuckDBWritePath: %s\n", ret)
 	return ret
+}
+
+func (s *S3Storage) ToDuckDBReadPath(path string) string {
+	if s.config.PublicURLPrefix != "" {
+		ret := s.config.PublicURLPrefix + "/" + filepath.Join(s.config.rootDir, path)
+		fmt.Printf("ToDuckDBReadPath: %s\n", ret)
+		return ret
+	}
+	return s.ToDuckDBWritePath(path)
 }
 
 func (s *S3Storage) ToDuckDBSecret(secretName string) string {
@@ -511,8 +523,12 @@ func (fs *FSStorage) Delete(path string) error {
 	return os.Remove(fs.fullPath(path))
 }
 
-func (fs *FSStorage) ToDuckDBPath(path string) string {
+func (fs *FSStorage) ToDuckDBWritePath(path string) string {
 	return filepath.Join(fs.config.rootDir, path)
+}
+
+func (fs *FSStorage) ToDuckDBReadPath(path string) string {
+	return fs.ToDuckDBWritePath(path)
 }
 
 func (fs *FSStorage) List(prefix string) ([]string, error) {
