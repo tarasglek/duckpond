@@ -16,7 +16,7 @@ func StressTest(t *testing.T) {
 		t.Run(testFile, func(t *testing.T) {
 			// Create fresh IceBase for each test file
 			ib, err := NewIceBase(
-				WithStorageDir("tmp/stress_test_tables"),
+				WithStorageDir("testdata/stress_test_tables"),
 				WithQuerySplittingEnabled(),
 			)
 			assert.NoError(t, err, "Failed to create IceBase")
