@@ -55,6 +55,12 @@ type IceBase struct {
 func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, error) {
 	start := time.Now()
 
+	// Initialize response with empty data slice
+	response := QueryResponse{
+		Data: make([][]interface{}, 0), // Ensure Data is never nil
+	}
+	var data [][]interface{} // Define data variable that will be used later
+
 	// Execute the query within transaction
 	rows, err := dataTx.Query(query)
 	if err != nil {
@@ -71,12 +77,6 @@ func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to get column types: %w", err)
 	}
-
-	// Initialize response with empty data slice
-	response := QueryResponse{
-		Data: make([][]interface{}, 0), // Ensure Data is never nil
-	}
-	var data [][]interface{} // Define data variable that will be used later
 
 	// Populate meta information
 	response.Meta = make([]struct {
