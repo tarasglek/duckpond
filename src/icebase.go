@@ -241,7 +241,7 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	return serializedJSON, nil
 }
 
-func (ib *IceBase) splitAndFilterQueries(body string) ([]string, error) {
+func (ib *IceBase) SplitNonEmptyQueries(body string) ([]string, error) {
 	queries := []string{body}
 	if ib.options.enableQuerySplitting {
 		queries = strings.Split(body, ";")
@@ -268,7 +268,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	dataConn := ib.DataDB()
 
 	var response *QueryResponse
-	filteredQueries, err := ib.splitAndFilterQueries(body)
+	filteredQueries, err := ib.SplitNonEmptyQueries(body)
 	if err != nil {
 		return "", err
 	}
