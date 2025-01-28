@@ -60,71 +60,78 @@ func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, e
 		Data: make([][]interface{}, 0), // Ensure Data is never nil
 	}
 	var data [][]interface{} // Define data variable that will be used later
-
-	// Execute the query within transaction
-	rows, err := dataTx.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("query error: %w", err)
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
-	}
-
-	columnTypes, err := rows.ColumnTypes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get column types: %w", err)
-	}
-
-	// Populate meta information
 	response.Meta = make([]struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
-	}, len(columns))
+	}, 0)
 
-	for i, col := range columns {
-		response.Meta[i].Name = col
-		response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
-	}
+	// Execute the query within transaction
+	rows, err := dataTx.Query(query)
+	if err == nil {
+		defer rows.Close()
 
-	for rows.Next() {
-		// values will hold the actual data from the database row
-		values := make([]interface{}, len(columns))
-
-		// valuePtrs is an array of pointers to the values array elements
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range columns {
-			// Each pointer in valuePtrs points to the corresponding element in values
-			valuePtrs[i] = &values[i]
+		columns, err := rows.Columns()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get columns: %w", err)
 		}
 
-		// Scan the current row into our value pointers
-		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+		columnTypes, err := rows.ColumnTypes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get column types: %w", err)
 		}
 
-		// Process the scanned values...
-		rowData := make([]interface{}, len(columns))
-		for i := range values {
-			if values[i] == nil {
-				rowData[i] = "NULL"
-				continue
+		// Populate meta information
+		response.Meta = make([]struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		}, len(columns))
+
+		for i, col := range columns {
+			response.Meta[i].Name = col
+			response.Meta[i].Type = columnTypes[i].DatabaseTypeName()
+		}
+
+		for rows.Next() {
+			// values will hold the actual data from the database row
+			values := make([]interface{}, len(columns))
+
+			// valuePtrs is an array of pointers to the values array elements
+			valuePtrs := make([]interface{}, len(columns))
+			for i := range columns {
+				// Each pointer in valuePtrs points to the corresponding element in values
+				valuePtrs[i] = &values[i]
 			}
 
-			// Handle UUID specifically
-			if response.Meta[i].Type == "UUID" && values[i] != nil {
-				if v, ok := values[i].([]byte); ok {
-					rowData[i] = uuid.UUID(v).String()
+			// Scan the current row into our value pointers
+			if err := rows.Scan(valuePtrs...); err != nil {
+				return nil, fmt.Errorf("failed to scan row: %w", err)
+			}
+
+			// Process the scanned values...
+			rowData := make([]interface{}, len(columns))
+			for i := range values {
+				if values[i] == nil {
+					rowData[i] = "NULL"
 					continue
 				}
-			}
 
-			// Default case for all other values
-			rowData[i] = fmt.Sprintf("%v", values[i])
+				// Handle UUID specifically
+				if response.Meta[i].Type == "UUID" && values[i] != nil {
+					if v, ok := values[i].([]byte); ok {
+						rowData[i] = uuid.UUID(v).String()
+						continue
+					}
+				}
+
+				// Default case for all other values
+				rowData[i] = fmt.Sprintf("%v", values[i])
+			}
+			data = append(data, rowData)
 		}
-		data = append(data, rowData)
+	} else {
+		if err.Error() != "empty query" {
+			return nil, fmt.Errorf("query error: %w", err)
+		}
 	}
 
 	response.Data = data // Now data is properly defined
