@@ -37,24 +37,26 @@ func TestStressTest(t *testing.T) {
 
 			// Execute each query against /query endpoint
 			for _, query := range queries {
+				fmt.Printf("Executing query: %s\n", query)
 				_, err = ib.PostEndpoint("/query", query)
 				assert.NoError(t, err, "Query failed: %s", query)
 			}
 
 			// Verify storage contents
-			if len(ib.logs) == 0 {
-				t.Log("No tables/logs created during test")
-				continue
-			}
+			// assert.Equal(len(ib.logs), 1, "Expected one table")
 
 			// Get first table's log (order isn't guaranteed but we just want to verify storage)
 			for tableName, log := range ib.logs {
 				files, err := log.storage.List("") // List all files under storage dir
+				if err != nil {
+					t.Fatalf("Failed to list storage for table %s: %v", tableName, err)
+				}
+				fmt.Printf("Files: %v\n", files)
 				assert.NoError(t, err, "Failed to list storage for table %s", tableName)
 				t.Logf("Storage files for table %s: %v", tableName, files)
 				break // Just check first table
 			}
-			}
+
 		})
 	}
 }
