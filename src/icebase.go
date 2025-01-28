@@ -285,9 +285,17 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	dataConn := ib.DataDB()
 
 	var response *QueryResponse
-	filteredQueries, err := ib.SplitNonEmptyQueries(body)
-	if err != nil {
-		return "", err
+	var filteredQueries []string
+	var err error
+
+	if ib.options.enableQuerySplitting {
+		filteredQueries, err = ib.SplitNonEmptyQueries(body)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		// When query splitting is disabled, treat entire body as single query
+		filteredQueries = []string{strings.TrimSpace(body)}
 	}
 
 	for i, q := range filteredQueries {
