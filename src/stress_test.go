@@ -11,6 +11,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
+    // Strip "-- ASSERT" prefix
+    assertionParts := strings.SplitN(strings.TrimPrefix(comment, "-- ASSERT"), ":", 2)
+    fmt.Printf("------------------%v\n", assertionParts)
+    if len(assertionParts) != 2 {
+        t.Fatalf("Invalid assert format: %s", comment)
+    }
+
+    directive := strings.TrimSpace(assertionParts[0])
+    expected := strings.TrimSpace(assertionParts[1])
+
+    // Split into command and path
+    directiveParts := strings.SplitN(directive, " ", 2)
+    if len(directiveParts) != 2 {
+        t.Fatalf("Invalid assert directive: %s", directive)
+    }
+
+    switch directiveParts[0] {
+    case "COUNT_PARQUET":
+        assertCountParquet(t, ib, directiveParts[1], expected)
+    }
+}
+
 func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string) {
     tableName := args // args is the table name for COUNT_PARQUET
     expectedCount, err := strconv.Atoi(expected)
@@ -59,26 +82,7 @@ func TestStressTest(t *testing.T) {
 
 				if strings.HasPrefix(cleanQuery, "-- ASSERT") {
 					fmt.Println("--------------", cleanQuery)
-					// Handle assertion directive
-					assertionParts := strings.SplitN(strings.TrimPrefix(cleanQuery, "-- ASSERT"), ":", 2)
-					fmt.Printf("------------------%v\n", assertionParts)
-					if len(assertionParts) != 2 {
-						t.Fatalf("Invalid assert format: %s", cleanQuery)
-					}
-
-					directive := strings.TrimSpace(assertionParts[0])
-					expected := strings.TrimSpace(assertionParts[1])
-
-					// Split into command and path
-					directiveParts := strings.SplitN(directive, " ", 2)
-					if len(directiveParts) != 2 {
-						t.Fatalf("Invalid assert directive: %s", directive)
-					}
-
-					switch directiveParts[0] {
-					case "COUNT_PARQUET":
-						assertCountParquet(t, ib, directiveParts[1], expected)
-					}
+					handleAssertActionInComment(t, ib, cleanQuery)
 				} else {
 					_, err = ib.PostEndpoint("/query", cleanQuery)
 					assert.NoError(t, err, "Query failed: %s", cleanQuery)
