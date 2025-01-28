@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,8 +16,9 @@ func TestStressTest(t *testing.T) {
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
 			// Create fresh IceBase for each test file
+			prefix := "testdata/stress_test_tables"
 			ib, err := NewIceBase(
-				WithStorageDir("testdata/stress_test_tables"),
+				WithStorageDir(prefix),
 				WithQuerySplittingEnabled(),
 			)
 			assert.NoError(t, err, "Failed to create IceBase")
@@ -37,6 +39,7 @@ func TestStressTest(t *testing.T) {
 			for _, query := range queries {
 				_, err = ib.PostEndpoint("/query", query)
 				assert.NoError(t, err, "Query failed: %s", query)
+				fmt.Printf("list: %v", ib.<first value in logs>.storage.List(prefix))
 			}
 		})
 	}
