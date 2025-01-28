@@ -90,10 +90,8 @@ func TestStressTest(t *testing.T) {
 			// Execute each query against /query endpoint
 			for _, query := range queries {
 				cleanQuery := strings.TrimSpace(query)
-				if strings.HasPrefix(cleanQuery, "--") {
-					if strings.HasPrefix(cleanQuery, assertCommandPrefix) {
-						handleAssertActionInComment(t, ib, cleanQuery)
-					}
+				if strings.HasPrefix(cleanQuery, assertCommandPrefix) {
+					handleAssertActionInComment(t, ib, cleanQuery)
 				} else {
 					_, err = ib.PostEndpoint("/query", cleanQuery)
 					assert.NoError(t, err, "Query failed: %s", cleanQuery)
