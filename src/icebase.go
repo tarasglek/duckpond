@@ -241,22 +241,39 @@ func (ib *IceBase) SerializeQuery(query string) (string, error) {
 	return serializedJSON, nil
 }
 
+// SplitNonEmptyQueries splits a string of queries by semicolon
+// also splits comments from the queries by newline
 func (ib *IceBase) SplitNonEmptyQueries(body string) ([]string, error) {
-	queries := []string{body}
-	if ib.options.enableQuerySplitting {
-		queries = strings.Split(body, ";")
-	}
+	// fmt.Printf("SplitNonEmptyQueries: %q\n", body)
+	queries := strings.Split(body, ";")
 
 	filtered := make([]string, 0, len(queries))
-	for _, q := range queries {
-		if trimmed := strings.TrimSpace(q); trimmed != "" {
+	// Recursive func that checks if the split query is a comment
+	var separateComments func(string)
+	separateComments = func(s string) {
+		fmt.Printf("SeparateComments: `%q`\n", s)
+		trimmed := strings.TrimSpace(s)
+		if !strings.HasPrefix(trimmed, "--") {
 			filtered = append(filtered, trimmed)
+			return
 		}
+		// split once
+		parts := strings.SplitN(trimmed, "\n", 2)
+		filtered = append(filtered, parts[0])
+		if len(parts) > 1 {
+			separateComments(parts[1])
+			return
+		}
+	}
+
+	for _, q := range queries {
+		separateComments(q)
 	}
 
 	if len(filtered) == 0 {
 		return nil, fmt.Errorf("Could not find a query to run")
 	}
+	// fmt.Printf("Filtered queries: %v\n", strings.Join(filtered, "\n\n"))
 	return filtered, nil
 }
 
