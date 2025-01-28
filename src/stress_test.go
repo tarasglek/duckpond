@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,24 +39,50 @@ func TestStressTest(t *testing.T) {
 
 			// Execute each query against /query endpoint
 			for _, query := range queries {
-				fmt.Printf("Executing query: %s\n", query)
-				_, err = ib.PostEndpoint("/query", query)
-				assert.NoError(t, err, "Query failed: %s", query)
-			}
+				cleanQuery := strings.TrimSpace(query)
+				
+				if strings.HasPrefix(cleanQuery, "-- ASSERT") {
+					// Handle assertion directive
+					assertionParts := strings.SplitN(strings.TrimPrefix(cleanQuery, "-- ASSERT"), ":", 2)
+					if len(assertionParts) != 2 {
+						t.Fatalf("Invalid assert format: %s", cleanQuery)
+					}
 
-			// Verify storage contents
-			// assert.Equal(len(ib.logs), 1, "Expected one table")
+					directive := strings.TrimSpace(assertionParts[0])
+					expected := strings.TrimSpace(assertionParts[1])
 
-			// Get first table's log (order isn't guaranteed but we just want to verify storage)
-			for tableName, log := range ib.logs {
-				files, err := log.storage.List("") // List all files under storage dir
-				if err != nil {
-					t.Fatalf("Failed to list storage for table %s: %v", tableName, err)
+					// Split into command and path
+					directiveParts := strings.SplitN(directive, " ", 2)
+					if len(directiveParts) != 2 {
+						t.Fatalf("Invalid assert directive: %s", directive)
+					}
+
+					switch directiveParts[0] {
+					case "LIST":
+						// Format: "LIST table/path"
+						pathParts := strings.SplitN(directiveParts[1], "/", 2)
+						tableName := pathParts[0]
+						subpath := ""
+						if len(pathParts) > 1 {
+							subpath = pathParts[1]
+						}
+
+						log, exists := ib.logs[tableName]
+						if !exists {
+							t.Fatalf("Table %s not found for LIST assertion", tableName)
+						}
+
+						files, err := log.storage.List(subpath)
+						assert.NoError(t, err, "Failed to list storage path %s", subpath)
+						
+						expectedCount, err := strconv.Atoi(expected)
+						assert.NoError(t, err, "Invalid expected count format: %s", expected)
+						assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", directiveParts[1])
+					}
+				} else {
+					_, err = ib.PostEndpoint("/query", cleanQuery)
+					assert.NoError(t, err, "Query failed: %s", cleanQuery)
 				}
-				fmt.Printf("Files: %v\n", files)
-				assert.NoError(t, err, "Failed to list storage for table %s", tableName)
-				t.Logf("Storage files for table %s: %v", tableName, files)
-				break // Just check first table
 			}
 
 		})
