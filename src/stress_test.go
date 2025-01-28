@@ -11,6 +11,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string) {
+    tableName := args // args is the table name for COUNT_PARQUET
+    expectedCount, err := strconv.Atoi(expected)
+    assert.NoError(t, err, "Invalid expected count format: %s", expected)
+    
+    log, exists := ib.logs[tableName]
+    if !exists {
+        t.Fatalf("Table %s not found for LIST assertion", tableName)
+    }
+    storagePath := tableName + "/data"
+
+    files, err := log.storage.List(storagePath)
+    assert.NoError(t, err, "Failed to list storage path %s", storagePath)
+    assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", tableName)
+}
+
 func TestStressTest(t *testing.T) {
 	testFiles, err := filepath.Glob("test/stress/query_*.sql")
 	assert.NoError(t, err, "Failed to find test files")
@@ -61,21 +77,7 @@ func TestStressTest(t *testing.T) {
 
 					switch directiveParts[0] {
 					case "COUNT_PARQUET":
-						// Format: "LIST table/path"
-						tableName := directiveParts[1]
-
-						log, exists := ib.logs[tableName]
-						if !exists {
-							t.Fatalf("Table %s not found for LIST assertion", tableName)
-						}
-						storagePath := tableName + "/data"
-
-						files, err := log.storage.List(storagePath)
-						assert.NoError(t, err, "Failed to list storage path %s", storagePath)
-
-						expectedCount, err := strconv.Atoi(expected)
-						assert.NoError(t, err, "Invalid expected count format: %s", expected)
-						assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", tableName)
+						assertCountParquet(t, ib, directiveParts[1], expected)
 					}
 				} else {
 					_, err = ib.PostEndpoint("/query", cleanQuery)
