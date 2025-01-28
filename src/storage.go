@@ -94,6 +94,7 @@ type Storage interface {
 	Stat(path string) (*s3FileInfo, error)
 	Delete(path string) error
 	ToDuckDBPath(path string) string
+	List(prefix string) ([]string, error)
 	ToDuckDBSecret(secretName string) string
 }
 
@@ -142,6 +143,38 @@ func NewS3Storage(config *S3Config) Storage {
 
 func (s *S3Storage) fullKey(path string) string {
 	return strings.TrimPrefix(filepath.Join(s.config.RootDir(), path), "/")
+}
+
+func (s *S3Storage) List(prefix string) ([]string, error) {
+	fullPrefix := s.fullKey(prefix)
+	var objects []string
+
+	s.logger.Printf("Listing objects in bucket=%s prefix=%s", s.config.Bucket, fullPrefix)
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.config.Bucket),
+		Prefix: aws.String(fullPrefix),
+	})
+
+	// Trim the root directory prefix from returned keys
+	rootPrefix := s.fullKey("")
+	trimLength := len(rootPrefix)
+	if trimLength > 0 && !strings.HasSuffix(rootPrefix, "/") {
+		trimLength++ // Also trim the trailing slash if present
+	}
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		for _, obj := range page.Contents {
+			trimmedKey := (*obj.Key)[trimLength:]
+			objects = append(objects, trimmedKey)
+		}
+	}
+	return objects, nil
 }
 
 func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
@@ -480,6 +513,26 @@ func (fs *FSStorage) Delete(path string) error {
 
 func (fs *FSStorage) ToDuckDBPath(path string) string {
 	return filepath.Join(fs.config.rootDir, path)
+}
+
+func (fs *FSStorage) List(prefix string) ([]string, error) {
+	fullPrefix := fs.fullPath(prefix)
+	var files []string
+
+	err := filepath.WalkDir(fullPrefix, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(fs.config.rootDir, path)
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() || relPath == "." {
+			files = append(files, relPath)
+		}
+		return nil
+	})
+	return files, err
 }
 
 func (fs *FSStorage) ToDuckDBSecret(secretName string) string {
