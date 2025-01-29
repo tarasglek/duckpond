@@ -12,6 +12,10 @@ def generate_data(start_id, num_rows, start_time):
         "message": ["Hello, World!"] * num_rows,
         "last_modified": [
             start_time - timedelta(days=i) for i in range(num_rows)
+        ],
+        "user": [
+            "even_user" if (start_id + i) % 2 == 0 else "odd_user" 
+            for i in range(num_rows)
         ]
     })
 
