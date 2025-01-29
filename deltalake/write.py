@@ -37,7 +37,7 @@ batch1 = generate_data(start_id=1, num_rows=3, start_time=datetime.now())
 
 # Helper function for writing data
 def write_data(data, mode):
-    dl.write_deltalake(
+    write_deltalake(
         path, 
         data, 
         mode=mode, 
