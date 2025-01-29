@@ -52,7 +52,7 @@ write_data(batch1, "append")
 batch2 = generate_data(start_id=4, num_rows=3, start_time=datetime.now())
 write_data(batch2, "append")
 
-delete_data = pd.DataFrame({"id": [1], "message": [None], "last_modified": [None], "user": [None]})
-write_data(delete_data, "delete")
+# delete_data = pd.DataFrame({"id": [1], "message": [None], "last_modified": [None], "user": [None]})
+# write_data(delete_data, "overwrite")
 
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
