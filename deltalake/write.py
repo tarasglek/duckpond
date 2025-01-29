@@ -35,4 +35,15 @@ batch2 = generate_data(start_id=4, num_rows=3, start_time=datetime.now())
 # Write second batch to Delta Lake
 dl.write_deltalake(path, batch2, mode="append", partition_by=["user"])
 
+# Create third transaction to delete item with id=1
+delete_data = pd.DataFrame({
+    "id": [1],
+    "message": [None],
+    "last_modified": [None],
+    "user": [None]
+})
+
+# Perform deletion
+dl.write_deltalake(path, delete_data, mode="delete", partition_by=["user"])
+
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
