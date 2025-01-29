@@ -1,9 +1,13 @@
 import deltalake as dl
 import pandas as pd
 from datetime import datetime, timedelta
+import shutil
 
 # Path to the Delta Lake table
 path = "delta_table/"
+
+# Reset database by removing directory if it exists
+shutil.rmtree(path, ignore_errors=True)
 
 # Function to generate data with primary key and last-modified timestamp
 def generate_data(start_id, num_rows, start_time):
