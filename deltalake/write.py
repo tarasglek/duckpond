@@ -1,4 +1,4 @@
-import deltalake as dl
+from deltalake import DeltaTable, write_deltalake
 import pandas as pd
 from datetime import datetime, timedelta
 import shutil
@@ -52,7 +52,8 @@ write_data(batch1, "append")
 batch2 = generate_data(start_id=4, num_rows=3, start_time=datetime.now())
 write_data(batch2, "append")
 
-# delete_data = pd.DataFrame({"id": [1], "message": [None], "last_modified": [None], "user": [None]})
-# write_data(delete_data, "overwrite")
+# Perform delete operation
+dt = DeltaTable(path, storage_options=storage_options)
+dt.delete("id = 1")
 
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
