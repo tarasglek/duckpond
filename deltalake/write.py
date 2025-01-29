@@ -2,12 +2,21 @@ import deltalake as dl
 import pandas as pd
 from datetime import datetime, timedelta
 import shutil
+import os
 
-# Path to the Delta Lake table
-path = "delta_table/"
+# Set storage options
+storage_options = {
+    "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
+    "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
+    "AWS_ENDPOINT_URL": os.getenv("S3_ENDPOINT"),
+} if os.getenv("AWS_ACCESS_KEY_ID") else None
 
-# Reset database by removing directory if it exists
-shutil.rmtree(path, ignore_errors=True)
+# Set path based on storage type
+path = f"s3://{os.getenv('S3_BUCKET', '')}/delta_table/" if storage_options else "delta_table/"
+
+# Reset local database if not using S3
+if not storage_options:
+    shutil.rmtree(path, ignore_errors=True)
 
 # Function to generate data with primary key and last-modified timestamp
 def generate_data(start_id, num_rows, start_time):
@@ -26,24 +35,24 @@ def generate_data(start_id, num_rows, start_time):
 # Generate first batch of data
 batch1 = generate_data(start_id=1, num_rows=3, start_time=datetime.now())
 
-# Write first batch to Delta Lake
-dl.write_deltalake(path, batch1, mode="append", partition_by=["user"])
+# Helper function for writing data
+def write_data(data, mode):
+    dl.write_deltalake(
+        path, 
+        data, 
+        mode=mode, 
+        partition_by=["user"],
+        storage_options=storage_options
+    )
 
-# Generate second batch of data
+# Generate and write data
+batch1 = generate_data(start_id=1, num_rows=3, start_time=datetime.now())
+write_data(batch1, "append")
+
 batch2 = generate_data(start_id=4, num_rows=3, start_time=datetime.now())
+write_data(batch2, "append")
 
-# Write second batch to Delta Lake
-dl.write_deltalake(path, batch2, mode="append", partition_by=["user"])
-
-# Create third transaction to delete item with id=1
-delete_data = pd.DataFrame({
-    "id": [1],
-    "message": [None],
-    "last_modified": [None],
-    "user": [None]
-})
-
-# Perform deletion
-dl.write_deltalake(path, delete_data, mode="delete", partition_by=["user"])
+delete_data = pd.DataFrame({"id": [1], "message": [None], "last_modified": [None], "user": [None]})
+write_data(delete_data, "delete")
 
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
