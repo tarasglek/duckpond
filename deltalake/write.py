@@ -11,7 +11,7 @@ def generate_data(start_id, num_rows, start_time):
         "id": range(start_id, start_id + num_rows),
         "message": ["Hello, World!"] * num_rows,
         "last_modified": [
-            start_time - timedelta(seconds=i) for i in range(num_rows)
+            start_time - timedelta(days=i) for i in range(num_rows)
         ]
     })
 
