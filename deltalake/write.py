@@ -27,12 +27,12 @@ def generate_data(start_id, num_rows, start_time):
 batch1 = generate_data(start_id=1, num_rows=3, start_time=datetime.now())
 
 # Write first batch to Delta Lake
-dl.write_deltalake(path, batch1, mode="append")
+dl.write_deltalake(path, batch1, mode="append", partition_by=["user"])
 
 # Generate second batch of data
 batch2 = generate_data(start_id=4, num_rows=3, start_time=datetime.now())
 
 # Write second batch to Delta Lake
-dl.write_deltalake(path, batch2, mode="append")
+dl.write_deltalake(path, batch2, mode="append", partition_by=["user"])
 
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
