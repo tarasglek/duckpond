@@ -34,4 +34,4 @@ echo 'select now()' | ./icebase -post /query
 
 ```
 github-to-sops sops exec-env ../credentials/tigris.enc.json "go test -run TestStressTest"
-```
+```ls
