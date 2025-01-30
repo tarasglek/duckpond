@@ -120,9 +120,9 @@ func (l *Log) Export() ([]byte, []byte, string, error) {
 	// Get delta lake events as a single string
 	var dl_events string
 	err = db.QueryRow(`
-         SELECT string_agg(event, $1)
+         SELECT string_agg(event::TEXT, E'\n')
          FROM delta_lake_events
-     `, '\n').Scan(&dl_events)
+     `).Scan(&dl_events)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
 	}
