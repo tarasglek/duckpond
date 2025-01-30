@@ -19,6 +19,8 @@ WITH
           type:=
             CASE data_type
               WHEN 'BIGINT' THEN 'long'
+              WHEN 'VARCHAR' THEN 'string'
+              WHEN 'UUID' THEN 'string'
               WHEN 'VARCHAR[]' THEN 'array<string>'
               ELSE lower(data_type)
             END,

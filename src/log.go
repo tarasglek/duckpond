@@ -180,7 +180,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		if writeErr != nil {
 			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
-		dlJsonPath := filepath.Join(l.tableName, "00000000000000000000.json")
+		dlJsonPath := filepath.Join(l.tableName, "_delta_log/00000000000000000000.json")
 		if writeErr = l.storage.Write(dlJsonPath, dl_events); writeErr != nil {
 			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
@@ -299,7 +299,8 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	parquetPath := filepath.Join(dataDir, uuidOfNewFile+".parquet")
+	fname := uuidOfNewFile + ".parquet"
+	parquetPath := filepath.Join(dataDir, fname)
 
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
@@ -329,7 +330,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
         `, meta.Size(), uuidOfNewFile); err != nil {
 		return uuidOfNewFile, fmt.Errorf("failed to update size: %w", err)
 	}
-	_, err = logDB.Exec(query_insert_table_event_add, parquetPath, meta.Size())
+	_, err = logDB.Exec(query_insert_table_event_add, fname, meta.Size())
 	if err != nil {
 		return "", fmt.Errorf("failed to insert table event: %w", err)
 	}

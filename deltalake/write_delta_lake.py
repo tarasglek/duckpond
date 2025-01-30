@@ -44,7 +44,7 @@ def write_data(data, mode):
         path, 
         data, 
         mode=mode, 
-        partition_by=["user"],
+        # partition_by=["user"],
         storage_options=storage_options
     )
 
