@@ -2,12 +2,13 @@ package main
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
- _ "embed"
+
 	"github.com/google/uuid"
 )
 
@@ -116,15 +117,15 @@ func (l *Log) Export() ([]byte, []byte, string, error) {
         FROM json_data
     `).Scan(&jsonResult)
 
-     // Get delta lake events as a single string
-     var dl_events string
-     err = db.QueryRow(`
+	// Get delta lake events as a single string
+	var dl_events string
+	err = db.QueryRow(`
          SELECT string_agg(event, '\n')
          FROM delta_lake_events
      `).Scan(&dl_events)
-     if err != nil {
-         return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
-     }
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
+	}
 	return []byte(jsonResult), []byte(dl_events), etag, err
 }
 
@@ -164,7 +165,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 	if exported, dl_events, etag, exportErr := l.Export(); exportErr != nil {
 		return fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		writeErr := l.storage.Write(jsonPath, exported, WithIfMatch(etag));
+		writeErr := l.storage.Write(jsonPath, exported, WithIfMatch(etag))
 		if writeErr != nil {
 			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
 		}
@@ -177,11 +178,11 @@ func (l *Log) withPersistedLog(op func() error) error {
 	return nil
 }
 
-//go:embed insert_create_table_event.sql
-var query_insert_create_table_event string
+//go:embed json_from_create_table_event.sql
+var query_json_from_create_table_event string
 
 // Logs a DDL statement to the schema_log table
-func (l *Log) logDDL(rawCreateTable string) error {
+func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 	return l.withPersistedLog(func() error {
 		db, err := l.getLogDB()
 		if err != nil {
@@ -196,10 +197,13 @@ func (l *Log) logDDL(rawCreateTable string) error {
 			return fmt.Errorf("failed to log table creation: %w", err)
 		}
 
-		_, err = db.Exec(query_insert_create_table_event, l.tableName)
+		// first store results of query_json_from_create_table_event into stringOfJson
+		stringOfJson = dataTx.Exec(query_json_from_create_table_event, l.tableName)
 		if err != nil {
 			return fmt.Errorf("failed to log create table into dl: %w", err)
 		}
+		// now insert it into log db
+		db.Exec(`INSERT INTO delta_lake_events ($1::json)`, stringOfJson)
 		return nil
 	})
 }
