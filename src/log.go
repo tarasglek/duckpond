@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
+ _ "embed"
 	"github.com/google/uuid"
 )
 
@@ -72,6 +72,11 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 			tombstoned_unix_time BIGINT NOT NULL DEFAULT 0,
 			size BIGINT NOT NULL DEFAULT 0
 		);
+
+		CREATE TABLE delta_lake_events (
+			event JSON
+		);
+
 	`)
 	if err != nil {
 		logDB.Close()
@@ -83,7 +88,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 }
 
 // Exports log state to a JSON file and returns the current etag
-func (l *Log) Export() ([]byte, string, error) {
+func (l *Log) Export() ([]byte, string, string, error) {
 	db, err := l.getLogDB()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get database: %w", err)
@@ -111,7 +116,8 @@ func (l *Log) Export() ([]byte, string, error) {
         FROM json_data
     `).Scan(&jsonResult)
 
-	return []byte(jsonResult), etag, err
+	dl_events: = `SELECT string_agg(event, '\n') FROM delta_lake_events`
+	return []byte(jsonResult), dl_events, etag, err
 }
 
 // Runs callback that does SQL while properly persisting it via log
@@ -158,6 +164,9 @@ func (l *Log) withPersistedLog(op func() error) error {
 	return nil
 }
 
+//go:embed insert_create_table_event.sql
+var query_insert_create_table_event string
+
 // Logs a DDL statement to the schema_log table
 func (l *Log) logDDL(rawCreateTable string) error {
 	return l.withPersistedLog(func() error {
@@ -172,6 +181,11 @@ func (l *Log) logDDL(rawCreateTable string) error {
         `, rawCreateTable)
 		if err != nil {
 			return fmt.Errorf("failed to log table creation: %w", err)
+		}
+
+		_, err = db.Exec(query_insert_create_table_event, l.tableName)
+		if err != nil {
+			return fmt.Errorf("failed to log create table into dl: %w", err)
 		}
 		return nil
 	})
