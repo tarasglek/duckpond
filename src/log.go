@@ -330,7 +330,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
         `, meta.Size(), uuidOfNewFile); err != nil {
 		return uuidOfNewFile, fmt.Errorf("failed to update size: %w", err)
 	}
-	_, err = logDB.Exec(query_insert_table_event_add, fname, meta.Size())
+	_, err = logDB.Exec(query_insert_table_event_add, filepath.Join("data", fname), meta.Size())
 	if err != nil {
 		return "", fmt.Errorf("failed to insert table event: %w", err)
 	}
