@@ -1,3 +1,4 @@
+#!./.venv/bin/python
 from deltalake import DeltaTable, write_deltalake
 import pandas as pd
 from datetime import datetime, timedelta
@@ -9,8 +10,10 @@ storage_options = {
     "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
     "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
     "AWS_ENDPOINT_URL": os.getenv("S3_ENDPOINT"),
+    'AWS_ALLOW_HTTP': 'true', # this is the magic to allow path-style urls for local dev
+    'aws_conditional_put': 'etag'
 } if os.getenv("AWS_ACCESS_KEY_ID") else None
-
+print(storage_options)
 # Set path based on storage type
 path = f"s3://{os.getenv('S3_BUCKET', '')}/delta_table/" if storage_options else "delta_table/"
 

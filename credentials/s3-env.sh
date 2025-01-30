@@ -3,4 +3,4 @@
  export S3_ENDPOINT=http://localhost:8883
  export S3_BUCKET=icebase  # or your bucket name
  export S3_USE_PATH_STYLE=true
- export AWS_REGION=us-east-1
+ export AWS_REGION=local

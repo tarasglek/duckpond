@@ -103,3 +103,4 @@ Atm .parquet gets uploaded before log
 # See Also
 * https://github.com/kylebarron/parquet-wasm
 * https://www.tigrisdata.com/blog/tigris-vs-s3-cloudfront/
+* https://duckdb.org/docs/guides/sql_features/query_and_query_table_functions.html
