@@ -189,6 +189,7 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 			return fmt.Errorf("failed to get database: %w", err)
 		}
 
+		// Log the DDL statement in schema_log
 		_, err = db.Exec(`
             INSERT INTO schema_log (timestamp, raw_query)
             VALUES (CURRENT_TIMESTAMP, ?);
@@ -197,13 +198,19 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 			return fmt.Errorf("failed to log table creation: %w", err)
 		}
 
-		// first store results of query_json_from_create_table_event into stringOfJson
-		stringOfJson = dataTx.Exec(query_json_from_create_table_event, l.tableName)
+		// Execute the create table event query and get the JSON result
+		var stringOfJson string
+		err = dataTx.QueryRow(query_json_from_create_table_event, l.tableName).Scan(&stringOfJson)
 		if err != nil {
-			return fmt.Errorf("failed to log create table into dl: %w", err)
+			return fmt.Errorf("failed to generate create table event JSON: %w", err)
 		}
-		// now insert it into log db
-		db.Exec(`INSERT INTO delta_lake_events ($1::json)`, stringOfJson)
+
+		// Insert the JSON into delta_lake_events
+		_, err = db.Exec(`INSERT INTO delta_lake_events (event) VALUES ($1::json)`, stringOfJson)
+		if err != nil {
+			return fmt.Errorf("failed to insert create table event into delta lake events: %w", err)
+		}
+
 		return nil
 	})
 }
