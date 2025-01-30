@@ -379,7 +379,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			}
 			if op == OpCreateTable && dblog != nil {
 				// Log schema change to LOG database
-				if handlerErr = dblog.logDDL(query); handlerErr != nil {
+				if handlerErr = dblog.logDDL(dataTx, query); handlerErr != nil {
 					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
 					return
 				}

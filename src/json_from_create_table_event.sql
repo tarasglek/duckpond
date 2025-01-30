@@ -1,7 +1,6 @@
-INSERT INTO delta_lake_events
 WITH 
   -- Get the schema of the table
-  books_schema AS (
+  table_schema AS (
     SELECT 
       column_name,
       data_type,
@@ -27,7 +26,7 @@ WITH
           metadata:= '{}'::json
         ))
       ))::varchar AS schema_string
-    FROM books_schema
+    FROM table_schema
   )
 
 -- Create the final JSON output
@@ -44,5 +43,5 @@ SELECT
       createdTime:=epoch_ms(CURRENT_TIMESTAMP),
       configuration:='{}'::json
     )
-  ) AS event
-FROM json_schema;
+  )::JSON::VARCHAR
+FROM json_schema
