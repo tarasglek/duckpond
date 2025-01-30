@@ -78,6 +78,17 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 			event JSON
 		);
 
+		INSERT INTO delta_lake_events (event)
+		VALUES (struct_pack(
+		protocol:=struct_pack(
+			minReaderVersion:=3,
+			minWriterVersion:=7,
+			readerFeatures:=['timestampNtz'],
+			writerFeatures:=['timestampNtz']
+		)
+		)::json);
+
+
 	`)
 	if err != nil {
 		logDB.Close()
