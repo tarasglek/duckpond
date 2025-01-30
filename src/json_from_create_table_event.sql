@@ -16,6 +16,7 @@ WITH
         type:='struct',
         fields:=array_agg(struct_pack(
           name:=column_name,
+          -- see https://github.com/delta-io/delta/blob/master/PROTOCOL.md#primitive-types
           type:=
             CASE data_type
               WHEN 'BIGINT' THEN 'long'
