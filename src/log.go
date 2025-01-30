@@ -120,9 +120,9 @@ func (l *Log) Export() ([]byte, []byte, string, error) {
 	// Get delta lake events as a single string
 	var dl_events string
 	err = db.QueryRow(`
-         SELECT string_agg(event, '\n')
+         SELECT string_agg(event, $1)
          FROM delta_lake_events
-     `).Scan(&dl_events)
+     `, '\n').Scan(&dl_events)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
 	}
@@ -257,6 +257,9 @@ func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 	})
 }
 
+//go:embed insert_table_event_add.sql
+var query_insert_table_event_add string
+
 // Commits writes from <table> (accessed via dataTx param) to log + parquet files
 // They are then persisted to a parquet file and tracked in the insert_log table
 // TODO:
@@ -314,6 +317,10 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
             WHERE id = ?;
         `, meta.Size(), uuidOfNewFile); err != nil {
 		return uuidOfNewFile, fmt.Errorf("failed to update size: %w", err)
+	}
+	_, err = logDB.Exec(query_insert_table_event_add, parquetPath, meta.Size())
+	if err != nil {
+		return "", fmt.Errorf("failed to insert table event: %w", err)
 	}
 
 	return uuidOfNewFile, nil
