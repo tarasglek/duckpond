@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -183,9 +184,10 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 	}
 
 	var createQuery string
-
 	err = logDB.QueryRow(`
-		select metaData.icebase.createTable::TEXT as text from log_json where metaData is not null;
+		select metaData.icebase.createTable::TEXT as text 
+		from log_json 
+		where metaData is not null;
 	`).Scan(&createQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -195,9 +197,15 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 		return fmt.Errorf("failed to query schema_log: %w", err)
 	}
 
+	// Decode the JSON string
+	var decodedQuery string
+	if err := json.Unmarshal([]byte(createQuery), &decodedQuery); err != nil {
+		return fmt.Errorf("failed to decode create table query: %w", err)
+	}
+
 	// Execute the create table statement
-	if _, err := dataTx.Exec(createQuery); err != nil {
-		return fmt.Errorf("failed to execute schema_log query `%s`: %w", createQuery, err)
+	if _, err := dataTx.Exec(decodedQuery); err != nil {
+		return fmt.Errorf("failed to execute schema_log query `%s`: %w", decodedQuery, err)
 	}
 
 	return nil
