@@ -44,6 +44,9 @@ SELECT
       schemaString:=schema_string,
       partitionColumns:=array[],
       createdTime:=epoch_ms(CURRENT_TIMESTAMP),
+      icebase:= struct_pack(
+        createTable:=$2
+      ),
       configuration:='{}'::json
     )
   )::JSON::VARCHAR

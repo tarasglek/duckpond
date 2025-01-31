@@ -211,7 +211,7 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 
 		// Execute the create table event query and get the JSON result
 		var stringOfJson string
-		err = dataTx.QueryRow(query_json_from_create_table_event, l.tableName).Scan(&stringOfJson)
+		err = dataTx.QueryRow(query_json_from_create_table_event, l.tableName, rawCreateTable).Scan(&stringOfJson)
 		if err != nil {
 			return fmt.Errorf("failed to generate create table event JSON: %w", err)
 		}
