@@ -35,7 +35,6 @@ WITH
 -- Create the final JSON output
 SELECT 
   struct_pack(
-    metaData:=struct_pack(
       id:=uuid(),
       format:=struct_pack(
         provider:='parquet',
@@ -48,6 +47,6 @@ SELECT
         createTable:=$2
       ),
       configuration:='{}'::json
-    )
+    
   )::JSON::VARCHAR
 FROM json_schema

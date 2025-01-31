@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -198,14 +197,14 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 	}
 
 	// Decode the JSON string
-	var decodedQuery string
-	if err := json.Unmarshal([]byte(createQuery), &decodedQuery); err != nil {
-		return fmt.Errorf("failed to decode create table query: %w", err)
-	}
+	// var decodedQuery string
+	// if err := json.Unmarshal([]byte(createQuery), &decodedQuery); err != nil {
+	// return fmt.Errorf("failed to decode create table query: %w", err)
+	// }
 
 	// Execute the create table statement
-	if _, err := dataTx.Exec(decodedQuery); err != nil {
-		return fmt.Errorf("failed to execute schema_log query `%s`: %w", decodedQuery, err)
+	if _, err := dataTx.Exec(createQuery); err != nil {
+		return fmt.Errorf("failed to execute schema_log query `%s`: %w", createQuery, err)
 	}
 
 	return nil
@@ -235,13 +234,9 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	}
 
 	var uuidBytes []byte
-	err = logDB.QueryRow(`
-            INSERT INTO insert_log (id, partition)
-            VALUES (uuidv7(), '')
-            RETURNING id;
-        `).Scan(&uuidBytes)
+	err = logDB.QueryRow(`select uuidv7()`).Scan(&uuidBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to insert into insert_log: %w", err)
+		return "", fmt.Errorf("failed to call uuidv7(): %w", err)
 	}
 
 	uuidOfNewFile := uuid.UUID(uuidBytes).String()
@@ -274,13 +269,6 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return uuidOfNewFile, fmt.Errorf("failed to get file size: %w", copyErr)
 	}
 
-	if _, copyErr = logDB.Exec(`
-            UPDATE insert_log 
-            SET size = ?
-            WHERE id = ?;
-        `, meta.Size(), uuidOfNewFile); err != nil {
-		return uuidOfNewFile, fmt.Errorf("failed to update size: %w", err)
-	}
 	_, err = logDB.Exec(query_insert_table_event_add, filepath.Join("data", fname), meta.Size())
 	if err != nil {
 		return "", fmt.Errorf("failed to insert table event: %w", err)
@@ -411,87 +399,26 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 // passing JSON to keep all logic in DB
 // TODO: pass it in via arrow to reduce overhead
 func (l *Log) Import(tmpFilename string, etag string) error {
-	db, err := l.getLogDB()
+	logdb, err := l.getLogDB()
 	if err != nil {
 		return err
 	}
-
-	// First transaction for deletes
-	deleteTx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	_, err = deleteTx.Exec(`
-        DELETE FROM schema_log;
-        DELETE FROM insert_log;
-    `)
-	if err != nil {
-		if rbErr := deleteTx.Rollback(); rbErr != nil {
-			log.Printf("failed to rollback delete transaction: %v", rbErr)
-		}
-		return fmt.Errorf("failed to delete existing data: %w", err)
-	}
-	if err := deleteTx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit delete transaction: %w", err)
-	}
-
-	// Second transaction for import
-	importTx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := importTx.Rollback(); err != nil {
-			_ = err // ignore rollback errors
-		}
-	}()
 
 	// Set and log etag in one operation
-	_, err = importTx.Exec(fmt.Sprintf("SET VARIABLE log_json_etag = '%s';", strings.ReplaceAll(etag, "'", "''")))
+	_, err = logdb.Exec("SET VARIABLE log_json_etag = $1", etag)
 	log.Printf("Import: setting etag=%v (err=%v)", etag, err)
 	if err != nil {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
 
-	// Create temp json_data table
-	_, err = importTx.Exec(fmt.Sprintf(`
-        CREATE TEMP TABLE log_json AS 
+	_, err = logdb.Exec(fmt.Sprintf(`
+        CREATE OR REPLACE TABLE log_json AS 
         SELECT * FROM read_json('%s', auto_detect=true);
     `, tmpFilename))
 	if err != nil {
 		return fmt.Errorf("failed to create json_data table: %w", err)
 	}
-
-	// Import schema_log using json_data
-	_, err = importTx.Exec(l.generateRestoreSQL("schema_log"))
-	if err != nil {
-		return fmt.Errorf("schema_log import failed: %w", err)
-	}
-
-	// Check if there are any insert_log entries before importing
-	var insertLogLength int
-	err = importTx.QueryRow(`
-        SELECT COALESCE(array_length(insert_log::json[]), 0)
-        FROM log_json;
-    `).Scan(&insertLogLength)
-	if err != nil {
-		return fmt.Errorf("failed to check insert_log length: %w", err)
-	}
-
-	// Only import insert_log if there are entries
-	if insertLogLength > 0 {
-		_, err = importTx.Exec(l.generateRestoreSQL("insert_log"))
-		if err != nil {
-			return fmt.Errorf("insert_log import failed: %w", err)
-		}
-	}
-
-	// Drop the temp table before commit
-	if _, err := importTx.Exec("DROP TABLE log_json;"); err != nil {
-		return fmt.Errorf("failed to drop temp table: %w", err)
-	}
-
-	return importTx.Commit()
+	return nil
 }
 
 func (l *Log) Close() error {
@@ -499,18 +426,6 @@ func (l *Log) Close() error {
 		return l.logDB.Close()
 	}
 	return nil
-}
-
-// generateRestoreSQL creates SQL to restore a table from a JSON field
-// with the same name in the json_data temporary table.
-func (l *Log) generateRestoreSQL(tableName string) string {
-	return fmt.Sprintf(`
-        INSERT INTO %[1]s 
-        SELECT rows.*
-        FROM (
-            SELECT unnest(%[1]s) AS rows 
-            FROM log_json
-        )`, tableName)
 }
 
 func (l *Log) Destroy() error {
