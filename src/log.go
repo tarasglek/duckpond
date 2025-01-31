@@ -62,23 +62,11 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 
 	// Create schema if needed
 	_, err = logDB.Exec(`
-		CREATE TABLE IF NOT EXISTS schema_log (
-			timestamp TIMESTAMP PRIMARY KEY,
-			raw_query TEXT NOT NULL
-		);
-		
-		CREATE TABLE IF NOT EXISTS insert_log (
-			id UUID PRIMARY KEY,
-			partition TEXT NOT NULL DEFAULT '',
-			tombstoned_unix_time BIGINT NOT NULL DEFAULT 0,
-			size BIGINT NOT NULL DEFAULT 0
-		);
-
-		CREATE TABLE delta_lake_events (
+		CREATE TABLE delta_lake_log (
 			event JSON
 		);
 
-		INSERT INTO delta_lake_events (event)
+		INSERT INTO delta_lake_log (event)
 		VALUES (struct_pack(
 		protocol:=struct_pack(
 			minReaderVersion:=3,
@@ -87,8 +75,6 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 			writerFeatures:=['timestampNtz']
 		)
 		)::json);
-
-
 	`)
 	if err != nil {
 		logDB.Close()
@@ -132,7 +118,7 @@ func (l *Log) Export() ([]byte, []byte, string, error) {
 	var dl_events string
 	err = db.QueryRow(`
          SELECT string_agg(event::TEXT, E'\n')
-         FROM delta_lake_events
+         FROM delta_lake_log
      `).Scan(&dl_events)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
@@ -216,8 +202,8 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 			return fmt.Errorf("failed to generate create table event JSON: %w", err)
 		}
 
-		// Insert the JSON into delta_lake_events
-		_, err = db.Exec(`INSERT INTO delta_lake_events (event) VALUES ($1::json)`, stringOfJson)
+		// Insert the JSON into delta_lake_log
+		_, err = db.Exec(`INSERT INTO delta_lake_log (event) VALUES ($1::json)`, stringOfJson)
 		if err != nil {
 			return fmt.Errorf("failed to insert create table event into delta lake events: %w", err)
 		}
