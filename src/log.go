@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:embed delta_lake_init.sql
+var deltaLakeInitSQL string
+
 type Log struct {
 	logDB      *sql.DB
 	tableName  string
@@ -60,25 +63,10 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 		}
 	}
 
-	// Create schema if needed
-	_, err = logDB.Exec(`
-		CREATE TABLE delta_lake_log (
-			event JSON
-		);
-
-		INSERT INTO delta_lake_log (event)
-		VALUES (struct_pack(
-		protocol:=struct_pack(
-			minReaderVersion:=3,
-			minWriterVersion:=7,
-			readerFeatures:=['timestampNtz'],
-			writerFeatures:=['timestampNtz']
-		)
-		)::json);
-	`)
-	if err != nil {
+	// Execute Delta Lake initialization SQL
+	if _, err := logDB.Exec(deltaLakeInitSQL); err != nil {
 		logDB.Close()
-		return nil, fmt.Errorf("failed to create schema_log table: %w", err)
+		return nil, fmt.Errorf("failed to initialize Delta Lake log: %w", err)
 	}
 
 	l.logDB = logDB
