@@ -156,16 +156,9 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 			return fmt.Errorf("failed to get database: %w", err)
 		}
 
-		// Log the DDL statement in schema_log
-		_, err = db.Exec(`
-            INSERT INTO schema_log (timestamp, raw_query)
-            VALUES (CURRENT_TIMESTAMP, ?);
-        `, rawCreateTable)
-		if err != nil {
-			return fmt.Errorf("failed to log table creation: %w", err)
-		}
-
-		// Execute the create table event query and get the JSON result
+		// Execute the fancy query to create delta lake table metadata event
+		// and get the JSON result.
+		// This needs to be on data connection since it's needs access to data table metadata
 		var stringOfJson string
 		err = dataTx.QueryRow(query_json_from_create_table_event, l.tableName, rawCreateTable).Scan(&stringOfJson)
 		if err != nil {
@@ -173,7 +166,7 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 		}
 
 		// Insert the JSON into delta_lake_log
-		_, err = db.Exec(`INSERT INTO delta_lake_log (event) VALUES ($1::json)`, stringOfJson)
+		_, err = db.Exec(`INSERT INTO log_json(metaData) VALUES ($1::json)`, stringOfJson)
 		if err != nil {
 			return fmt.Errorf("failed to insert create table event into delta lake events: %w", err)
 		}
@@ -192,7 +185,7 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 	var createQuery string
 
 	err = logDB.QueryRow(`
-		select metaData.icebase.createTable from log_json where metaData is not null;
+		select metaData.icebase.createTable::TEXT as text from log_json where metaData is not null;
 	`).Scan(&createQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -204,7 +197,7 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 
 	// Execute the create table statement
 	if _, err := dataTx.Exec(createQuery); err != nil {
-		return fmt.Errorf("failed to execute schema_log query: %w", err)
+		return fmt.Errorf("failed to execute schema_log query `%s`: %w", createQuery, err)
 	}
 
 	return nil
