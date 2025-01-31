@@ -1,14 +1,12 @@
-CREATE TABLE delta_lake_log (
-    event JSON
+CREATE TABLE log_json (
+    protocol JSON,metaData JSON
 );
 
 -- Initial protocol version entry
-INSERT INTO delta_lake_log (event)
+INSERT INTO log_json (protocol)
 VALUES (struct_pack(
-    protocol := struct_pack(
         minReaderVersion := 3,
         minWriterVersion := 7,
         readerFeatures := ['timestampNtz'],
         writerFeatures := ['timestampNtz']
-    )
-)::json);
+        )::json);

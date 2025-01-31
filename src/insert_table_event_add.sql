@@ -1,4 +1,4 @@
-INSERT INTO delta_lake_events (event)
+INSERT INTO delta_lake_log (event)
 VALUES (struct_pack(
   add:=struct_pack(
     path:=$1,

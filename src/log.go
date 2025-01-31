@@ -15,6 +15,9 @@ import (
 //go:embed delta_lake_init.sql
 var deltaLakeInitSQL string
 
+//go:embed export_delta_lake_log.sql
+var exportDeltaLakeLogSQL string
+
 type Log struct {
 	logDB      *sql.DB
 	tableName  string
@@ -63,6 +66,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 		}
 	}
 
+	fmt.Println("=====deltaLakeInitSQL", deltaLakeInitSQL)
 	// Execute Delta Lake initialization SQL
 	if _, err := logDB.Exec(deltaLakeInitSQL); err != nil {
 		logDB.Close()
@@ -74,10 +78,10 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 }
 
 // Exports log state to a JSON file and returns the current etag
-func (l *Log) Export() ([]byte, []byte, string, error) {
+func (l *Log) Export() ([]byte, string, error) {
 	db, err := l.getLogDB()
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get database: %w", err)
+		return nil, "", fmt.Errorf("failed to get database: %w", err)
 	}
 
 	// Get and log etag in one operation
@@ -88,41 +92,23 @@ func (l *Log) Export() ([]byte, []byte, string, error) {
 		etag = ""
 	}
 
-	// Get the JSON data (existing query unchanged)
-	var jsonResult string
-	err = db.QueryRow(`
-        WITH json_data AS (
-            SELECT
-                (SELECT ARRAY_AGG(struct_pack(timestamp, raw_query))
-                    FROM schema_log) as schema_log,
-                (SELECT ARRAY_AGG(struct_pack(id, partition, tombstoned_unix_time, size))
-                    FROM insert_log) as insert_log
-        )
-        SELECT to_json(struct_pack(schema_log, insert_log))::VARCHAR
-        FROM json_data
-    `).Scan(&jsonResult)
-
 	// Get delta lake events as a single string
 	var dl_events string
-	err = db.QueryRow(`
-         SELECT string_agg(event::TEXT, E'\n')
-         FROM delta_lake_log
-     `).Scan(&dl_events)
+	err = db.QueryRow(exportDeltaLakeLogSQL).Scan(&dl_events)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
+		return nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
 	}
-	return []byte(jsonResult), []byte(dl_events), etag, err
+	return []byte(dl_events), etag, err
 }
 
 // Runs callback that does SQL while properly persisting it via log
 func (l *Log) withPersistedLog(op func() error) error {
-	const jsonFileName = "log.json"
+	dlJsonPath := filepath.Join(l.tableName, "_delta_log/00000000000000000000.json")
 
 	// Try to read and import existing data through temp file
-	jsonPath := filepath.Join(l.tableName, jsonFileName)
-	if data, fileInfo, err := l.storage.Read(jsonPath); err == nil {
+	if data, fileInfo, err := l.storage.Read(dlJsonPath); err == nil {
 		// Write to temp file
-		tmpFile, err := os.CreateTemp("", "icebase-import-*.json")
+		tmpFile, err := os.CreateTemp("", "dl-log-import-*.jsonl")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
 		}
@@ -137,7 +123,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		tmpFile.Close()
 
 		if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
-			return fmt.Errorf("failed to import %s: %w", jsonPath, importErr)
+			return fmt.Errorf("failed to import %s: %w", dlJsonPath, importErr)
 		}
 	}
 
@@ -147,16 +133,12 @@ func (l *Log) withPersistedLog(op func() error) error {
 	}
 
 	// Export and write new state
-	if exported, dl_events, etag, exportErr := l.Export(); exportErr != nil {
+	if dl_events, etag, exportErr := l.Export(); exportErr != nil {
 		return fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		writeErr := l.storage.Write(jsonPath, exported, WithIfMatch(etag))
+		writeErr := l.storage.Write(dlJsonPath, dl_events, WithIfMatch(etag))
 		if writeErr != nil {
-			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
-		}
-		dlJsonPath := filepath.Join(l.tableName, "_delta_log/00000000000000000000.json")
-		if writeErr = l.storage.Write(dlJsonPath, dl_events); writeErr != nil {
-			return fmt.Errorf("failed to write %s: %w", jsonPath, writeErr)
+			return fmt.Errorf("failed to write %s: %w", dlJsonPath, writeErr)
 		}
 	}
 
@@ -207,28 +189,22 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 		return fmt.Errorf("failed to get log database: %w", err)
 	}
 
-	// Query schema_log for all create table statements
-	rows, err := logDB.Query(`
-		SELECT raw_query 
-		FROM schema_log
-		ORDER BY timestamp ASC
-	`)
+	var createQuery string
+
+	err = logDB.QueryRow(`
+		select metaData.icebase.createTable from log_json where metaData is not null;
+	`).Scan(&createQuery)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			// table hasn't been initialized yet
+			return nil
+		}
 		return fmt.Errorf("failed to query schema_log: %w", err)
 	}
-	defer rows.Close()
 
-	// Execute each create table statement in the transaction
-	for rows.Next() {
-		var createQuery string
-		if err := rows.Scan(&createQuery); err != nil {
-			return fmt.Errorf("failed to scan schema_log row: %w", err)
-		}
-
-		// Execute the create table statement
-		if _, err := dataTx.Exec(createQuery); err != nil {
-			return fmt.Errorf("failed to execute schema_log query: %w", err)
-		}
+	// Execute the create table statement
+	if _, err := dataTx.Exec(createQuery); err != nil {
+		return fmt.Errorf("failed to execute schema_log query: %w", err)
 	}
 
 	return nil
