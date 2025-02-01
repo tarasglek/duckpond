@@ -387,10 +387,10 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		fullname := filepath.Join(l.storageDir, l.tableName, file)
-		fmt.Printf("listing %s\n", fullname)
-		files = append(files, file)
+		fullname := filepath.Join(l.tableName, file)
+		files = append(files, fullname)
 	}
+	log.Printf("listFiles %w: %w\n", filter, files)
 	return files, rows.Err()
 }
 
