@@ -286,75 +286,62 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 //
 // dataTx is the transaction for the main data database operations
 func (l *Log) Merge(table string, dataTx *sql.Tx) error {
-    return l.withPersistedLog(func() error {
-        // Get logDB connection once at the start
-        logDB, err := l.getLogDB()
-        if err != nil {
-            return fmt.Errorf("failed to get database: %w", err)
-        }
+	return l.withPersistedLog(func() error {
+		// Get logDB connection once at the start
+		logDB, err := l.getLogDB()
+		if err != nil {
+			return fmt.Errorf("failed to get database: %w", err)
+		}
 
-        // Phase 1: Delete tombstoned files
-        files, err := l.listFiles(filesMarkedRemove)
-        if err != nil {
-            return fmt.Errorf("failed to list deleted files: %w", err)
-        }
-        // we try to not be transactional here
-        // so delete files before we remove them from the log
-        if len(files) > 0 {
-            deletedFiles := 0
-            // delete tombstoned files
-            for _, file := range files {
-                // Record removal in delta log first
-                _, err = logDB.Exec(query_remove_table_event_add, file, 0) // Size 0 since we're removing
-                if err != nil {
-                    log.Printf("Failed to record removal of file %s: %v", file, err)
-                    continue
-                }
-                
-                // Then delete the physical file
-                if err := l.storage.Delete(file); err != nil {
-                    log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
-                    continue
-                }
-                deletedFiles++
-                log.Printf("Permanently deleted tombstoned file %s", file)
-            }
-            if deletedFiles > 0 {
-                log.Printf("Deleted %d tombstoned files, issue VACUUM again to merge", deletedFiles)
-                return nil
-            }
-        }
+		// Phase 1: Delete tombstoned files
+		files, err := l.listFiles(filesMarkedRemove)
+		if err != nil {
+			return fmt.Errorf("failed to list deleted files: %w", err)
+		}
+		// we try to not be transactional here
+		// so delete files before we remove them from the log
+		if len(files) > 0 {
+			// delete tombstoned files
+			for _, file := range files {
+				// delete the file
+				err := l.storage.Delete(file)
+				if err != nil {
+					log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
+					continue
+				}
+			}
+			log.Printf("Deleted %d files previously marked for deletion, issue VACUUM again to merge", len(files))
+			return nil
+		}
 
-        // Phase 2: Merge active files
-        files, err = l.listFiles(filesLive)
-        if err != nil {
-            return fmt.Errorf("failed to list live files: %w", err)
-        }
-        if len(files) <= 1 {
-            log.Printf("%d live files, nothing to merge", len(files))
-            return nil
-        }
-        newUUID, err := l.CopyToLoggedPaquet(dataTx, table, table)
-        if err != nil {
-            return fmt.Errorf("failed to merge: %w", err)
-        }
+		// Phase 2: Merge active files
+		files, err = l.listFiles(filesLive)
+		if err != nil {
+			return fmt.Errorf("failed to list live files: %w", err)
+		}
+		if len(files) <= 1 {
+			log.Printf("%d live files, nothing to merge", len(files))
+			return nil
+		}
+		_, err = l.CopyToLoggedPaquet(dataTx, table, table)
+		if err != nil {
+			return fmt.Errorf("failed to merge: %w", err)
+		}
+		for _, file := range files {
 
-        // Tombstone old entries (excluding the new UUID we just created)
-        result, err := logDB.Exec(`
-            UPDATE insert_log 
-            SET tombstoned_unix_time = EPOCH_MS(CURRENT_TIMESTAMP) 
-            WHERE tombstoned_unix_time = 0
-            AND id != ?;
-        `, newUUID)
-        if err != nil {
-            return fmt.Errorf("failed to tombstone old entries: %w", err)
-        }
-        if count, err := result.RowsAffected(); err == nil {
-            log.Printf("Tombstoned %d files during merge", count)
-        }
+			// Record removal in delta log first
+			// TODO: return sizes of listed files in listFiles
+			// for now record size as 0 even tho that's wrong
+			_, err = logDB.Exec(query_remove_table_event_add, file, 0)
+			if err != nil {
+				log.Printf("Failed to mark removal of file %s: %v", file, err)
+				continue
+			}
+		}
+		log.Printf("Marked for deletion %d files during merge", len(files))
 
-        return nil
-    })
+		return nil
+	})
 }
 
 type filesFilter int
