@@ -223,6 +223,9 @@ func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 //go:embed insert_table_event_add.sql
 var query_insert_table_event_add string
 
+//go:embed remove_table_event_add.sql
+var query_remove_table_event_add string
+
 // Commits writes from <table> (accessed via dataTx param) to log + parquet files
 // They are then persisted to a parquet file and tracked in the insert_log table
 // TODO:
@@ -295,12 +298,20 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 			deletedFiles := 0
 			// delete tombstoned files
 			for _, file := range files {
+				// Record removal in delta log first
+				_, err = logDB.Exec(query_remove_table_event_add, file, 0) // Size 0 since we're removing
+				if err != nil {
+					log.Printf("Failed to record removal of file %s: %v", file, err)
+					continue
+				}
+				
+				// Then delete the physical file
 				if err := l.storage.Delete(file); err != nil {
 					log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
 					continue
 				}
 				deletedFiles++
-				log.Printf("Permanently deleting tombstoned file %s", file)
+				log.Printf("Permanently deleted tombstoned file %s", file)
 			}
 			if deletedFiles > 0 {
 				log.Printf("Deleted %d tombstoned files, issue VACUUM again to merge", deletedFiles)
