@@ -31,7 +31,7 @@ func NewLog(storageDir, tableName string) *Log {
 		tableName:      tableName,
 		storageDir:     storageDir,
 		storage:        NewStorage(storageDir),
-		delta_log_json: filepath.Join(storageDir, "_delta_log/00000000000000000000.json"),
+		delta_log_json: filepath.Join(tableName, "_delta_log/00000000000000000000.json"),
 	}
 }
 
@@ -247,11 +247,17 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	uuidOfNewFile := uuid.UUID(uuidBytes).String()
 	fname := uuidOfNewFile + ".parquet"
 	parquetPath := filepath.Join("data", fname)
+	parquetPathWithTable := filepath.Join(dstTable, parquetPath)
 
+	// create data directory for parquet files(when on localfs)
+	dataDir := filepath.Join(dstTable, "data")
+	if err := l.storage.CreateDir(dataDir); err != nil {
+		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
+	}
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-			dstTable, l.storage.ToDuckDBWritePath(parquetPath))
+			dstTable, l.storage.ToDuckDBWritePath(parquetPathWithTable))
 
 		_, copyErr = dataTx.Exec(copyQuery)
 		log.Printf("%s err: %v", copyQuery, copyErr)
@@ -264,7 +270,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return "", err
 	}
 
-	meta, copyErr := l.storage.Stat(parquetPath)
+	meta, copyErr := l.storage.Stat(parquetPathWithTable)
 	if copyErr != nil {
 		return uuidOfNewFile, fmt.Errorf("failed to get file size: %w", copyErr)
 	}

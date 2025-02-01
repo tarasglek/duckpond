@@ -491,7 +491,9 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 }
 
 func (fs *FSStorage) CreateDir(path string) error {
-	return os.MkdirAll(fs.fullPath(path), 0755)
+	absPath := fs.fullPath(path)
+	fmt.Printf("CreateDir %s\n", absPath)
+	return os.MkdirAll(absPath, 0755)
 }
 
 func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
