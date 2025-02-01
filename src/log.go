@@ -12,18 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
-//go:embed delta_lake_init.sql
-var deltaLakeInitSQL string
-
-//go:embed export_delta_lake_log.sql
-var exportDeltaLakeLogSQL string
-
 type Log struct {
 	logDB      *sql.DB
 	tableName  string
 	storageDir string
 	storage    Storage
 }
+
+const delta_log_json = "_delta_log/00000000000000000000.json"
+
+//go:embed delta_lake_init.sql
+var deltaLakeInitSQL string
+
+//go:embed export_delta_lake_log.sql
+var exportDeltaLakeLogSQL string
 
 func NewLog(storageDir, tableName string) *Log {
 	return &Log{
@@ -103,7 +105,7 @@ func (l *Log) Export() ([]byte, string, error) {
 
 // Runs callback that does SQL while properly persisting it via log
 func (l *Log) withPersistedLog(op func() error) error {
-	dlJsonPath := filepath.Join(l.tableName, "_delta_log/00000000000000000000.json")
+	dlJsonPath := filepath.Join(l.tableName, delta_log_json)
 
 	// Try to read and import existing data through temp file
 	if data, fileInfo, err := l.storage.Read(dlJsonPath); err == nil {
@@ -390,7 +392,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 		fullname := filepath.Join(l.tableName, file)
 		files = append(files, fullname)
 	}
-	log.Printf("listFiles %w: %w\n", filter, files)
+	log.Printf("listFiles %d: %v\n", filter, files)
 	return files, rows.Err()
 }
 
@@ -472,7 +474,7 @@ func (l *Log) Destroy() error {
 	}
 
 	// Delete JSON log file
-	jsonLogPath := filepath.Join(l.tableName, "log.json")
+	jsonLogPath := filepath.Join(l.tableName, delta_log_json)
 	if err := l.storage.Delete(jsonLogPath); err != nil {
 		return fmt.Errorf("failed to delete log.json: %w", err)
 	}
