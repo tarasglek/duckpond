@@ -13,13 +13,12 @@ import (
 )
 
 type Log struct {
-	logDB      *sql.DB
-	tableName  string
-	storageDir string
-	storage    Storage
+	logDB          *sql.DB
+	tableName      string
+	storageDir     string
+	delta_log_json string
+	storage        Storage
 }
-
-const delta_log_json = "_delta_log/00000000000000000000.json"
 
 //go:embed delta_lake_init.sql
 var deltaLakeInitSQL string
@@ -29,9 +28,10 @@ var exportDeltaLakeLogSQL string
 
 func NewLog(storageDir, tableName string) *Log {
 	return &Log{
-		tableName:  tableName,
-		storageDir: storageDir,
-		storage:    NewStorage(storageDir),
+		tableName:      tableName,
+		storageDir:     storageDir,
+		storage:        NewStorage(storageDir),
+		delta_log_json: filepath.Join(storageDir, "_delta_log/00000000000000000000.json"),
 	}
 }
 
@@ -105,10 +105,10 @@ func (l *Log) Export() ([]byte, string, error) {
 
 // Runs callback that does SQL while properly persisting it via log
 func (l *Log) withPersistedLog(op func() error) error {
-	dlJsonPath := filepath.Join(l.tableName, delta_log_json)
-
-	// Try to read and import existing data through temp file
-	if data, fileInfo, err := l.storage.Read(dlJsonPath); err == nil {
+	// read file from s3/etc via storage iface(with etag)
+	// then pass it (still as a file to duckdb so it can do type inference on it)
+	data, fileInfo, err := l.storage.Read(l.delta_log_json)
+	if err == nil {
 		// Write to temp file
 		tmpFile, err := os.CreateTemp("", "dl-log-import-*.jsonl")
 		if err != nil {
@@ -125,7 +125,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		tmpFile.Close()
 
 		if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
-			return fmt.Errorf("failed to import %s: %w", dlJsonPath, importErr)
+			return fmt.Errorf("failed to import %s: %w", l.delta_log_json, importErr)
 		}
 	}
 
@@ -138,9 +138,9 @@ func (l *Log) withPersistedLog(op func() error) error {
 	if dl_events, etag, exportErr := l.Export(); exportErr != nil {
 		return fmt.Errorf("export failed: %w", exportErr)
 	} else {
-		writeErr := l.storage.Write(dlJsonPath, dl_events, WithIfMatch(etag))
+		writeErr := l.storage.Write(l.delta_log_json, dl_events, WithIfMatch(etag))
 		if writeErr != nil {
-			return fmt.Errorf("failed to write %s: %w", dlJsonPath, writeErr)
+			return fmt.Errorf("failed to write %s: %w", l.delta_log_json, writeErr)
 		}
 	}
 
@@ -245,13 +245,8 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	}
 
 	uuidOfNewFile := uuid.UUID(uuidBytes).String()
-	dataDir := filepath.Join(dstTable, "data")
-	if err := l.storage.CreateDir(dataDir); err != nil {
-		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
-	}
-
 	fname := uuidOfNewFile + ".parquet"
-	parquetPath := filepath.Join(dataDir, fname)
+	parquetPath := filepath.Join("data", fname)
 
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
@@ -274,7 +269,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return uuidOfNewFile, fmt.Errorf("failed to get file size: %w", copyErr)
 	}
 
-	_, err = logDB.Exec(query_insert_table_event_add, filepath.Join("data", fname), meta.Size())
+	_, err = logDB.Exec(query_insert_table_event_add, parquetPath, meta.Size())
 	if err != nil {
 		return "", fmt.Errorf("failed to insert table event: %w", err)
 	}
@@ -388,8 +383,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		fullname := filepath.Join(l.tableName, file)
-		files = append(files, fullname)
+		files = append(files, file)
 	}
 	log.Printf("listFiles %d: %v\n", filter, files)
 	return files, rows.Err()
@@ -415,7 +409,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	// Map files to DuckDB paths
 	paths := make([]string, len(files))
 	for i, file := range files {
-		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(file))
+		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(filepath.Join(l.tableName, file)))
 	}
 	createView := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
 		l.tableName, strings.Join(paths, ", "))
@@ -473,7 +467,7 @@ func (l *Log) Destroy() error {
 	}
 
 	// Delete JSON log file
-	jsonLogPath := filepath.Join(l.tableName, delta_log_json)
+	jsonLogPath := filepath.Join(l.tableName, l.delta_log_json)
 	if err := l.storage.Delete(jsonLogPath); err != nil {
 		return fmt.Errorf("failed to delete log.json: %w", err)
 	}
