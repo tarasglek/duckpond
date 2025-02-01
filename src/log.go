@@ -351,6 +351,9 @@ const (
 	filesDeleted
 )
 
+//go:embed live_files.sql
+var liveFilesSQL string
+
 // Lists parquet files managed by insert_log table
 func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	db, err := l.getLogDB()
@@ -358,7 +361,14 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 		return nil, err
 	}
 
-	rows, err := db.Query("select add.path from log_json where add is not null")
+	var query string
+	if filter == filesLive {
+		query = liveFilesSQL
+	} else {
+		query = "select add.path from log_json where add is not null"
+	}
+
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
