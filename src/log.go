@@ -283,9 +283,9 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 	return l.withPersistedLog(func() error {
 		// Phase 1: Delete tombstoned files
-		files, err := l.listFiles(" WHERE tombstoned_unix_time != 0")
+		files, err := l.listFiles(filesMarkedRemove)
 		if err != nil {
-			return fmt.Errorf("failed to list tombstoned files: %w", err)
+			return fmt.Errorf("failed to list deleted files: %w", err)
 		}
 		// we try to not be transactional here
 		// so delete files before we remove them from the log
@@ -307,7 +307,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		}
 		// Phase 2: Merge active files
 		// first list active files
-		files, err = l.listFiles(" WHERE tombstoned_unix_time = 0")
+		files, err = l.listFiles(filesLive)
 		if err != nil {
 			return fmt.Errorf("failed to list live files: %w", err)
 		}
@@ -348,11 +348,14 @@ type filesFilter int
 const (
 	filesAll filesFilter = iota
 	filesLive
-	filesDeleted
+	filesMarkedRemove
 )
 
-//go:embed live_files.sql
-var liveFilesSQL string
+//go:embed files_list_live.sql
+var sqlFilesListLive string
+
+//go:embed files_list_all.sql
+var sqlFilesListAll string
 
 // Lists parquet files managed by insert_log table
 func (l *Log) listFiles(filter filesFilter) ([]string, error) {
@@ -362,10 +365,13 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	}
 
 	var query string
-	if filter == filesLive {
-		query = liveFilesSQL
-	} else {
-		query = "select add.path from log_json where add is not null"
+	switch filter {
+	case filesLive:
+		query = sqlFilesListLive
+	case filesMarkedRemove:
+		query = `SELECT remove.path AS removed FROM log_json where remove IS NOT NULL`
+	case filesAll:
+		query = sqlFilesListAll
 	}
 
 	rows, err := db.Query(query)
@@ -400,7 +406,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 		// Note we don't drop secret here as the view lifetime persists past this function
 	}
 
-	files, err := l.listFiles("todo !tombstoned")
+	files, err := l.listFiles(filesLive)
 	if err != nil || len(files) == 0 {
 		return fmt.Errorf("no active files: %w", err)
 	}
@@ -452,7 +458,7 @@ func (l *Log) Close() error {
 
 func (l *Log) Destroy() error {
 	// Get all files (including tombstoned ones)
-	files, err := l.listFiles("")
+	files, err := l.listFiles(filesAll)
 	if err != nil {
 		return fmt.Errorf("failed to list files: %w", err)
 	}
