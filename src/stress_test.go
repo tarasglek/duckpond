@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -53,13 +54,14 @@ func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string)
 	expectedCount, err := strconv.Atoi(expected)
 	assert.NoError(t, err, "Invalid expected count format: %s", expected)
 
-	log, exists := ib.logs[tableName]
+	icelog, exists := ib.logs[tableName]
 	if !exists {
 		t.Fatalf("Table %s not found for LIST assertion", tableName)
 	}
 	storagePath := tableName + "/data"
 
-	files, err := log.storage.List(storagePath)
+	files, err := icelog.storage.List(storagePath)
+	log.Printf("assertCountParquet expected=%d files=%v\n", expectedCount, files)
 	assert.NoError(t, err, "Failed to list storage path %s", storagePath)
 	assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", tableName)
 }

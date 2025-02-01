@@ -557,12 +557,10 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("FSStorage.List: Path %q not found, returning empty list", fullPrefix)
 			return []string{}, nil
 		}
-		log.Printf("FSStorage.List: Error walking directory %q: %v", fullPrefix, err)
 	}
-	
+
 	return files, err
 }
 
