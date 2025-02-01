@@ -537,7 +537,7 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 
 	err := filepath.WalkDir(fullPrefix, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			// Return nil to continue walking if directory not found
+			log.Printf("FSStorage.List: Error accessing path %q: %v", path, err)
 			if os.IsNotExist(err) {
 				return nil
 			}
@@ -545,6 +545,7 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 		}
 		relPath, err := filepath.Rel(fs.config.rootDir, path)
 		if err != nil {
+			log.Printf("FSStorage.List: Error converting path %q to relative: %v", path, err)
 			return err
 		}
 		if d.IsDir() || relPath == "." {
@@ -554,9 +555,12 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 		return nil
 	})
 
-	// Convert "not found" errors to empty list with no error
-	if err != nil && os.IsNotExist(err) {
-		return []string{}, nil
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("FSStorage.List: Path %q not found, returning empty list", fullPrefix)
+			return []string{}, nil
+		}
+		log.Printf("FSStorage.List: Error walking directory %q: %v", fullPrefix, err)
 	}
 	
 	return files, err
