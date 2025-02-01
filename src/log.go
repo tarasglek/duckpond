@@ -343,14 +343,22 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 	})
 }
 
+type filesFilter int
+
+const (
+	filesAll filesFilter = iota
+	filesLive
+	filesDeleted
+)
+
 // Lists parquet files managed by insert_log table
-func (l *Log) listFiles(where string) ([]string, error) {
+func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	db, err := l.getLogDB()
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := db.Query("SELECT id FROM insert_log" + where)
+	rows, err := db.Query("select add.path from log_json where add is not null")
 	if err != nil {
 		return nil, err
 	}
@@ -358,11 +366,14 @@ func (l *Log) listFiles(where string) ([]string, error) {
 
 	var files []string
 	for rows.Next() {
-		var id []byte
-		if err := rows.Scan(&id); err != nil {
+		var file string
+		err := rows.Scan(&file)
+		if err != nil {
 			return nil, err
 		}
-		files = append(files, filepath.Join(l.tableName, "data", uuid.UUID(id).String()+".parquet"))
+		fullname := filepath.Join(l.storageDir, l.tableName, file)
+		fmt.Printf("listing %s\n", fullname)
+		files = append(files, file)
 	}
 	return files, rows.Err()
 }
@@ -379,7 +390,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 		// Note we don't drop secret here as the view lifetime persists past this function
 	}
 
-	files, err := l.listFiles(" WHERE tombstoned_unix_time = 0")
+	files, err := l.listFiles("todo !tombstoned")
 	if err != nil || len(files) == 0 {
 		return fmt.Errorf("no active files: %w", err)
 	}
@@ -389,9 +400,10 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	for i, file := range files {
 		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(file))
 	}
-
-	_, err = dataTx.Exec(fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
-		l.tableName, strings.Join(paths, ", ")))
+	createView := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
+		l.tableName, strings.Join(paths, ", "))
+	log.Printf("creatreView: %s", createView)
+	_, err = dataTx.Exec(createView)
 	return err
 }
 
