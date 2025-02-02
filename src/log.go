@@ -312,7 +312,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 			// delete tombstoned files
 			for _, file := range files {
 				// delete the file
-				err := l.storage.Delete(file)
+				err := l.storage.Delete(filepath.Join(l.tableName, file))
 				if err != nil {
 					log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
 					continue

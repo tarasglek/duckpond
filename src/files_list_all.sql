@@ -3,7 +3,7 @@ WITH files AS (
   FROM log_json
 )
 SELECT added AS file_path
-FROM files
+FROM files WHERE added IS NOT NULL
 UNION
 SELECT removed AS file_path
-FROM files
+FROM files WHERE removed IS NOT NULL
