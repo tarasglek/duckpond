@@ -215,7 +215,16 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 // Commits in-memory data table to log and parquet files
 func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 	return l.withPersistedLog(func() error {
-		_, err := l.CopyToLoggedPaquet(dataTx, table, table)
+		logDB, err := l.getLogDB()
+		if err != nil {
+			return fmt.Errorf("failed to open database: %w", err)
+		}
+		newParquet, size, err := l.CopyToLoggedPaquet(dataTx, table, table)
+		_, err = logDB.Exec(query_insert_table_event_add, newParquet, size)
+		if err != nil {
+			return fmt.Errorf("failed to record 'add' event: %w", err)
+		}
+
 		return err
 	})
 }
@@ -232,16 +241,16 @@ var query_remove_table_event_add string
 // - persist log for parquet files we gonna upload first
 // - Then modify reading code to detect missing parquet files and to tombstone them in log
 // - This way we wont end up with orphaned parquet files
-func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string) (string, error) {
+func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string) (string, int64, error) {
 	logDB, err := l.getLogDB()
 	if err != nil {
-		return "", fmt.Errorf("failed to open database: %w", err)
+		return "", 0, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	var uuidBytes []byte
 	err = logDB.QueryRow(`select uuidv7()`).Scan(&uuidBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to call uuidv7(): %w", err)
+		return "", 0, fmt.Errorf("failed to call uuidv7(): %w", err)
 	}
 
 	uuidOfNewFile := uuid.UUID(uuidBytes).String()
@@ -252,7 +261,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	// create data directory for parquet files(when on localfs)
 	dataDir := filepath.Join(dstTable, "data")
 	if err := l.storage.CreateDir(dataDir); err != nil {
-		return uuidOfNewFile, fmt.Errorf("failed to create data directory: %w", err)
+		return uuidOfNewFile, 0, fmt.Errorf("failed to create data directory: %w", err)
 	}
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
@@ -267,21 +276,19 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	meta, copyErr := l.storage.Stat(parquetPathWithTable)
 	if copyErr != nil {
-		return uuidOfNewFile, fmt.Errorf("failed to get file size: %w", copyErr)
+		return uuidOfNewFile, 0, fmt.Errorf("failed to get file size: %w", copyErr)
 	}
 
-	_, err = logDB.Exec(query_insert_table_event_add, parquetPath, meta.Size())
-	if err != nil {
-		return "", fmt.Errorf("failed to insert table event: %w", err)
-	}
-
-	return uuidOfNewFile, nil
+	return parquetPath, meta.Size(), nil
 }
+
+//go:embed merge.sql
+var query_merge string
 
 // Merge combines all active parquet files into a single file and tombstones the old ones
 //
@@ -316,30 +323,15 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		}
 
 		// Phase 2: Merge active files
-		files, err = l.listFiles(filesLive)
-		if err != nil {
-			return fmt.Errorf("failed to list live files: %w", err)
-		}
-		if len(files) <= 1 {
-			log.Printf("%d live files, nothing to merge", len(files))
-			return nil
-		}
-		_, err = l.CopyToLoggedPaquet(dataTx, table, table)
-		if err != nil {
-			return fmt.Errorf("failed to merge: %w", err)
-		}
-		for _, file := range files {
 
-			// Record removal in delta log first
-			// TODO: return sizes of listed files in listFiles
-			// for now record size as 0 even tho that's wrong
-			_, err = logDB.Exec(query_remove_table_event_add, file, 0)
-			if err != nil {
-				log.Printf("Failed to mark removal of file %s: %v", file, err)
-				continue
-			}
+		newParquet, size, err := l.CopyToLoggedPaquet(dataTx, table, table)
+		if err != nil {
+			return fmt.Errorf("failed to create merged parquet: %w", err)
 		}
-		log.Printf("Marked for deletion %d files during merge", len(files))
+		_, err = logDB.Exec(query_merge, newParquet, size)
+		if err != nil {
+			return fmt.Errorf("merge: failed to record 'deleted', 'add': %w", err)
+		}
 
 		return nil
 	})
@@ -371,13 +363,14 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	case filesLive:
 		query = sqlFilesListLive
 	case filesMarkedRemove:
-		query = `SELECT remove.path AS removed FROM log_json where remove IS NOT NULL`
+		query = `SELECT remove.path AS path FROM log_json where remove IS NOT NULL`
 	case filesAll:
 		query = sqlFilesListAll
 	}
 
-	rows, err := db.Query(query)
+	rows, err := db.Query("COPY (select * from duckdb_tables() where table_name = 'log_json') TO '/tmp/foo.json';" + query)
 	if err != nil {
+		log.Printf("listFiles(%d) failed `%s`: %v", filter, query, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -440,10 +433,10 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
 
-	_, err = logdb.Exec(fmt.Sprintf(`
-        CREATE OR REPLACE TABLE log_json AS 
-        SELECT * FROM read_json('%s', auto_detect=true);
-    `, tmpFilename))
+	_, err = logdb.Exec(`
+		DELETE FROM log_json;
+		INSERT INTO log_json (SELECT * FROM read_json($1, auto_detect=true));
+    `, tmpFilename)
 	if err != nil {
 		return fmt.Errorf("failed to create json_data table: %w", err)
 	}
