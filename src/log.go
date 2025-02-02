@@ -232,9 +232,6 @@ func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 //go:embed insert_table_event_add.sql
 var query_insert_table_event_add string
 
-//go:embed remove_table_event_add.sql
-var query_remove_table_event_add string
-
 // Commits writes from <table> (accessed via dataTx param) to log + parquet files
 // They are then persisted to a parquet file and tracked in the insert_log table
 // TODO:
@@ -459,15 +456,14 @@ func (l *Log) Destroy() error {
 
 	// Delete each parquet file
 	for _, file := range files {
-		if err := l.storage.Delete(file); err != nil {
+		if err := l.storage.Delete(filepath.Join(l.tableName, file)); err != nil {
 			// it's ok if files are missing, they might've been deleted during VACUUM
 			log.Printf("failed to delete file %s: %v. Maybe it was deleted during VACUUM?", file, err)
 		}
 	}
 
 	// Delete JSON log file
-	jsonLogPath := filepath.Join(l.tableName, l.delta_log_json)
-	if err := l.storage.Delete(jsonLogPath); err != nil {
+	if err := l.storage.Delete(l.delta_log_json); err != nil {
 		return fmt.Errorf("failed to delete log.json: %w", err)
 	}
 
