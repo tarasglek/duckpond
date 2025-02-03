@@ -218,7 +218,10 @@ func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 			return fmt.Errorf("failed to open database: %w", err)
 		}
 		newParquet, size, err := l.CopyToLoggedPaquet(dataTx, table, table)
-		_, err = logDB.Exec(query_insert_table_event_add, newParquet, size)
+		if err != nil {
+			return fmt.Errorf("failed to copy to parquet: %w", err)
+		}
+		_, err = logDB.Exec(query_insert_table_event_add, newParquet, size, table)
 		if err != nil {
 			return fmt.Errorf("failed to record 'add' event: %w", err)
 		}
