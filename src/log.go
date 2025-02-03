@@ -11,9 +11,9 @@ import (
 )
 
 type CopyToLoggedPaquetResult struct {
-    ParquetPath string
-    Size        int64 
-    DeltaStats  string
+	ParquetPath string
+	Size        int64
+	DeltaStats  string
 }
 
 type Log struct {
@@ -223,11 +223,11 @@ func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 		if err != nil {
 			return fmt.Errorf("failed to open database: %w", err)
 		}
-		result, err := l.CopyToLoggedPaquet(dataTx, table, table)
+		res, err := l.CopyToLoggedPaquet(dataTx, table, table)
 		if err != nil {
 			return fmt.Errorf("failed to copy to parquet: %w", err)
 		}
-		_, err = logDB.Exec(query_insert_table_event_add, result.ParquetPath, result.Size, table)
+		_, err = logDB.Exec(query_insert_table_event_add, res.ParquetPath, res.Size, table, res.DeltaStats)
 		if err != nil {
 			return fmt.Errorf("failed to record 'add' event: %w", err)
 		}
@@ -246,60 +246,60 @@ var query_insert_table_event_add string
 // - Then modify reading code to detect missing parquet files and to tombstone them in log
 // - This way we wont end up with orphaned parquet files
 func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string) (*CopyToLoggedPaquetResult, error) {
-    logDB, err := l.getLogDB()
-    if err != nil {
-        return nil, fmt.Errorf("failed to open database: %w", err)
-    }
+	logDB, err := l.getLogDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
 
-    var uuidOfNewFile string
-    err = logDB.QueryRow(`select uuidv7()::text`).Scan(&uuidOfNewFile)
-    if err != nil {
-        return nil, fmt.Errorf("failed to call uuidv7(): %w", err)
-    }
+	var uuidOfNewFile string
+	err = logDB.QueryRow(`select uuidv7()::text`).Scan(&uuidOfNewFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call uuidv7(): %w", err)
+	}
 
-    fname := uuidOfNewFile + ".parquet"
-    parquetPath := filepath.Join("data", fname)
-    parquetPathWithTable := filepath.Join(dstTable, parquetPath)
+	fname := uuidOfNewFile + ".parquet"
+	parquetPath := filepath.Join("data", fname)
+	parquetPathWithTable := filepath.Join(dstTable, parquetPath)
 
-    // create data directory for parquet files(when on localfs)
-    dataDir := filepath.Join(dstTable, "data")
-    if err := l.storage.CreateDir(dataDir); err != nil {
-        return nil, fmt.Errorf("failed to create data directory: %w", err)
-    }
+	// create data directory for parquet files(when on localfs)
+	dataDir := filepath.Join(dstTable, "data")
+	if err := l.storage.CreateDir(dataDir); err != nil {
+		return nil, fmt.Errorf("failed to create data directory: %w", err)
+	}
 
-    // Get delta stats
-    var stats string
-    err = dataTx.QueryRow("SELECT delta_stats($1)", dstTable).Scan(&stats)
-    if err != nil {
-        return nil, fmt.Errorf("delta_stats(%s) failed: %w", dstTable, err)
-    }
+	// Get delta stats
+	var stats string
+	err = dataTx.QueryRow("SELECT delta_stats($1)", dstTable).Scan(&stats)
+	if err != nil {
+		return nil, fmt.Errorf("delta_stats(%s) failed: %w", dstTable, err)
+	}
 
-    var copyErr error
-    err = l.WithDuckDBSecret(dataTx, func() error {
-        copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
-            dstTable, l.storage.ToDuckDBWritePath(parquetPathWithTable))
+	var copyErr error
+	err = l.WithDuckDBSecret(dataTx, func() error {
+		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
+			dstTable, l.storage.ToDuckDBWritePath(parquetPathWithTable))
 
-        _, copyErr = dataTx.Exec(copyQuery)
-        log.Printf("%s err: %v", copyQuery, copyErr)
-        if copyErr != nil {
-            return fmt.Errorf("failed to copy to parquet: %w", copyErr)
-        }
-        return nil
-    })
-    if err != nil {
-        return nil, err
-    }
+		_, copyErr = dataTx.Exec(copyQuery)
+		log.Printf("%s err: %v", copyQuery, copyErr)
+		if copyErr != nil {
+			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-    meta, copyErr := l.storage.Stat(parquetPathWithTable)
-    if copyErr != nil {
-        return nil, fmt.Errorf("failed to get file size: %w", copyErr)
-    }
+	meta, copyErr := l.storage.Stat(parquetPathWithTable)
+	if copyErr != nil {
+		return nil, fmt.Errorf("failed to get file size: %w", copyErr)
+	}
 
-    return &CopyToLoggedPaquetResult{
-        ParquetPath: parquetPath,
-        Size:        meta.Size(),
-        DeltaStats:  stats,
-    }, nil
+	return &CopyToLoggedPaquetResult{
+		ParquetPath: parquetPath,
+		Size:        meta.Size(),
+		DeltaStats:  stats,
+	}, nil
 }
 
 //go:embed merge.sql

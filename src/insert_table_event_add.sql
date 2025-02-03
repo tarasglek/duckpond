@@ -5,8 +5,6 @@ VALUES (struct_pack(
     partitionValues:='{}'::json,
     size:=$2,
     modificationTime:=epoch_ms(CURRENT_TIMESTAMP),
-    dataChange:=true
-    -- ,
-
-    -- stats:=delta_stats($3)
+    dataChange:=true,
+    "stats":='{}'
   )::json);

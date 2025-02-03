@@ -22,6 +22,7 @@ SELECT
     partitionValues:='{}'::json,
     size:=$2,
     modificationTime:=epoch_ms(CURRENT_TIMESTAMP),
-    dataChange:=true
+    dataChange:=true,
+    "stats":='{}'
   ),
   NULL;
