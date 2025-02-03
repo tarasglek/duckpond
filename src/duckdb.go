@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"log"
 
 	_ "github.com/marcboeker/go-duckdb"
 )
@@ -75,6 +76,7 @@ func ResetMemoryDB(db *sql.DB) error {
 		if err := rows.Scan(&name); err != nil {
 			return fmt.Errorf("failed to scan database name: %w", err)
 		}
+		log.Printf("DETACH " + name)
 		if _, err := db.Exec("DETACH " + name); err != nil {
 			return fmt.Errorf("failed to detach %s: %w", name, err)
 		}
