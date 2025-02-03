@@ -239,7 +239,7 @@ var query_insert_table_event_add string
 // - persist log for parquet files we gonna upload first
 // - Then modify reading code to detect missing parquet files and to tombstone them in log
 // - This way we wont end up with orphaned parquet files
-func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string) (string, int64, error) {
+func (l *Log) CopyToLoggedPaquetq(dataTx *sql.Tx, dstTable string, srcSQL string) (string, int64, error) {
 	logDB, err := l.getLogDB()
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to open database: %w", err)
@@ -265,11 +265,8 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	var stats string
 	err = dataTx.QueryRow("SELECT delta_stats($1)", dstTable).Scan(&stats)
 	if err != nil {
-		log.Printf("delta_stats(%s) failed: %v", dstTable, err)
-	} else {
-		log.Printf("delta_stats(%s) results: %s", dstTable, stats)
+		return "", 0, fmt.Errorf("delta_stats(%s) failed: %w", dstTable, err)
 	}
-
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
