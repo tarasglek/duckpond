@@ -260,6 +260,16 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 	if err := l.storage.CreateDir(dataDir); err != nil {
 		return uuidOfNewFile, 0, fmt.Errorf("failed to create data directory: %w", err)
 	}
+
+	// Call delta_stats and print results
+	var stats string
+	err = dataTx.QueryRow("SELECT delta_stats($1)", dstTable).Scan(&stats)
+	if err != nil {
+		log.Printf("delta_stats(%s) failed: %v", dstTable, err)
+	} else {
+		log.Printf("delta_stats(%s) results: %s", dstTable, stats)
+	}
+
 	var copyErr error
 	err = l.WithDuckDBSecret(dataTx, func() error {
 		copyQuery := fmt.Sprintf(`COPY %s TO '%s' (FORMAT PARQUET);`,
