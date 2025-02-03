@@ -1,3 +1,4 @@
+-- adds parquet files to delta lake log
 INSERT INTO log_json (add)
 VALUES (struct_pack(
     path:=$1,
