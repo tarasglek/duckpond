@@ -343,7 +343,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 		if err != nil {
 			return fmt.Errorf("failed to create merged parquet: %w", err)
 		}
-		_, err = logDB.Exec(query_merge, result.ParquetPath, result.Size)
+		_, err = logDB.Exec(query_merge, result.ParquetPath, result.Size, result.DeltaStats)
 		if err != nil {
 			return fmt.Errorf("merge: failed to record 'deleted', 'add': %w", err)
 		}
