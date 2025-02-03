@@ -6,5 +6,5 @@ VALUES (struct_pack(
     size:=$2,
     modificationTime:=epoch_ms(CURRENT_TIMESTAMP),
     dataChange:=true,
-    "stats":='{}'
+    stats:=$3
   )::json);

@@ -15,7 +15,7 @@ CREATE TABLE log_json(
         size BIGINT,
         modificationTime BIGINT,
         dataChange BOOLEAN,
-        "stats" VARCHAR
+        stats VARCHAR
     ),
     remove STRUCT(
         path VARCHAR,
