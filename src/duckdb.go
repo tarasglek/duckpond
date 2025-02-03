@@ -12,6 +12,9 @@ import (
 //go:embed duckdb-uuidv7/uuidv7.sql
 var uuid_v7_macro string
 
+//go:embed delta_stats.sql
+var delta_stats string
+
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
 	// Open database connection
@@ -30,6 +33,11 @@ func InitializeDuckDB() (*sql.DB, error) {
 	if _, err := db.Exec(uuid_v7_macro); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to load UUIDv7 macro: %w", err)
+	}
+	// Load delta_stats
+	if _, err := db.Exec(delta_stats); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to load delta_stats macro: %w", err)
 	}
 	return db, nil
 }
