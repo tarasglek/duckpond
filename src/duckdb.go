@@ -15,6 +15,19 @@ var uuid_v7_macro string
 //go:embed delta_stats.sql
 var delta_stats string
 
+// loadMacros loads all required DuckDB macros
+func loadMacros(db *sql.DB) error {
+	// Load uuid_v7_macro
+	if _, err := db.Exec(uuid_v7_macro); err != nil {
+		return fmt.Errorf("failed to load UUIDv7 macro: %w", err)
+	}
+	// Load delta_stats
+	if _, err := db.Exec(delta_stats); err != nil {
+		return fmt.Errorf("failed to load delta_stats macro: %w", err)
+	}
+	return nil
+}
+
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
 	// Open database connection
@@ -29,16 +42,12 @@ func InitializeDuckDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to load JSON extension: %w", err)
 	}
 
-	// Load uuid_v7_macro
-	if _, err := db.Exec(uuid_v7_macro); err != nil {
+	// Load all macros
+	if err := loadMacros(db); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to load UUIDv7 macro: %w", err)
+		return nil, err
 	}
-	// Load delta_stats
-	if _, err := db.Exec(delta_stats); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to load delta_stats macro: %w", err)
-	}
+	
 	return db, nil
 }
 
@@ -90,10 +99,9 @@ func ResetMemoryDB(db *sql.DB) error {
 		}
 	}
 
-	// Load uuid_v7_macro
-	if _, err := db.Exec(uuid_v7_macro); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to load UUIDv7 macro: %w", err)
+	// Load all macros
+	if err := loadMacros(db); err != nil {
+		return err
 	}
 
 	return nil
