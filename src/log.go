@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 type Log struct {
@@ -244,13 +242,12 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 		return "", 0, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	var uuidBytes []byte
-	err = logDB.QueryRow(`select uuidv7()`).Scan(&uuidBytes)
+	var uuidOfNewFile string
+	err = logDB.QueryRow(`select uuidv7()::text`).Scan(&uuidOfNewFile)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to call uuidv7(): %w", err)
 	}
 
-	uuidOfNewFile := uuid.UUID(uuidBytes).String()
 	fname := uuidOfNewFile + ".parquet"
 	parquetPath := filepath.Join("data", fname)
 	parquetPathWithTable := filepath.Join(dstTable, parquetPath)

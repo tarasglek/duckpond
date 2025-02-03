@@ -1,5 +1,5 @@
 CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY,
     text VARCHAR NOT NULL,
     usage INTEGER,
     icebase_partition TEXT GENERATED ALWAYS AS (

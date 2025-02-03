@@ -1,5 +1,5 @@
 CREATE TABLE stress_test (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY,
     text VARCHAR NOT NULL,
     usage INTEGER
 ); -- table creation is logged, but no data is written at this point

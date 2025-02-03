@@ -2,8 +2,12 @@ package main
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 )
+
+//go:embed duckdb-uuidv7/uuidv7.sql
+var uuid_v7_macro string
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
@@ -19,18 +23,11 @@ func InitializeDuckDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to load JSON extension: %w", err)
 	}
 
-	// Register UUIDv7 UDF
-	if err := registerUUIDv7UDF(db); err != nil {
+	// Load uuid_v7_macro
+	if _, err := db.Exec(uuid_v7_macro); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to register UUIDv7 UDF: %w", err)
+		return nil, fmt.Errorf("failed to load UUIDv7 macro: %w", err)
 	}
-
-	// Register UUIDv7 time extractor UDF
-	if err := registerUUIDv7TimeUDF(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to register uuid_v7_time UDF: %w", err)
-	}
-
 	return db, nil
 }
 
