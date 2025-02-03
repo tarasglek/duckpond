@@ -1,4 +1,0 @@
-
-[submodule "src/duckdb-uuidv7"]
-	path = src/duckdb-uuidv7
-	url = git@github.com:tarasglek/duckdb-uuidv7.git
