@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+
+	_ "github.com/marcboeker/go-duckdb"
 )
 
 //go:embed duckdb-uuidv7/uuidv7.sql
@@ -76,6 +78,12 @@ func ResetMemoryDB(db *sql.DB) error {
 		if _, err := db.Exec("DETACH " + name); err != nil {
 			return fmt.Errorf("failed to detach %s: %w", name, err)
 		}
+	}
+
+	// Load uuid_v7_macro
+	if _, err := db.Exec(uuid_v7_macro); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to load UUIDv7 macro: %w", err)
 	}
 
 	return nil
