@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -467,7 +465,7 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		// Get client IP from headers or remote address
 		clientIP := r.RemoteAddr
 		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
@@ -476,7 +474,7 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 		} else if real := r.Header.Get("X-Real-IP"); real != "" {
 			clientIP = real
 		}
-		
+
 		defer func() {
 			elapsed := time.Since(startTime)
 			// Log in Apache/Nginx common format:
