@@ -474,7 +474,7 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		if fi.ETag() != cfg.ifMatch {
 			return fmt.Errorf("IfMatch: ETag mismatch (current: %s)", fi.ETag())
 		}
-		log.Printf("FS.Write(ETag=%s) etag as expected in pre-existing file %s)",
+		log.Debug().Msgf("FS.Write(ETag=%s) etag as expected in pre-existing file %s",
 			fi.ETag(), fullPath)
 	}
 
@@ -543,7 +543,7 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 
 	err := filepath.WalkDir(fullPrefix, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("FSStorage.List: Error accessing path %q: %v", path, err)
+			log.Error().Msgf("FSStorage.List: Error accessing path %q: %v", path, err)
 			if os.IsNotExist(err) {
 				return nil
 			}
@@ -551,7 +551,7 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 		}
 		relPath, err := filepath.Rel(fs.config.rootDir, path)
 		if err != nil {
-			log.Printf("FSStorage.List: Error converting path %q to relative: %v", path, err)
+			log.Error().Msgf("FSStorage.List: Error converting path %q to relative: %v", path, err)
 			return err
 		}
 		if d.IsDir() || relPath == "." {

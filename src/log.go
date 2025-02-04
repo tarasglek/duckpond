@@ -487,7 +487,7 @@ func (l *Log) Destroy() error {
 	for _, file := range files {
 		if err := l.storage.Delete(filepath.Join(l.tableName, file)); err != nil {
 			// it's ok if files are missing, they might've been deleted during VACUUM
-			log.Printf("failed to delete file %s: %v. Maybe it was deleted during VACUUM?", file, err)
+			log.Warn().Msgf("failed to delete file %s: %v. Maybe it was deleted during VACUUM?", file, err)
 		}
 	}
 

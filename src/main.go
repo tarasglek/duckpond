@@ -49,12 +49,12 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf(":%d", *port)
-	log.Printf("Starting server on %s", addr)
+	log.Info().Msgf("Starting server on %s", addr)
 	handler := ib.RequestHandler()
 	http.HandleFunc("/query", handler)
 	http.HandleFunc("/parse", handler)
 	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Printf("Error starting server: %v", err)
+		log.Error().Msgf("Error starting server: %v", err)
 		flag.Usage()
 		os.Exit(1)
 	}

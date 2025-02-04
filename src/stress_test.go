@@ -65,7 +65,7 @@ func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string)
 	storagePath := tableName + "/data"
 
 	files, err := icelog.storage.List(storagePath)
-	log.Printf("assertCountParquet expected=%d files=%v\n", expectedCount, files)
+	log.Debug().Msgf("assertCountParquet expected=%d files=%v", expectedCount, files)
 	assert.NoError(t, err, "Failed to list storage path %s", storagePath)
 	assert.Equal(t, expectedCount, len(files), "File count mismatch for %s", tableName)
 }
