@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	InitLogger("info")
+}
+
 const assertCommandPrefix = "-- ASSERT"
 
 // handleAssertActionInComment processes assertion comments in test SQL files.

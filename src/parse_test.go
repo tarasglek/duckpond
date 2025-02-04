@@ -4,6 +4,10 @@ import (
 	"testing"
 )
 
+func init() {
+	InitLogger("info")
+}
+
 func TestParser(t *testing.T) {
 	tests := []struct {
 		query    string
