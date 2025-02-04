@@ -1,8 +1,27 @@
-set -x
-# Update version in src/version.go using the supplied version argument
-sed -i 's/var Version = ".*"/var Version = "'"$1"'"/' src/version.go
-git commit -a -m 'first release'
+#!/bin/bash
+set -ex
+
+# Check for exactly 2 arguments: version and commit message
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <version> <commit message>"
+  exit 1
+fi
+
+VERSION="$1"
+COMMIT_MSG="$2"
+
+# Update version in src/version.go using the supplied version
+sed -i 's/var Version = ".*"/var Version = "'"$VERSION"'"/' src/version.go
+
+# Commit changes with provided commit message
+git commit -a -m "$COMMIT_MSG"
+
+# Push the commit
 git push
-git tag -a v$@ -m "First release" 
-git push origin v$@
+
+# Create a version tag; prefix the version with 'v'
+git tag -a "v$VERSION" -m "$COMMIT_MSG"
+git push origin "v$VERSION"
+
+# Run GoReleaser to create the release
 goreleaser release
