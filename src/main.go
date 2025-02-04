@@ -7,13 +7,22 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
 	querySplitting := flag.Bool("query-splitting", false, "enable semicolon query splitting")
+	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error)")
 	flag.Parse()
+
+	level, err := zerolog.ParseLevel(*logLevel)
+	if err != nil {
+		log.Fatal().Err(err).Msg("invalid log-level")
+	}
+	zerolog.SetGlobalLevel(level)
 
 	opts := []IceBaseOption{}
 	if *querySplitting {
