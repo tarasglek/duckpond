@@ -3,15 +3,17 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type loggingResponseWriter struct {
@@ -307,7 +309,10 @@ func SplitNonEmptyQueries(body string) []string {
 
 func (ib *IceBase) handleQuery(body string) (string, error) {
 	// Concise logging for query splitting and storage dir
-	log.Printf("Query splitting: %v, storageDir: %q", ib.options.enableQuerySplitting, ib.storageDir)
+	log.Info().
+		Bool("query_splitting", ib.options.enableQuerySplitting).
+		Str("storage_dir", ib.storageDir).
+		Msg("Query handling")
 
 	// Get connection to main DATA database (in-memory DuckDB)
 	dataConn := ib.DataDB()
@@ -337,7 +342,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			// Rollback DATA transaction if not committed
 			defer func() {
 				if err := dataTx.Rollback(); err != nil {
-					log.Printf("failed to rollback transaction: %v", err)
+					log.Error().Err(err).Msg("Failed to rollback transaction")
 				}
 			}()
 
@@ -348,7 +353,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			if table != "" {
 				dblog, handlerErr = ib.logByName(table)
 				if handlerErr != nil {
-					log.Printf("Failed to get table log for %q: %v", table, handlerErr)
+					log.Error().Err(handlerErr).Str("table", table).Msg("Failed to get table log")
 					return
 				}
 			}
@@ -357,13 +362,13 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				if op == OpSelect || op == OpVacuum {
 					// Recreate view using LOG database's file list in DATA transaction
 					if handlerErr = dblog.CreateViewOfParquet(dataTx); handlerErr != nil {
-						log.Printf("Failed to RecreateAsView for %q: %v", table, handlerErr)
+						log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate view")
 						return
 					}
 				} else {
 					// Recreate schema from LOG database in DATA transaction
 					if handlerErr = dblog.PlaySchemaLogForward(dataTx); handlerErr != nil {
-						log.Printf("Failed to recreate schema for %q: %v", table, handlerErr)
+						log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate schema")
 						return
 					}
 				}
@@ -394,14 +399,14 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				// Execute query against DATA database
 				response, handlerErr = ib.ExecuteQuery(query, dataTx)
 				if handlerErr != nil {
-					log.Printf("Query execution failed: %v\nQuery: %q", handlerErr, query)
+					log.Error().Err(handlerErr).Str("query", query).Msg("Query execution failed")
 					return
 				}
 			}
 			if op == OpCreateTable && dblog != nil {
 				// Log schema change to LOG database
 				if handlerErr = dblog.logDDL(dataTx, query); handlerErr != nil {
-					log.Printf("Failed to log table creation to LOG DB for %q: %v", table, handlerErr)
+					log.Error().Err(handlerErr).Str("table", table).Msg("Failed to log table creation")
 					return
 				}
 			}
@@ -409,7 +414,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			if op == OpInsert && dblog != nil {
 				// Log insert to LOG database while executing in DATA transaction
 				if handlerErr = dblog.Insert(dataTx, table); handlerErr != nil {
-					log.Printf("Failed to log insert to LOG DB for %q: %v", table, handlerErr)
+					log.Error().Err(handlerErr).Str("table", table).Msg("Failed to log insert")
 					return
 				}
 			}
@@ -423,7 +428,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		log.Printf("Failed to marshal JSON response: %v", err)
+		log.Error().Err(err).Msg("Failed to marshal JSON response")
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 	return string(jsonData), nil
@@ -476,18 +481,17 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 			elapsed := time.Since(startTime)
 			// Log in Apache/Nginx common format:
 			// <remote_addr> - - [<date>] "<method> <uri> <proto>" <status> <bytes> "<referer>" "<user-agent>" <elapsed>
-			log.Printf("%s - - [%s] \"%s %s %s\" %d %d \"%s\" \"%s\" %v",
-				clientIP,
-				time.Now().Format("02/Jan/2006:15:04:05 -0700"),
-				r.Method,
-				r.RequestURI,
-				r.Proto,
-				lrw.statusCode,
-				lrw.bytesWritten,
-				r.Referer(),
-				r.UserAgent(),
-				elapsed,
-			)
+			log.Info().
+				Str("client_ip", clientIP).
+				Str("method", r.Method).
+				Str("uri", r.RequestURI).
+				Str("proto", r.Proto).
+				Int("status", lrw.statusCode).
+				Int("bytes", lrw.bytesWritten).
+				Str("referer", r.Referer()).
+				Str("user_agent", r.UserAgent()).
+				Dur("elapsed", elapsed).
+				Msg("Request completed")
 		}()
 
 		// Set CORS headers
@@ -530,7 +534,7 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 
 		lrw.Header().Set("Content-Type", "application/json")
 		if _, err := lrw.Write([]byte(jsonResponse)); err != nil {
-			log.Printf("failed to write response: %v", err)
+			log.Error().Err(err).Msg("Failed to write response")
 			http.Error(lrw, "Internal server error", http.StatusInternalServerError)
 		}
 	}
