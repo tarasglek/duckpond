@@ -177,7 +177,7 @@ func (ib *IceBase) DataDB() *sql.DB {
 func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 	// Set defaults
 	options := IceBaseOptions{
-		storageDir: "icebase_tables",
+		storageDir: "duckpond_tables",
 	}
 
 	// Apply options

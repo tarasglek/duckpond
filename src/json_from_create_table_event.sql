@@ -43,7 +43,7 @@ SELECT
       schemaString:=schema_string,
       partitionColumns:=array[],
       createdTime:=epoch_ms(CURRENT_TIMESTAMP),
-      icebase:= struct_pack(
+      duckpond:= struct_pack(
         createTable:=$2
       ),
       configuration:='{}'::json

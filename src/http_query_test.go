@@ -102,11 +102,11 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 	// Reset the response body for JSON decoding
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	icebaseResp, err := ib.PostEndpoint("/query", string(query_bytes))
+	duckpondResp, err := ib.PostEndpoint("/query", string(query_bytes))
 	assert.NoError(t, err, "IceBase request failed")
 	// Test against IceBase
-	var icebaseJSON map[string]interface{}
-	assert.NoError(t, json.Unmarshal([]byte(icebaseResp), &icebaseJSON),
+	var duckpondJSON map[string]interface{}
+	assert.NoError(t, json.Unmarshal([]byte(duckpondResp), &duckpondJSON),
 		"Failed to parse IceBase response")
 
 	// Read expected result
@@ -135,7 +135,7 @@ func testQuery(t *testing.T, ib *IceBase, queryFile string) {
 
 	assert.Equal(t,
 		processAndCompare(t, expectedJSON, expectedJSON),
-		processAndCompare(t, icebaseJSON, expectedJSON),
+		processAndCompare(t, duckpondJSON, expectedJSON),
 		fmt.Sprintf("IceBase response mismatch for %s", expectedPath))
 }
 

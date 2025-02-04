@@ -28,7 +28,7 @@ curl -X POST  --data-binary @query_test/query_uuid.sql  http://localhost:8881/qu
 We have a special cli flag to short-circuit this for testing:
 
 ```bash
-echo 'select now()' | ./icebase -post /query
+echo 'select now()' | ./duckpond -post /query
 ```
 
 
