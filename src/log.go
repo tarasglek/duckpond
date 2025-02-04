@@ -291,8 +291,8 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 			dstTable, l.storage.ToDuckDBWritePath(parquetPathWithTable))
 
 		_, copyErr = dataTx.Exec(copyQuery)
-		log.Error().Msgf("%s err: %v", copyQuery, copyErr)
 		if copyErr != nil {
+			log.Error().Msgf("%s err: %v", copyQuery, copyErr)
 			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
 		}
 		return nil
@@ -344,7 +344,7 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 					continue
 				}
 			}
-			log.Info().Msgf("Deleted %d files previously marked for deletion, issue VACUUM again to merge", len(files))
+			log.Info().Msgf("VACUUM: Deleted %d files previously marked for deletion, issue VACUUM again to merge remaining files", len(files))
 			return nil
 		}
 

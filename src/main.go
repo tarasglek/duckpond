@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/mattn/go-isatty"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
