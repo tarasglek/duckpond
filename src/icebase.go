@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -50,6 +51,7 @@ type IceBase struct {
 	logs       map[string]*Log
 	options    IceBaseOptions
 	storageDir string
+	authToken  string
 }
 
 func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, error) {
@@ -166,11 +168,13 @@ func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 		opt(&options)
 	}
 
+	authToken := os.Getenv("BEARER_TOKEN")
 	return &IceBase{
 		parser:     NewParser(),
 		logs:       make(map[string]*Log),
 		options:    options,
 		storageDir: options.storageDir,
+		authToken:  authToken,
 	}, nil
 }
 
@@ -443,6 +447,16 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		// If BEARER_TOKEN is set, enforce auth checking
+		if ib.authToken != "" {
+			authHeader := r.Header.Get("Authorization")
+			expectedHeader := "Bearer " + ib.authToken
+			if authHeader != expectedHeader {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
 
 		// Handle preflight requests
 		if r.Method == http.MethodOptions {
