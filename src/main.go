@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/mattn/go-isatty"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -27,6 +28,14 @@ func main() {
 		log.Fatal().Err(err).Msg("invalid log-level")
 	}
 	zerolog.SetGlobalLevel(level)
+
+	if isatty.IsTerminal(os.Stderr.Fd()) {
+		cw := zerolog.ConsoleWriter{
+			Out:        os.Stderr,
+			TimeFormat: "15:04:05",
+		}
+		log.Logger = log.Output(cw)
+	}
 
 	opts := []IceBaseOption{}
 	if *querySplitting {
