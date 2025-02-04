@@ -15,8 +15,12 @@ func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
 	querySplitting := flag.Bool("query-splitting", false, "enable semicolon query splitting")
-	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error)")
+	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
 	flag.Parse()
+
+	if envLog := os.Getenv("LOG_LEVEL"); envLog != "" {
+		*logLevel = envLog
+	}
 
 	level, err := zerolog.ParseLevel(*logLevel)
 	if err != nil {
