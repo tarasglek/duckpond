@@ -17,6 +17,8 @@ jobs:
           # Exclude unsupported combinations
           - os: windows
             arch: arm64
+          - os: linux
+            arch: arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
