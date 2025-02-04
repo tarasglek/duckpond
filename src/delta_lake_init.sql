@@ -1,3 +1,4 @@
+PRAGMA enable_object_cache; -- cache metadata in memory
 CREATE TABLE log_json(
     protocol JSON,
     metaData STRUCT(

@@ -36,7 +36,7 @@ func NewLog(storageDir, tableName string) *Log {
 	ttlSeconds := 0
 	if ttlStr := os.Getenv("TTL_SECONDS"); ttlStr != "" {
 		if parsed, err := strconv.Atoi(ttlStr); err == nil {
-			ttlSeconds = parsed
+			ttlSeconds = max(parsed, 0)
 		}
 	}
 
@@ -388,7 +388,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	case filesLive:
 		query = sqlFilesListLive
 	case filesMarkedRemove:
-		query = fmt.Sprintf(`SELECT remove.path AS path FROM log_json WHERE remove IS NOT NULL AND deletionTimestamp < (NOW() - interval '%d seconds')`, l.ttl_seconds)
+		query = fmt.Sprintf(`SELECT remove.path AS path FROM log_json WHERE remove.deletionTimestamp <= (epoch_ms(CURRENT_TIMESTAMP) - %d * 1000)`, l.ttl_seconds)
 	case filesAll:
 		query = sqlFilesListAll
 	}
