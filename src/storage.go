@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/rs/zerolog/log"
 )
 
 // bytesToETag generates an MD5-based ETag from byte data
@@ -123,7 +123,6 @@ func NewFSStorage(config *FSConfig) Storage {
 type S3Storage struct {
 	client *s3.Client
 	config *S3Config
-	logger *log.Logger
 }
 
 func NewS3Storage(config *S3Config) Storage {
@@ -140,7 +139,6 @@ func NewS3Storage(config *S3Config) Storage {
 			}
 		}),
 		config: config,
-		logger: log.New(os.Stdout, "[S3Storage] ", log.LstdFlags|log.Lshortfile),
 	}
 }
 
@@ -152,7 +150,7 @@ func (s *S3Storage) List(prefix string) ([]string, error) {
 	fullPrefix := s.fullKey(prefix)
 	var objects []string
 
-	s.logger.Printf("Listing objects in bucket=%s prefix=%s", s.config.Bucket, fullPrefix)
+	log.Debug().Msgf("Listing objects in bucket=%s prefix=%s", s.config.Bucket, fullPrefix)
 
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.config.Bucket),
@@ -191,10 +189,10 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 			status = fmt.Sprintf("error: %v", err)
 		}
 		if fileInfo != nil {
-			s.logger.Printf("S3 Read operation: bucket=%s key=%s size=%d etag=%s mod_time=%s status=%s",
+			log.Debug().Msgf("S3 Read operation: bucket=%s key=%s size=%d etag=%s mod_time=%s status=%s",
 				s.config.Bucket, fullKey, fileInfo.size, fileInfo.etag, fileInfo.modTime.Format(time.RFC3339), status)
 		} else {
-			s.logger.Printf("S3 Read operation: bucket=%s key=%s status=%s",
+			log.Debug().Msgf("S3 Read operation: bucket=%s key=%s status=%s",
 				s.config.Bucket, fullKey, status)
 		}
 	}()
@@ -238,7 +236,7 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	var etag string
 	defer func() {
 		etagClean := strings.Trim(etag, `"`)
-		s.logger.Printf("Writing object to S3: bucket=%s key=%s size=%d etag=%s cfg=%+v",
+		log.Info().Msgf("Writing object to S3: bucket=%s key=%s size=%d etag=%s cfg=%+v",
 			s.config.Bucket, fullKey, len(data), etagClean, cfg)
 	}()
 
