@@ -6,7 +6,7 @@ on:
 
 jobs:
   env:
-    APP_NAME: duckponddb
+    APP_NAME: duckpond
   build:
     uses: ./.github/workflows/build.yml
 

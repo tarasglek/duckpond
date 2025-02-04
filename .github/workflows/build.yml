@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     env:
-      APP_NAME: duckponddb
+      APP_NAME: duckpond
     runs-on: ubuntu-latest
     permissions:
       contents: read
