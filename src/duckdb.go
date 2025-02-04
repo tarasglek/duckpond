@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"log"
 
+	"github.com/rs/zerolog/log"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
