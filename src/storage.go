@@ -326,14 +326,14 @@ func (s *S3Storage) Delete(path string) error {
 
 func (s *S3Storage) ToDuckDBWritePath(path string) string {
 	ret := "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
-	fmt.Printf("ToDuckDBWritePath: %s\n", ret)
+	log.Debug().Msgf("ToDuckDBWritePath: %s", ret)
 	return ret
 }
 
 func (s *S3Storage) ToDuckDBReadPath(path string) string {
 	if s.config.PublicURLPrefix != "" {
 		ret := s.config.PublicURLPrefix + "/" + filepath.Join(s.config.rootDir, path)
-		fmt.Printf("ToDuckDBReadPath: %s\n", ret)
+		log.Debug().Msgf("ToDuckDBReadPath: %s", ret)
 		return ret
 	}
 	return s.ToDuckDBWritePath(path)
@@ -492,7 +492,7 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 
 func (fs *FSStorage) CreateDir(path string) error {
 	absPath := fs.fullPath(path)
-	fmt.Printf("CreateDir %s\n", absPath)
+	log.Debug().Msgf("CreateDir %s", absPath)
 	return os.MkdirAll(absPath, 0755)
 }
 
