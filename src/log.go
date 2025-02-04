@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 type CopyToLoggedPaquetResult struct {
@@ -103,7 +104,7 @@ func (l *Log) Export() ([]byte, string, error) {
 	// Get and log etag in one operation
 	var etag string
 	err = db.QueryRow("SELECT COALESCE(getvariable('log_json_etag'), '')").Scan(&etag)
-	log.Printf("Export: etag=%v (err=%v)", etag, err)
+	log.Debug().Msgf("Export: etag=%v (err=%v)", etag, err)
 	if err != nil {
 		etag = ""
 	}
@@ -290,7 +291,7 @@ func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string)
 			dstTable, l.storage.ToDuckDBWritePath(parquetPathWithTable))
 
 		_, copyErr = dataTx.Exec(copyQuery)
-		log.Printf("%s err: %v", copyQuery, copyErr)
+		log.Error().Msgf("%s err: %v", copyQuery, copyErr)
 		if copyErr != nil {
 			return fmt.Errorf("failed to copy to parquet: %w", copyErr)
 		}
@@ -339,11 +340,11 @@ func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 				// delete the file
 				err := l.storage.Delete(filepath.Join(l.tableName, file))
 				if err != nil {
-					log.Printf("Failed to delete tombstoned file %s: %v. Maybe it was deleted on prior attempt?", file, err)
+					log.Warn().Msgf("Failed to delete tombstoned file %s: %v. Possibly already deleted?", file, err)
 					continue
 				}
 			}
-			log.Printf("Deleted %d files previously marked for deletion, issue VACUUM again to merge", len(files))
+			log.Info().Msgf("Deleted %d files previously marked for deletion, issue VACUUM again to merge", len(files))
 			return nil
 		}
 
@@ -437,7 +438,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	}
 	createView := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
 		l.tableName, strings.Join(paths, ", "))
-	log.Printf("creatreView: %s", createView)
+	log.Debug().Msgf("createView: %s", createView)
 	_, err = dataTx.Exec(createView)
 	return err
 }
@@ -453,7 +454,7 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 
 	// Set and log etag in one operation
 	_, err = logdb.Exec("SET VARIABLE log_json_etag = $1", etag)
-	log.Printf("Import: setting etag=%v (err=%v)", etag, err)
+	log.Debug().Msgf("Import: setting etag=%v (err=%v)", etag, err)
 	if err != nil {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
