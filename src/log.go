@@ -388,7 +388,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 	case filesLive:
 		query = sqlFilesListLive
 	case filesMarkedRemove:
-		query = `SELECT remove.path AS path FROM log_json where remove IS NOT NULL`
+		query = fmt.Sprintf(`SELECT remove.path AS path FROM log_json WHERE remove IS NOT NULL AND deletionTimestamp < (NOW() - interval '%d seconds')`, l.ttl_seconds)
 	case filesAll:
 		query = sqlFilesListAll
 	}
