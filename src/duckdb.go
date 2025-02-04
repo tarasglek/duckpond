@@ -5,8 +5,8 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/rs/zerolog/log"
 	_ "github.com/marcboeker/go-duckdb"
+	"github.com/rs/zerolog/log"
 )
 
 //go:embed duckdb-uuidv7/uuidv7.sql
@@ -47,7 +47,7 @@ func InitializeDuckDB() (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	
+
 	return db, nil
 }
 
