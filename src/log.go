@@ -83,7 +83,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 		}
 	}
 
-	fmt.Println("=====deltaLakeInitSQL", deltaLakeInitSQL)
+	log.Debug().Msgf("deltaLakeInitSQL: %s", deltaLakeInitSQL)
 	// Execute Delta Lake initialization SQL
 	if _, err := logDB.Exec(deltaLakeInitSQL); err != nil {
 		logDB.Close()
@@ -396,7 +396,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 
 	rows, err := db.Query("COPY (select * from duckdb_tables() where table_name = 'log_json') TO '/tmp/foo.json';" + query)
 	if err != nil {
-		log.Printf("listFiles(%d) failed `%s`: %v", filter, query, err)
+		log.Error().Msgf("listFiles(%d) failed `%s`: %v", filter, query, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -410,7 +410,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 		}
 		files = append(files, file)
 	}
-	log.Printf("listFiles %d: %v\n", filter, files)
+	log.Debug().Msgf("listFiles %d: %v", filter, files)
 	return files, rows.Err()
 }
 
