@@ -9,6 +9,8 @@ on:
 
 jobs:
   build:
+    env:
+      APP_NAME: myapp
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,7 +38,7 @@ jobs:
         working-directory: src
         run: |
           mkdir -p ../build
-          env CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o ../build/myapp-${{ matrix.os }}-${{ matrix.arch }} .
+          env CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o ../build/${{ env.APP_NAME }}-${{ matrix.os }}-${{ matrix.arch }} .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
