@@ -11,7 +11,7 @@ VERSION="$1"
 COMMIT_MSG="$2"
 
 # Update version in src/version.go using the supplied version
-sed -i 's/var Version = ".*"/var Version = "'"$VERSION"'"/' src/version.go 
+sed -i 's/var Version = ".*"/var Version = "'"$VERSION"'"/' src/version.go || { echo "Error: failed to update src/version.go" >&2; exit 1; }
 
 # Commit changes with provided commit message
 git commit -a -m "$COMMIT_MSG"
