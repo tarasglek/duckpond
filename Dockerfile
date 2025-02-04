@@ -2,6 +2,10 @@ FROM golang:1.23-bookworm AS build
 
 WORKDIR /src
 
+COPY ./src/go.mod /src/go.mod
+COPY ./src/go.sum /src/go.sum
+RUN go mod download
+
 COPY ./src /src
 
 RUN set -xe; \
