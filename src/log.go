@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,7 @@ type Log struct {
 	storageDir     string
 	delta_log_json string
 	storage        Storage
+	ttl_seconds    int // TTL in seconds (default 0)
 }
 
 //go:embed delta_lake_init.sql
@@ -31,11 +33,19 @@ var deltaLakeInitSQL string
 var exportDeltaLakeLogSQL string
 
 func NewLog(storageDir, tableName string) *Log {
+	ttlSeconds := 0
+	if ttlStr := os.Getenv("TTL_SECONDS"); ttlStr != "" {
+		if parsed, err := strconv.Atoi(ttlStr); err == nil {
+			ttlSeconds = parsed
+		}
+	}
+
 	return &Log{
 		tableName:      tableName,
 		storageDir:     storageDir,
 		storage:        NewStorage(storageDir),
 		delta_log_json: filepath.Join(tableName, "_delta_log/00000000000000000000.json"),
+		ttl_seconds:    ttlSeconds,
 	}
 }
 
