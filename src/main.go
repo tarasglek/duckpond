@@ -31,7 +31,7 @@ func main() {
 
 	ib, err := NewIceBase(opts...)
 	if err != nil {
-		log.Fatalf("Failed to initialize IceBase: %v", err)
+		log.Fatal().Msgf("Failed to initialize IceBase: %v", err)
 	}
 	defer ib.Close()
 
@@ -39,12 +39,12 @@ func main() {
 	if *postEndpoint != "" {
 		input, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			log.Fatalf("Failed to read stdin: %v", err)
+			log.Fatal().Msgf("Failed to read stdin: %v", err)
 		}
 
 		jsonResponse, err := ib.PostEndpoint(*postEndpoint, string(input))
 		if err != nil {
-			log.Fatalf("POST request failed: %v", err)
+			log.Fatal().Msgf("POST request failed: %v", err)
 		}
 
 		fmt.Println(jsonResponse)
