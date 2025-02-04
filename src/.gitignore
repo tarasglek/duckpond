@@ -1,2 +1,4 @@
 duckpond
 testdata/
+# Added by goreleaser init:
+dist/
