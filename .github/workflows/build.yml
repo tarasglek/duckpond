@@ -1,0 +1,38 @@
+name: Cross-platform Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+        exclude:
+          # Exclude unsupported combinations
+          - os: windows
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build binary for ${{ matrix.os }}-${{ matrix.arch }}
+        run: |
+          mkdir -p build
+          env GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o build/myapp-${{ matrix.os }}-${{ matrix.arch }} .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: build/
