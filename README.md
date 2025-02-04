@@ -1,4 +1,4 @@
-# Serverless DB based on duckdb + S3
+# duckpond: Serverless DB based on duckdb + S3
 
 ## Edge functionality
 
@@ -6,7 +6,12 @@ We find the current idea of "edge" functions rather incomplete as most apps need
 
 There are apparently global databases like https://cloud.google.com/spanner but they are eye-wateringly complex+expensive. One can also setup a traditional database like postgres with a global read replica, but that's still expensive and complicated.
 
-duckpond is meant to to serve the typical infrequent write + cheap select() reads usecase. This should cover needs of 90% serverless functions.
+duckpond is meant to be the database equivalent of a static blog. Your database state is all on S3-compatible storage, there are no backups, no read-scalability issues to worry about it's globally distributed via CDN.
+
+Data is written in a log-structured way which lends itself nicely to caching via CDN.
+
+
+ This should cover needs of 90% serverless functions.
 - Data is stored as parquet on S3 with a single index file
 - Users are expected to query tables via primary key only. (Can be loosened in future)
 - Primary key is [uuiv7](https://uuid7.com/)
