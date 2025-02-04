@@ -6,7 +6,7 @@ We find the current idea of "edge" functions rather incomplete as most apps need
 
 There are apparently global databases like https://cloud.google.com/spanner but they are eye-wateringly complex+expensive. One can also setup a traditional database like postgres with a global read replica, but that's still expensive and complicated.
 
-icebase is meant to to serve the typical infrequent write + cheap select() reads usecase. This should cover needs of 90% serverless functions.
+duckpond is meant to to serve the typical infrequent write + cheap select() reads usecase. This should cover needs of 90% serverless functions.
 - Data is stored as parquet on S3 with a single index file
 - Users are expected to query tables via primary key only. (Can be loosened in future)
 - Primary key is [uuiv7](https://uuid7.com/)
@@ -16,14 +16,14 @@ icebase is meant to to serve the typical infrequent write + cheap select() reads
   1) Look up cached data and return it (without closing the connection)
   2) Look up distant-up-to-date data to provide any corrections. This way an app can show query results right away and in unlikely event that data changed, replace it with corrected
 
-duckdb is the SQL engine doing all the smart stuff. icebase is basically an executable recipe for duckdb on how to organize data in S3. I suspect icebase should become a duckdb extension.
+duckdb is the SQL engine doing all the smart stuff. duckpond is basically an executable recipe for duckdb on how to organize data in S3. I suspect duckpond should become a duckdb extension.
 
 Parquet is a legacy format that's not well-optimized for local lookups, but it's ubiquitously supported and can be replaced later.
 
 Backends:
 * Supposedly R2 public buckets https://developers.cloudflare.com/r2/buckets/public-buckets/ get one a free CDN
 * Tigris is another interesting option https://www.tigrisdata.com/docs/objects/caching/
-* Any cdn should work as icebase is just a bunch of files.
+* Any cdn should work as duckpond is just a bunch of files.
 
 ## Protocol
 
@@ -36,7 +36,7 @@ curl -X POST -d "SELECT now() AS current_time" http://localhost:8081/query
 
 ### cli -post flag
 ```bash
-echo 'select now()' | ./icebase -post /query
+echo 'select now()' | ./duckpond -post /query
 ```
 
 ## Serverless
@@ -47,11 +47,11 @@ We don't like to manage infra. Initially plan to deploy on https://unikraft.clou
 
 It cleverly uses timestamped json log files to index parquet files, merge them, delete them and crutially to provide time-travel "snapshots"
 
-icebase diverges in following ways from icedb principles:
+duckpond diverges in following ways from icedb principles:
 - Interface is entirely via an HTTP API using standard duckdb select, insert, create table statements. This is enabled by duckdb [json_serialize_sql](https://duckdb.org/docs/data/json/sql_to_and_from_json.html).
 - No python/go/js exposed, everything via duckdb primitives
 - No S3 list operations, instead the plan is to use a single log file that keeps getting replaced(or appended to if using newer s3 features)
-- icedb requires separate configuration for every table, icebase has a single global configuration and tracks `create table` params internally
+- icedb requires separate configuration for every table, duckpond has a single global configuration and tracks `create table` params internally
 - cheap writes: The most simple write is an upload of a parquet file + log update
 
 ### Transactional updates for log
