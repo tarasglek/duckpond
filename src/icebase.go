@@ -463,12 +463,21 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 		startTime := time.Now()
 		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		
+		// Get client IP from headers or remote address
+		clientIP := r.RemoteAddr
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			ips := strings.Split(forwarded, ",")
+			clientIP = strings.TrimSpace(ips[0])
+		} else if real := r.Header.Get("X-Real-IP"); real != "" {
+			clientIP = real
+		}
+		
 		defer func() {
 			elapsed := time.Since(startTime)
 			// Log in Apache/Nginx common format:
 			// <remote_addr> - - [<date>] "<method> <uri> <proto>" <status> <bytes> "<referer>" "<user-agent>" <elapsed>
 			log.Printf("%s - - [%s] \"%s %s %s\" %d %d \"%s\" \"%s\" %v",
-				r.RemoteAddr,
+				clientIP,
 				time.Now().Format("02/Jan/2006:15:04:05 -0700"),
 				r.Method,
 				r.RequestURI,
