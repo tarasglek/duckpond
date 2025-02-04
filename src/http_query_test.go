@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	// Initialize logging for tests.
+	InitLogger("info")
+}
+
 var (
 	pingClient = &http.Client{Timeout: 1 * time.Millisecond}
 	httpClient = &http.Client{Timeout: 1 * time.Second}

@@ -19,23 +19,8 @@ func main() {
 	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
 	flag.Parse()
 
-	if envLog := os.Getenv("LOG_LEVEL"); envLog != "" {
-		*logLevel = envLog
-	}
-
-	level, err := zerolog.ParseLevel(*logLevel)
-	if err != nil {
-		log.Fatal().Err(err).Msg("invalid log-level")
-	}
-	zerolog.SetGlobalLevel(level)
-
-	if isatty.IsTerminal(os.Stderr.Fd()) {
-		cw := zerolog.ConsoleWriter{
-			Out:        os.Stderr,
-			TimeFormat: "15:04:05",
-		}
-		log.Logger = log.Output(cw)
-	}
+	// Initialize logging
+	InitLogger(*logLevel)
 
 	opts := []IceBaseOption{}
 	if *querySplitting {
