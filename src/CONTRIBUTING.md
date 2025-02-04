@@ -16,12 +16,12 @@ go test -v
 Then you can do:
 
 ```bash
-curl -X POST -d "SELECT now() AS current_time" http://localhost:8081/query
+curl -X POST -d "SELECT now() AS current_time" http://localhost:8881/query
 ```
 
 Try some sample in *.sql files:
 ```bash
-curl -X POST  --data-binary @query_test/query_uuid.sql  http://localhost:8881/query
+curl -X POST  --data-binary @test/query/query_uuid.sql http://localhost:8881/query
 ```
 
 

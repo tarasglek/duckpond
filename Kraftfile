@@ -9,4 +9,4 @@ labels:
 
 rootfs: ./Dockerfile
 
-cmd: ["/server"]
+cmd: ["/duckpond", "-port", "8080"]
