@@ -309,14 +309,16 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 
 func (s *S3Storage) Delete(path string) error {
 	fullKey := s.fullKey(path)
-	log.Info().Msgf("Deleting object: bucket=%s key=%s",
-		s.config.Bucket, fullKey)
-
+	log.Info().Msgf("Deleting object: bucket=%s key=%s", s.config.Bucket, fullKey)
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
+		// Ignore error if it indicates the object was not found
+		if strings.Contains(err.Error(), "NotFound") {
+			return nil
+		}
 		log.Error().Msgf("Error deleting object: %v", err)
 	}
 	return err
@@ -520,7 +522,11 @@ func (fs *FSStorage) Stat(path string) (*s3FileInfo, error) {
 }
 
 func (fs *FSStorage) Delete(path string) error {
-	return os.Remove(fs.fullPath(path))
+	err := os.Remove(fs.fullPath(path))
+	if err != nil && os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 func (fs *FSStorage) ToDuckDBWritePath(path string) string {
