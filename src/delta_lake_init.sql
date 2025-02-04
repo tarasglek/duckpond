@@ -7,7 +7,7 @@ CREATE TABLE log_json(
         schemaString VARCHAR,
         partitionColumns JSON[],
         createdTime BIGINT,
-        icebase STRUCT(createTable VARCHAR),
+        duckpond STRUCT(createTable VARCHAR),
         "configuration" MAP(VARCHAR, JSON)
     ),
     "add" STRUCT(

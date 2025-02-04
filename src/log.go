@@ -51,7 +51,7 @@ func NewLog(storageDir, tableName string) *Log {
 }
 
 func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func() error) error {
-	secretName := "icebase_temp_secret"
+	secretName := "duckpond_temp_secret"
 	if secretSQL := l.storage.ToDuckDBSecret(secretName); secretSQL != "" {
 		if _, err := dataTx.Exec(secretSQL); err != nil {
 			return fmt.Errorf("failed to create secret %s: %w", secretName, err)
@@ -75,7 +75,7 @@ func (l *Log) getLogDB() (*sql.DB, error) {
 	}
 
 	// Create S3 secret if configured
-	secretSQL := l.storage.ToDuckDBSecret("icebase_log_s3_secret")
+	secretSQL := l.storage.ToDuckDBSecret("duckpond_log_s3_secret")
 	if secretSQL != "" {
 		if _, err := logDB.Exec(secretSQL); err != nil {
 			logDB.Close()
@@ -201,7 +201,7 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 
 	var createQuery string
 	err = logDB.QueryRow(`
-		select metaData.icebase.createTable::TEXT as text 
+		select metaData.duckpond.createTable::TEXT as text 
 		from log_json 
 		where metaData is not null;
 	`).Scan(&createQuery)
@@ -418,7 +418,7 @@ func (l *Log) listFiles(filter filesFilter) ([]string, error) {
 func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	// Create permanent secret for the view operation
 	// TODO: would be better to wrap this around select-style operations :(
-	secretSQL := l.storage.ToDuckDBSecret("icebase_view_s3_secret")
+	secretSQL := l.storage.ToDuckDBSecret("duckpond_view_s3_secret")
 	if secretSQL != "" {
 		if _, err := dataTx.Exec(secretSQL); err != nil {
 			return fmt.Errorf("failed to create view secret: %w", err)

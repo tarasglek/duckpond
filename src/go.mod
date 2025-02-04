@@ -1,4 +1,4 @@
-module github.com/tarasglek/icebase
+module github.com/tarasglek/duckpond
 
 go 1.23.5
 

@@ -12,7 +12,7 @@ import (
 
 func main() {
 	port := flag.Int("port", 8080, "port to listen on")
-	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./icebase -post /query")
+	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./duckpond -post /query")
 	querySplitting := flag.Bool("query-splitting", false, "enable semicolon query splitting")
 	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
