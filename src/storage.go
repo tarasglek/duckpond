@@ -248,12 +248,12 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 
 	if cfg.ifMatch != "" {
 		putInput.IfMatch = aws.String(cfg.ifMatch)
-		s.logger.Printf("Conditional write with IfMatch: %s", cfg.ifMatch)
+		log.Debug().Msgf("Conditional write with IfMatch: %s", cfg.ifMatch)
 	}
 
 	resp, err := s.client.PutObject(context.Background(), putInput)
 	if err != nil {
-		s.logger.Printf("Error writing object: %v", err)
+		log.Error().Msgf("Error writing object: %v", err)
 		return err
 	}
 
@@ -267,14 +267,14 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 
 func (s *S3Storage) CreateDir(path string) error {
 	// No-op for S3 since directories are implicit in object keys
-	s.logger.Printf("Skipping directory creation for S3: bucket=%s path=%s",
+	log.Debug().Msgf("Skipping directory creation for S3: bucket=%s path=%s",
 		s.config.Bucket, path)
 	return nil
 }
 
 func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Getting object metadata: bucket=%s key=%s",
+	log.Debug().Msgf("Getting object metadata: bucket=%s key=%s",
 		s.config.Bucket, fullKey)
 
 	resp, err := s.client.HeadObject(context.Background(), &s3.HeadObjectInput{
@@ -282,7 +282,7 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		s.logger.Printf("Error getting object metadata: %v", err)
+		log.Error().Msgf("Error getting object metadata: %v", err)
 		return nil, err
 	}
 
@@ -309,7 +309,7 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 
 func (s *S3Storage) Delete(path string) error {
 	fullKey := s.fullKey(path)
-	s.logger.Printf("Deleting object: bucket=%s key=%s",
+	log.Info().Msgf("Deleting object: bucket=%s key=%s",
 		s.config.Bucket, fullKey)
 
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
@@ -317,7 +317,7 @@ func (s *S3Storage) Delete(path string) error {
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		s.logger.Printf("Error deleting object: %v", err)
+		log.Error().Msgf("Error deleting object: %v", err)
 	}
 	return err
 }
@@ -352,7 +352,7 @@ func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 		// Parse endpoint to extract host:port without protocol
 		endpointURL, err := url.Parse(s.config.Endpoint)
 		if err != nil {
-			s.logger.Printf("Invalid endpoint URL: %v", err)
+			log.Error().Msgf("Invalid endpoint URL: %v", err)
 			return ""
 		}
 
@@ -391,7 +391,7 @@ func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 		strings.Join(redactedParts, ",\n    "),
 	)
 
-	s.logger.Printf("Generated DuckDB secret (redacted):\n%s", redactedSecret)
+	log.Debug().Msgf("Generated DuckDB secret (redacted):\n%s", redactedSecret)
 	return secret
 }
 
