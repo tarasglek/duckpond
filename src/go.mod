@@ -2,8 +2,6 @@ module github.com/tarasglek/icebase
 
 go 1.23.5
 
-toolchain go1.23.5
-
 require (
 	github.com/aws/aws-sdk-go-v2 v1.34.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.15
@@ -15,6 +13,7 @@ require (
 require (
 	github.com/google/uuid v1.6.0
 	github.com/marcboeker/go-duckdb v1.8.3
+	github.com/mattn/go-isatty v0.0.19
 	github.com/rs/zerolog v1.33.0
 )
 
@@ -40,7 +39,6 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
