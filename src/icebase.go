@@ -14,6 +14,23 @@ import (
 	"github.com/google/uuid"
 )
 
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode   int
+	bytesWritten int
+}
+
+func (lrw *loggingResponseWriter) Write(p []byte) (int, error) {
+	n, err := lrw.ResponseWriter.Write(p)
+	lrw.bytesWritten += n
+	return n, err
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
 type QueryResponse struct {
 	Meta []struct {
 		Name string `json:"name"`
@@ -443,35 +460,56 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 
 func (ib *IceBase) RequestHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		
+		defer func() {
+			elapsed := time.Since(startTime)
+			// Log in Apache/Nginx common format:
+			// <remote_addr> - - [<date>] "<method> <uri> <proto>" <status> <bytes> "<referer>" "<user-agent>" <elapsed>
+			log.Printf("%s - - [%s] \"%s %s %s\" %d %d \"%s\" \"%s\" %v",
+				r.RemoteAddr,
+				time.Now().Format("02/Jan/2006:15:04:05 -0700"),
+				r.Method,
+				r.RequestURI,
+				r.Proto,
+				lrw.statusCode,
+				lrw.bytesWritten,
+				r.Referer(),
+				r.UserAgent(),
+				elapsed,
+			)
+		}()
+
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		lrw.Header().Set("Access-Control-Allow-Origin", "*")
+		lrw.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		lrw.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		// If BEARER_TOKEN is set, enforce auth checking
 		if ib.authToken != "" {
 			authHeader := r.Header.Get("Authorization")
 			expectedHeader := "Bearer " + ib.authToken
 			if authHeader != expectedHeader {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				http.Error(lrw, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 		}
 
 		// Handle preflight requests
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			lrw.WriteHeader(http.StatusOK)
 			return
 		}
 
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(lrw, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
+			http.Error(lrw, fmt.Sprintf("failed to read request body: %v", err), http.StatusBadRequest)
 			return
 		}
 
@@ -481,10 +519,10 @@ func (ib *IceBase) RequestHandler() http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write([]byte(jsonResponse)); err != nil {
+		lrw.Header().Set("Content-Type", "application/json")
+		if _, err := lrw.Write([]byte(jsonResponse)); err != nil {
 			log.Printf("failed to write response: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			http.Error(lrw, "Internal server error", http.StatusInternalServerError)
 		}
 	}
 }
