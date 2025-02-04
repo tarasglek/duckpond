@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  attach_release_assets:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download built binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: build
+
+      - name: Upload AMD64 binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: build/myapp-linux-amd64
+          asset_name: myapp-linux-amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload ARM64 binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: build/myapp-linux-arm64
+          asset_name: myapp-linux-arm64
+          asset_content_type: application/octet-stream
