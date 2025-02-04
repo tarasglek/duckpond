@@ -44,6 +44,7 @@ jobs:
         with:
           # All files under base dir
           file_or_dir: "."
+          exclude: '**/.sops.yaml'
           config_data: |
             extends: default
             yaml-files:
