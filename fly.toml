@@ -1,0 +1,19 @@
+# fly.toml app configuration file generated for duckpond on 2025-02-05T17:06:53+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'duckpond'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 80
+
+  [[services.ports]]
+    port = 80
+
+  [[services.ports]]
+    port = 443
+    handlers = ['http', 'tls']
+
+[[metrics]]

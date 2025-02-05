@@ -13,7 +13,7 @@ export KRAFTKIT_BUILDKIT_HOST=docker-container://buildkitd
 
 kraft cloud  deploy -g duckpond -M 2Gi \
             --rollout remove \
-            --volume be271d46-0430-4b9a-b05c-61ea97691c98:/root \
+            --volume aea0ade2-4f3b-4c2f-9759-958a46f33e92:/root \
             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
            -e AWS_REGION=$AWS_REGION \
            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
