@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	_ "github.com/marcboeker/go-duckdb"
 	"github.com/rs/zerolog/log"
@@ -30,6 +32,16 @@ func loadMacros(db *sql.DB) error {
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
+	// Ensure ~/.duckdb directory exists
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	duckdbDir := filepath.Join(homeDir, ".duckdb")
+	if err := os.MkdirAll(duckdbDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create DuckDB directory '%s': %w", duckdbDir, err)
+	}
+
 	// Open database connection
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
