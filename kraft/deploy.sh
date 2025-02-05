@@ -9,11 +9,11 @@ export UKC_METRO=fra0
 docker run -d --name buildkitd --privileged moby/buildkit:latest
 export KRAFTKIT_BUILDKIT_HOST=docker-container://buildkitd
 
-tempfile=$(mktemp /tmp/kraft.XXXXXX.json)
-trap 'rm -f "$tempfile"' EXIT
+
 
 kraft cloud  deploy -g duckpond -M 2Gi \
             --rollout remove \
+            --volume be271d46-0430-4b9a-b05c-61ea97691c98:/root \
             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
            -e AWS_REGION=$AWS_REGION \
            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -21,6 +21,9 @@ kraft cloud  deploy -g duckpond -M 2Gi \
            -e S3_ENDPOINT=$S3_ENDPOINT \
            -e S3_PUBLIC_URL_PREFIX=$S3_PUBLIC_URL_PREFIX \
             ..
+
+tempfile=$(mktemp /tmp/kraft.XXXXXX.json)
+trap 'rm -f "$tempfile"' EXIT
 
 kraft cloud instance ls -o json|jq '.[] | select(.service == "duckpond")' > $tempfile
 
