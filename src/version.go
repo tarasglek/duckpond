@@ -1,4 +1,4 @@
 package main
 
 // this gets updated with release.sh
-var Version = "dev"
+var Version = "0.1.5"
