@@ -92,21 +92,24 @@ func (l *Log) initLogDB() (*sql.DB, error) {
 	return l.logDB, nil
 }
 
-func (l *Log) getLogDB() (*sql.DB, error) {
+func (l *Log) getLogDBAfterImport() (*sql.DB, error) {
 	db, err := l.initLogDB()
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug().Msgf("getLogDBAfterImport")
+
 	if err := l.importPersistedLog(); err != nil {
-		return nil, err
+		// ignore error
 	}
+
 	return db, nil
 }
 
 // Exports log state to a JSON file and returns the current etag
 func (l *Log) Export() ([]byte, string, error) {
-	db, err := l.getLogDB()
+	db, err := l.getLogDBAfterImport()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get database: %w", err)
 	}
@@ -159,7 +162,7 @@ var query_json_from_create_table_event string
 // Logs a DDL statement to the schema_log table
 func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 	return l.withPersistedLog(func() error {
-		db, err := l.getLogDB()
+		db, err := l.getLogDBAfterImport()
 		if err != nil {
 			return fmt.Errorf("failed to get database: %w", err)
 		}
@@ -185,7 +188,7 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 
 // Gets us to most recent state of schema by replaying schema_log from scratch
 func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
-	logDB, err := l.getLogDB()
+	logDB, err := l.getLogDBAfterImport()
 	if err != nil {
 		return fmt.Errorf("failed to get log database: %w", err)
 	}
@@ -221,7 +224,7 @@ func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
 // Commits in-memory data table to log and parquet files
 func (l *Log) Insert(dataTx *sql.Tx, table string) error {
 	return l.withPersistedLog(func() error {
-		logDB, err := l.getLogDB()
+		logDB, err := l.getLogDBAfterImport()
 		if err != nil {
 			return fmt.Errorf("failed to open database: %w", err)
 		}
@@ -248,7 +251,7 @@ var query_insert_table_event_add string
 // - Then modify reading code to detect missing parquet files and to tombstone them in log
 // - This way we wont end up with orphaned parquet files
 func (l *Log) CopyToLoggedPaquet(dataTx *sql.Tx, dstTable string, srcSQL string) (*CopyToLoggedPaquetResult, error) {
-	logDB, err := l.getLogDB()
+	logDB, err := l.getLogDBAfterImport()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -313,7 +316,7 @@ var query_merge string
 func (l *Log) Merge(table string, dataTx *sql.Tx) error {
 	return l.withPersistedLog(func() error {
 		// Get logDB connection once at the start
-		logDB, err := l.getLogDB()
+		logDB, err := l.getLogDBAfterImport()
 		if err != nil {
 			return fmt.Errorf("failed to get database: %w", err)
 		}
@@ -370,7 +373,7 @@ var sqlFilesListAll string
 
 // Lists parquet files managed by insert_log table
 func (l *Log) listFiles(filter filesFilter) ([]string, error) {
-	db, err := l.getLogDB()
+	db, err := l.getLogDBAfterImport()
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +441,8 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 // passing JSON to keep all logic in DB
 // TODO: pass it in via arrow to reduce overhead
 func (l *Log) Import(tmpFilename string, etag string) error {
-	logdb, err := l.getLogDBNoImport()
+
+	logdb, err := l.initLogDB()
 	if err != nil {
 		return err
 	}
@@ -497,6 +501,7 @@ func (l *Log) Destroy() error {
 
 	return nil
 }
+
 // importPersistedLog reads the delta log from storage, writes it to a temp file,
 // and imports it into the log database
 func (l *Log) importPersistedLog() error {
@@ -524,7 +529,4 @@ func (l *Log) importPersistedLog() error {
 	}
 
 	return nil
-}
-func (l *Log) getLogDBNoImport() (*sql.DB, error) {
-	return l.initLogDB()
 }
