@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -x
 
 # Check for exactly 2 arguments: version and commit message
 if [ "$#" -ne 2 ]; then
@@ -19,6 +19,7 @@ git commit -a -m "$COMMIT_MSG"
 # Push the commit
 git push
 
+set -e
 # Create a version tag; prefix the version with 'v'
 git tag -a "v$VERSION" -m "$COMMIT_MSG"
 git push origin "v$VERSION"
