@@ -63,7 +63,8 @@ func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func() error) error {
 	return cb()
 }
 
-// initLogDB does the common work to initialize l.logDB.
+// initLogDB should only be called from getLogDBAfterImport
+// and from Import
 func (l *Log) initLogDB() (*sql.DB, error) {
 	if l.logDB != nil {
 		return l.logDB, nil
@@ -92,7 +93,12 @@ func (l *Log) initLogDB() (*sql.DB, error) {
 	return l.logDB, nil
 }
 
+// initialized logDB and imports log during init
 func (l *Log) getLogDBAfterImport() (*sql.DB, error) {
+	if l.logDB != nil {
+		return l.logDB, nil
+	}
+
 	db, err := l.initLogDB()
 	if err != nil {
 		return nil, err
@@ -505,18 +511,20 @@ func (l *Log) Destroy() error {
 // importPersistedLog reads the delta log from storage, writes it to a temp file,
 // and imports it into the log database
 func (l *Log) importPersistedLog() (err error) {
-	defer func() {
-		if err != nil {
-			log.Debug().Msgf("importPersistedLog failed: %v", err)
-		} else {
-			log.Debug().Msg("importPersistedLog succeeded")
-		}
-	}()
 	data, fileInfo, err := l.storage.Read(l.delta_log_json)
 	if err != nil {
 		// If the log file isn't present, skip import
+		log.Debug().Msgf("importPersistedLog(%s) assuming empty table '%s': %v", l.delta_log_json, l.tableName, err)
 		return nil
 	}
+
+	defer func() {
+		if err != nil {
+			log.Error().Msgf("importPersistedLog(%s) failed: %v", l.delta_log_json, err)
+		} else {
+			log.Debug().Msgf("importPersistedLog succeeded(%s)", l.delta_log_json)
+		}
+	}()
 
 	tmpFile, err := os.CreateTemp("", "dl-log-import-*.jsonl")
 	if err != nil {
