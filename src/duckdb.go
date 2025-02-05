@@ -37,6 +37,7 @@ func InitializeDuckDB() (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
+	// to diagnose failures on unikraft
 	duckdbDir := filepath.Join(homeDir, ".duckdb")
 	if err := os.MkdirAll(duckdbDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create DuckDB directory '%s': %w", duckdbDir, err)
