@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 )
+
+var ErrNoActiveFiles = errors.New("no active files")
 
 type CopyToLoggedPaquetResult struct {
 	ParquetPath string
@@ -429,6 +432,9 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	files, err := l.listFiles(filesLive)
 	if err != nil {
 		return fmt.Errorf("failed to list active files: %w", err)
+	}
+	if len(files) == 0 {
+		return ErrNoActiveFiles
 	}
 
 	// Map files to DuckDB paths
