@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var ErrNoActiveFiles = errors.New("no active files")
+var ErrNoParquetFilesInTable = errors.New("no parquet files associated with table")
 
 type CopyToLoggedPaquetResult struct {
 	ParquetPath string
@@ -193,41 +193,6 @@ func (l *Log) logDDL(dataTx *sql.Tx, rawCreateTable string) error {
 
 		return nil
 	})
-}
-
-// Gets us to most recent state of schema by replaying schema_log from scratch
-func (l *Log) PlaySchemaLogForward(dataTx *sql.Tx) error {
-	logDB, err := l.getLogDBAfterImport()
-	if err != nil {
-		return fmt.Errorf("failed to get log database: %w", err)
-	}
-
-	var createQuery string
-	err = logDB.QueryRow(`
-		select metaData.duckpond.createTable::TEXT as text 
-		from log_json 
-		where metaData is not null;
-	`).Scan(&createQuery)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// table hasn't been initialized yet
-			return nil
-		}
-		return fmt.Errorf("failed to query schema_log: %w", err)
-	}
-
-	// Decode the JSON string
-	// var decodedQuery string
-	// if err := json.Unmarshal([]byte(createQuery), &decodedQuery); err != nil {
-	// return fmt.Errorf("failed to decode create table query: %w", err)
-	// }
-
-	// Execute the create table statement
-	if _, err := dataTx.Exec(createQuery); err != nil {
-		return fmt.Errorf("failed to execute schema_log query `%s`: %w", createQuery, err)
-	}
-
-	return nil
 }
 
 // Commits in-memory data table to log and parquet files
@@ -431,10 +396,11 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 
 	files, err := l.listFiles(filesLive)
 	if err != nil {
-		return fmt.Errorf("failed to list active files: %w", err)
+		return fmt.Errorf("failed to list live parquet files: %w", err)
 	}
 	if len(files) == 0 {
-		return ErrNoActiveFiles
+		log.Debug().Msgf("CreateViewOfParquet: ErrNoParquetFilesInTable")
+		return ErrNoParquetFilesInTable
 	}
 
 	// Map files to DuckDB paths
@@ -447,6 +413,46 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	log.Debug().Msgf("createView: %s", createView)
 	_, err = dataTx.Exec(createView)
 	return err
+}
+
+// This creates an inmemory table that we COPY (l.tableName) TO ...parquet
+func (l *Log) CreateTempTable(dataTx *sql.Tx) error {
+
+	logDB, err := l.getLogDBAfterImport()
+	if err != nil {
+		return fmt.Errorf("failed to get log database: %w", err)
+	}
+
+	var createQuery string
+	err = logDB.QueryRow(`
+		select metaData.duckpond.createTable::TEXT as text 
+		from log_json 
+		where metaData is not null;
+	`).Scan(&createQuery)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Debug().Msgf("CreateTempTable:  table hasn't been initialized yet")
+
+			// table hasn't been initialized yet
+			return nil
+		}
+		return fmt.Errorf("failed to query schema_log: %w", err)
+	}
+
+	// Decode the JSON string
+	// var decodedQuery string
+	// if err := json.Unmarshal([]byte(createQuery), &decodedQuery); err != nil {
+	// return fmt.Errorf("failed to decode create table query: %w", err)
+	// }
+
+	log.Debug().Msgf("CreateTempTable: %s", createQuery)
+
+	// Execute the create table statement
+	if _, err := dataTx.Exec(createQuery); err != nil {
+		return fmt.Errorf("failed to execute schema_log query `%s`: %w", createQuery, err)
+	}
+
+	return nil
 }
 
 // Restores db state from a JSON file

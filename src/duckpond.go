@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -357,23 +358,25 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 			}
 
 			if dblog != nil {
-				if op == OpSelect || op == OpVacuum {
+				opExpectsTableToExist := op == OpSelect || op == OpVacuum
+				tableIsEmpty := false
+				if opExpectsTableToExist {
 					// Recreate view using LOG database's file list in DATA transaction
 					if handlerErr = dblog.CreateViewOfParquet(dataTx); handlerErr != nil {
-						if errors.Is(handlerErr, ErrNoActiveFiles) {
-							// fallback to schema recreation if no active files are found
-							if handlerErr = dblog.PlaySchemaLogForward(dataTx); handlerErr != nil {
-								log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate schema (fallback)")
-								return
-							}
+						isErrNoParquetFilesInTable := errors.Is(handlerErr, ErrNoParquetFilesInTable)
+						if isErrNoParquetFilesInTable {
+							tableIsEmpty = true
+							log.Debug().Msgf("CreateViewOfParquet indicated that tableIsEmpty")
 						} else {
 							log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate view")
 							return
 						}
 					}
-				} else {
+				}
+
+				if !opExpectsTableToExist || tableIsEmpty {
 					// Recreate schema from LOG database in DATA transaction
-					if handlerErr = dblog.PlaySchemaLogForward(dataTx); handlerErr != nil {
+					if handlerErr = dblog.CreateTempTable(dataTx); handlerErr != nil {
 						log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate schema")
 						return
 					}
