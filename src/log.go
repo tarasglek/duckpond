@@ -428,7 +428,7 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 // passing JSON to keep all logic in DB
 // TODO: pass it in via arrow to reduce overhead
 func (l *Log) Import(tmpFilename string, etag string) error {
-	logdb, err := l.getLogDB()
+	logdb, err := l.getLogDBNoImport()
 	if err != nil {
 		return err
 	}
@@ -514,4 +514,34 @@ func (l *Log) importPersistedLog() error {
 	}
 
 	return nil
+}
+func (l *Log) getLogDBNoImport() (*sql.DB, error) {
+	if l.logDB != nil {
+		return l.logDB, nil
+	}
+
+	// Initialize main database connection
+	logDB, err := InitializeDuckDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	// Create S3 secret if configured
+	secretSQL := l.storage.ToDuckDBSecret("duckpond_log_s3_secret")
+	if secretSQL != "" {
+		if _, err := logDB.Exec(secretSQL); err != nil {
+			logDB.Close()
+			return nil, fmt.Errorf("failed to create S3 secret: %w", err)
+		}
+	}
+
+	log.Debug().Msgf("deltaLakeInitSQL: %s", deltaLakeInitSQL)
+	// Execute Delta Lake initialization SQL
+	if _, err := logDB.Exec(deltaLakeInitSQL); err != nil {
+		logDB.Close()
+		return nil, fmt.Errorf("failed to initialize Delta Lake log: %w", err)
+	}
+
+	l.logDB = logDB
+	return l.logDB, nil
 }
