@@ -25,4 +25,4 @@ git tag -a "v$VERSION" -m "$COMMIT_MSG"
 git push origin "v$VERSION"
 
 # Run GoReleaser to create the release
-goreleaser release --draft
+goreleaser release --draft --clean
