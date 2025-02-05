@@ -504,7 +504,14 @@ func (l *Log) Destroy() error {
 
 // importPersistedLog reads the delta log from storage, writes it to a temp file,
 // and imports it into the log database
-func (l *Log) importPersistedLog() error {
+func (l *Log) importPersistedLog() (err error) {
+	defer func() {
+		if err != nil {
+			log.Debug().Msgf("importPersistedLog failed: %v", err)
+		} else {
+			log.Debug().Msg("importPersistedLog succeeded")
+		}
+	}()
 	data, fileInfo, err := l.storage.Read(l.delta_log_json)
 	if err != nil {
 		// If the log file isn't present, skip import
