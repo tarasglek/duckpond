@@ -32,15 +32,14 @@ func loadMacros(db *sql.DB) error {
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
-	// Ensure ~/.duckdb directory exists
+	// Ensure ~/.duckdb/extensions directory exists
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
-	// to diagnose failures on unikraft
-	duckdbDir := filepath.Join(homeDir, ".duckdb")
-	if err := os.MkdirAll(duckdbDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create DuckDB directory '%s': %w", duckdbDir, err)
+	extensionsDir := filepath.Join(homeDir, ".duckdb", "extensions")
+	if err := os.MkdirAll(extensionsDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create DuckDB extensions directory '%s': %w", extensionsDir, err)
 	}
 
 	// Open database connection
