@@ -1,5 +1,8 @@
+#!/bin/sh
+# github-to-sops sops exec-env ../credentials/cloudflare-cf.r2.enc.json ./deploy.sh
 export UKC_METRO=fra0
-kraft cloud  deploy -g duckpond --rollout remove \
+kraft cloud  deploy -g duckpond -M 2Gi \
+            --rollout remove \
             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
            -e AWS_REGION=$AWS_REGION \
            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
