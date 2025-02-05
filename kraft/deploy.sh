@@ -8,8 +8,8 @@ export UKC_METRO=fra0
 docker run -d --name buildkitd --privileged moby/buildkit:latest
 export KRAFTKIT_BUILDKIT_HOST=docker-container://buildkitd
 
-tempfile=$(mktemp)
-# trap 'rm -f "$tempfile"' EXIT
+tempfile=$(mktemp /tmp/tempfile.XXXXXX.json)
+trap 'rm -f "$tempfile"' EXIT
 
 kraft cloud  deploy -g duckpond -M 2Gi \
             --rollout remove \
