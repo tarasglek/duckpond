@@ -120,28 +120,9 @@ func (l *Log) Export() ([]byte, string, error) {
 
 // Runs callback that does SQL while properly persisting it via log
 func (l *Log) withPersistedLog(op func() error) error {
-	// read file from s3/etc via storage iface(with etag)
-	// then pass it (still as a file to duckdb so it can do type inference on it)
-	data, fileInfo, err := l.storage.Read(l.delta_log_json)
-	if err == nil {
-		// Write to temp file
-		tmpFile, err := os.CreateTemp("", "dl-log-import-*.jsonl")
-		if err != nil {
-			return fmt.Errorf("failed to create temp file: %w", err)
-		}
-		// Deferred Close() for cleanup
-		defer tmpFile.Close()           // Ensures file is closed even if errors occur
-		defer os.Remove(tmpFile.Name()) // Ensures temp file is deleted
-
-		if _, err := tmpFile.Write(data); err != nil {
-			return fmt.Errorf("failed to write temp file: %w", err)
-		}
-		// Close for writes, it's ready for reads
-		tmpFile.Close()
-
-		if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
-			return fmt.Errorf("failed to import %s: %w", l.delta_log_json, importErr)
-		}
+	// Import any existing persisted log data
+	if err := l.importPersistedLog(); err != nil {
+		return err
 	}
 
 	// Execute the operation
@@ -502,6 +483,34 @@ func (l *Log) Destroy() error {
 			return fmt.Errorf("failed to close database: %w", err)
 		}
 		l.logDB = nil
+	}
+
+	return nil
+}
+// importPersistedLog reads the delta log from storage, writes it to a temp file,
+// and imports it into the log database
+func (l *Log) importPersistedLog() error {
+	data, fileInfo, err := l.storage.Read(l.delta_log_json)
+	if err != nil {
+		// If the log file isn't present, skip import
+		return nil
+	}
+
+	tmpFile, err := os.CreateTemp("", "dl-log-import-*.jsonl")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(data); err != nil {
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+	// Close for writes, it's ready for reads
+	tmpFile.Close()
+
+	if importErr := l.Import(tmpFile.Name(), fileInfo.ETag()); importErr != nil {
+		return fmt.Errorf("failed to import %s: %w", l.delta_log_json, importErr)
 	}
 
 	return nil
