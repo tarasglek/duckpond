@@ -360,8 +360,16 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 				if op == OpSelect || op == OpVacuum {
 					// Recreate view using LOG database's file list in DATA transaction
 					if handlerErr = dblog.CreateViewOfParquet(dataTx); handlerErr != nil {
-						log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate view")
-						return
+						if errors.Is(handlerErr, ErrNoActiveFiles) {
+							// fallback to schema recreation if no active files are found
+							if handlerErr = dblog.PlaySchemaLogForward(dataTx); handlerErr != nil {
+								log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate schema (fallback)")
+								return
+							}
+						} else {
+							log.Error().Err(handlerErr).Str("table", table).Msg("Failed to recreate view")
+							return
+						}
 					}
 				} else {
 					// Recreate schema from LOG database in DATA transaction
