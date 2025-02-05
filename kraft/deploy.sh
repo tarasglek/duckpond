@@ -5,10 +5,11 @@
 
 export UKC_METRO=fra0
 
+# caching
 docker run -d --name buildkitd --privileged moby/buildkit:latest
 export KRAFTKIT_BUILDKIT_HOST=docker-container://buildkitd
 
-tempfile=$(mktemp /tmp/tempfile.XXXXXX.json)
+tempfile=$(mktemp /tmp/kraft.XXXXXX.json)
 trap 'rm -f "$tempfile"' EXIT
 
 kraft cloud  deploy -g duckpond -M 2Gi \
@@ -19,9 +20,13 @@ kraft cloud  deploy -g duckpond -M 2Gi \
            -e S3_BUCKET=$S3_BUCKET \
            -e S3_ENDPOINT=$S3_ENDPOINT \
            -e S3_PUBLIC_URL_PREFIX=$S3_PUBLIC_URL_PREFIX \
-            .. \
+            ..
 
 kraft cloud instance ls -o json|jq '.[] | select(.service == "duckpond")' > $tempfile
 
 # dont change this pipe cos -o wont work
 sops --output-type yaml -e "$tempfile" > deployment.enc.yaml
+
+name=$(sops --output-type json -d deployment.enc.yaml --output-format json |jq .name -r)
+
+kraft cloud  instance logs $name -f
