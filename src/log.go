@@ -427,8 +427,8 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	}
 
 	files, err := l.listFiles(filesLive)
-	if err != nil || len(files) == 0 {
-		return fmt.Errorf("no active files: %w", err)
+	if err != nil {
+		return fmt.Errorf("failed to list active files: %w", err)
 	}
 
 	// Map files to DuckDB paths
