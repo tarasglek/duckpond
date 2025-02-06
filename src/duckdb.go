@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -27,10 +28,10 @@ func ProcessExtensions(db *sql.DB, install bool) error {
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
-			extDir := homeDir + "/.duckdb/extensions"
+			extDir := filepath.Join(homeDir, ".duckdb", "extensions")
 			freeBefore, err := GetFreeDiskSpace(extDir)
 			if err != nil {
-				log.Warn().Msgf("Could not get free disk space before installing extension %s: %v", ext, err)
+				return fmt.Errorf("failed to get free disk space before installing extension %s: %w", ext, err)
 			}
 			
 			if _, err := db.Exec(fmt.Sprintf("INSTALL %s;", ext)); err != nil {
@@ -39,11 +40,10 @@ func ProcessExtensions(db *sql.DB, install bool) error {
 			
 			freeAfter, err := GetFreeDiskSpace(extDir)
 			if err != nil {
-				log.Warn().Msgf("Could not get free disk space after installing extension %s: %v", ext, err)
-			} else {
-				diff := freeAfter - freeBefore
-				log.Info().Msgf("Extension %s installed, free disk space changed by %d bytes", ext, diff)
+				return fmt.Errorf("failed to get free disk space after installing extension %s: %w", ext, err)
 			}
+			diff := freeAfter - freeBefore
+			log.Info().Msgf("Extension %s installed, free disk space changed by %d bytes", ext, diff)
 		}
 		// Try LOAD first, fallback to INSTALL+LOAD if needed
 		if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
