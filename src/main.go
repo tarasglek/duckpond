@@ -16,7 +16,7 @@ func main() {
 	querySplitting := flag.Bool("query-splitting", false, "enable semicolon query splitting")
 	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
-	downloadExt := flag.Bool("download-duckdb-extensions", false, "download and install DuckDB extensions")
+	printExtInfo := flag.Bool("print-duckdb-extension-info", false, "print DuckDB extension information as JSONL")
 	loadExtFlag := flag.Bool("load-extensions", false, "load DuckDB extensions from extension paths")
 	flag.Parse()
 
@@ -34,18 +34,17 @@ func main() {
 		return
 	}
 
-	if *downloadExt {
-		// Initialize a standalone DuckDB connection
+	if *printExtInfo {
 		db, err := InitializeDuckDB()
 		if err != nil {
 			log.Fatal().Msgf("Failed to open DuckDB: %v", err)
 		}
 		defer db.Close()
 
-		if err := DownloadExtensions(db); err != nil {
-			log.Fatal().Msgf("Failed to download DuckDB extensions: %v", err)
+		if err := PrintExtensionInfo(db); err != nil {
+			log.Fatal().Msgf("Failed to print DuckDB extension info: %v", err)
 		}
-		fmt.Println("DuckDB extensions downloaded successfully")
+		fmt.Println("DuckDB extension information printed successfully")
 		return
 	}
 

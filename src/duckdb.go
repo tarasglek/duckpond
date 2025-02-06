@@ -86,8 +86,8 @@ func loadMacros(db *sql.DB) error {
 	return nil
 }
 
-// DownloadExtensions outputs extension information as JSONL
-func DownloadExtensions(db *sql.DB) error {
+// PrintExtensionInfo outputs extension information as JSONL
+func PrintExtensionInfo(db *sql.DB) error {
 	exts, err := getExtensionsInfo(db)
 	if err != nil {
 		return err
