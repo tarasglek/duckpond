@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -35,13 +34,13 @@ func loadMacros(db *sql.DB) error {
 func DownloadExtensions(db *sql.DB) error {
 	// Retrieve platform info via DuckDB pragma
 	var platform string
-	if err := db.QueryRow("D pragma platform;").Scan(&platform); err != nil {
+	if err := db.QueryRow("pragma platform;").Scan(&platform); err != nil {
 		return fmt.Errorf("failed to get platform: %w", err)
 	}
 
 	// Retrieve DuckDB version info via pragma
 	var version, sourceId string
-	if err := db.QueryRow("D pragma version;").Scan(&version, &sourceId); err != nil {
+	if err := db.QueryRow("pragma version;").Scan(&version, &sourceId); err != nil {
 		return fmt.Errorf("failed to get version: %w", err)
 	}
 
