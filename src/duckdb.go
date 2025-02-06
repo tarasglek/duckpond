@@ -31,6 +31,16 @@ func loadMacros(db *sql.DB) error {
 	return nil
 }
 
+// DownloadExtensions installs and loads required DuckDB extensions
+func DownloadExtensions(db *sql.DB) error {
+	// Install and load the httpfs and delta plugins.
+	_, err := db.Exec("INSTALL httpfs;LOAD httpfs; INSTALL delta;LOAD delta;")
+	if err != nil {
+		return fmt.Errorf("failed to download duckdb extensions: %w", err)
+	}
+	return nil
+}
+
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
 func InitializeDuckDB() (*sql.DB, error) {
 	// Ensure ~/.duckdb/extensions directory exists
