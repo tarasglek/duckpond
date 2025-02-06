@@ -18,16 +18,16 @@ func main() {
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	printExtInfo := flag.Bool("print-duckdb-extension-info", false, "print DuckDB extension information as JSONL")
 	loadExtFlag := flag.Bool("load-extensions", false, "load DuckDB extensions from extension paths")
-	downloadExtFlag := flag.Bool("download-extensions", false, "download (INSTALL then LOAD) DuckDB extensions")
+	installExtFlag := flag.Bool("install-extensions", false, "install (INSTALL then LOAD) DuckDB extensions")
 	flag.Parse()
 
-	if *loadExtFlag || *downloadExtFlag {
+	if *loadExtFlag || *installExtFlag {
 		db, err := InitializeDuckDB()
 		if err != nil {
 			log.Fatal().Msgf("Failed to initialize DuckDB: %v", err)
 		}
 		defer db.Close()
-		if err := ProcessExtensions(db, *downloadExtFlag); err != nil {
+		if err := ProcessExtensions(db, *installExtFlag); err != nil {
 			log.Fatal().Msgf("Failed to process extensions: %v", err)
 		}
 	}
