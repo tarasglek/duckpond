@@ -19,7 +19,9 @@ RUN set -xe; \
 
 FROM debian:bookworm-slim
 
-COPY --from=build /root /root
+# /root includes .duckdb/extensions
+COPY --from=build /root /root 
 COPY --from=build /duckpond /duckpond
+RUN /duckpond -download-duckdb-extensions
 
 ENTRYPOINT [ "/duckpond", "-port", "8080" ]
