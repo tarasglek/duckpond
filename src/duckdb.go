@@ -26,7 +26,7 @@ func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
 	if err := db.QueryRow("pragma platform;").Scan(&platform); err != nil {
 		return nil, fmt.Errorf("failed to get platform: %w", err)
 	}
-	
+
 	// Get version and sourceId via DuckDB PRAGMA
 	var version, sourceId string
 	if err := db.QueryRow("pragma version;").Scan(&version, &sourceId); err != nil {
@@ -43,8 +43,8 @@ func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
-	destDelta  := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
-	
+	destDelta := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
+
 	exts := []ExtensionInfo{
 		{Extension: "delta", ExtensionURL: urlDelta, Path: destDelta},
 		{Extension: "httpfs", ExtensionURL: urlHttpfs, Path: destHttpfs},
@@ -67,6 +67,8 @@ func LoadExtensions(db *sql.DB) error {
 			return fmt.Errorf("failed to load extension %s: %w", ext.Extension, err)
 		}
 	}
+	log.Info().Msgf("DuckDB extensions loaded successfully")
+
 	return nil
 }
 
