@@ -3,10 +3,8 @@ package main
 import (
 	"database/sql"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -20,26 +18,21 @@ type ExtensionInfo struct {
 }
 
 // ProcessExtensions handles loading or downloading DuckDB extensions
-func ProcessExtensions(db *sql.DB, download bool) error {
-	extensions := []string{"httpfs", "s3"}
-	
+func ProcessExtensions(db *sql.DB, install bool) error {
+	extensions := []string{"httpfs", "s3", "delta"}
+
 	for _, ext := range extensions {
-		if download {
+		if install {
 			// Always install first when downloading extensions
 			if _, err := db.Exec(fmt.Sprintf("INSTALL %s;", ext)); err != nil {
 				return fmt.Errorf("failed to install extension %s: %w", ext, err)
 			}
-			if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
-				return fmt.Errorf("failed to load extension %s: %w", ext, err)
-			}
-		} else {
-			// Try LOAD first, fallback to INSTALL+LOAD if needed
-			if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
-				// Fallback: try INSTALL then LOAD
-				if _, err := db.Exec(fmt.Sprintf("INSTALL %s; LOAD %s;", ext, ext)); err != nil {
-					return fmt.Errorf("failed to load extension %s with fallback: %w", ext, err)
-				}
-			}
+
+		}
+		// Try LOAD first, fallback to INSTALL+LOAD if needed
+		if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
+			return fmt.Errorf("failed to load extension %s: %w", ext, err)
+
 		}
 	}
 	log.Info().Msg("DuckDB extensions processed successfully")
@@ -61,23 +54,6 @@ func loadMacros(db *sql.DB) error {
 	// Load delta_stats
 	if _, err := db.Exec(delta_stats); err != nil {
 		return fmt.Errorf("failed to load delta_stats macro: %w", err)
-	}
-	return nil
-}
-
-// PrintExtensionInfo outputs extension information as JSONL
-func PrintExtensionInfo(db *sql.DB) error {
-	exts, err := getExtensionsInfo(db)
-	if err != nil {
-		return err
-	}
-	for _, ext := range exts {
-		data, err := json.Marshal(ext)
-		if err != nil {
-			return fmt.Errorf("failed to marshal extension info: %w", err)
-		}
-		// Print one JSON object per line
-		fmt.Println(string(data))
 	}
 	return nil
 }
