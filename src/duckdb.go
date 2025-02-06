@@ -33,11 +33,19 @@ func loadMacros(db *sql.DB) error {
 
 // DownloadExtensions installs and loads required DuckDB extensions
 func DownloadExtensions(db *sql.DB) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+	extDir := filepath.Join(homeDir, ".duckdb", "extensions")
+
 	// Install and load the httpfs and delta plugins.
-	_, err := db.Exec("INSTALL httpfs;LOAD httpfs; INSTALL delta;LOAD delta;")
+	_, err = db.Exec("INSTALL httpfs;LOAD httpfs; INSTALL delta;LOAD delta;")
 	if err != nil {
 		return fmt.Errorf("failed to download duckdb extensions: %w", err)
 	}
+
+	log.Info().Msgf("DuckDB extensions downloaded to: %s", extDir)
 	return nil
 }
 
