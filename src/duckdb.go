@@ -39,7 +39,8 @@ func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	extensions := []string{"delta", "httpfs"}
+	// "delta" seems broken in go bindin
+	extensions := []string{"httpfs", "s3"}
 	var exts []ExtensionInfo
 
 	for _, extName := range extensions {
@@ -60,6 +61,8 @@ func LoadExtensions(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	// log info that this currently doesn't work with golang bindin
+	log.Info().Msgf("FYI. Extension loading seems to not work in docker")
 	for _, ext := range exts {
 		log.Debug().
 			Str("extension", ext.Extension).
@@ -67,7 +70,7 @@ func LoadExtensions(db *sql.DB) error {
 			Msg("Loading extension")
 		// Try loading the extension using the file path
 		if _, err := db.Exec(fmt.Sprintf("LOAD '%s';", ext.Path)); err != nil {
-			log.Debug().Msgf("Failed to load extension via '%s', falling back to INSTALL/LOAD for %s: %v", ext.Path, ext.Extension, err)
+			log.Debug().Msgf("Failed to load extension via path falling back to INSTALL/LOAD for %s: %v", ext.Extension, err)
 			// If loading via file path fails, attempt fallback using INSTALL and LOAD with the extension name.
 			if _, err := db.Exec(fmt.Sprintf("INSTALL %s; LOAD %s;", ext.Extension, ext.Extension)); err != nil {
 				return fmt.Errorf("failed to load extension %s using fallback: %w", ext.Extension, err)

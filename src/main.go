@@ -30,8 +30,6 @@ func main() {
 		if err := LoadExtensions(db); err != nil {
 			log.Fatal().Msgf("Failed to load extensions: %v", err)
 		}
-		fmt.Println("DuckDB extensions loaded successfully")
-		return
 	}
 
 	if *printExtInfo {
