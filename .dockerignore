@@ -1,0 +1,21 @@
+# flyctl launch added from .gitignore
+**/.aider*
+**/.env
+**/.vscode
+**/.unikraft
+
+# flyctl launch added from deltalake/.gitignore
+deltalake/**/delta_table
+
+# flyctl launch added from deltalake/.venv/.gitignore
+deltalake/.venv/**/*
+
+# flyctl launch added from kraft/.gitignore
+kraft/**/deployment.enc.yaml
+
+# flyctl launch added from src/.gitignore
+src/**/duckpond
+src/**/testdata
+# Added by goreleaser init:
+src/**/dist
+fly.toml

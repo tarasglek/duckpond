@@ -1,7 +1,7 @@
 For dev use:
 
 ```bash
-watchexec -e go -r -- go run $(ls *.go | grep -v '_test\.go$') -port 8881
+watchexec -e go -r -- ./duckpond.sh -port 8881
 ```
 
 ```bash

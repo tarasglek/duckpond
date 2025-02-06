@@ -326,7 +326,7 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 		filteredQueries = []string{strings.TrimSpace(body)}
 	}
 
-	log.Debug().Strs("filteredQueries", filteredQueries).Int("len", len(filteredQueries)).Msg("handleQuery")
+	log.Debug().Strs("filteredQueries", filteredQueries).Int("total_queries", len(filteredQueries)).Msg("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
 
@@ -347,9 +347,9 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 
 			op, table := ib.parser.Parse(query)
 			log.Info().
-				Str("operation", op.String()).
-				Int("query_index", i+1).
-				Int("total_queries", len(filteredQueries)).
+				Int("i", i).
+				Str("op", op.String()).
+				Str("table", table).
 				Str("query", query).
 				Msg("Processing query")
 
