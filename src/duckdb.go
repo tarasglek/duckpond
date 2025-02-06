@@ -33,35 +33,25 @@ func loadMacros(db *sql.DB) error {
 
 // DownloadExtensions installs and loads required DuckDB extensions
 func DownloadExtensions(db *sql.DB) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-	extDir := filepath.Join(homeDir, ".duckdb", "extensions")
-	if err := os.MkdirAll(extDir, 0755); err != nil {
-		return fmt.Errorf("failed to create DuckDB extensions directory '%s': %w", extDir, err)
+	// Retrieve platform info via DuckDB pragma
+	var platform string
+	if err := db.QueryRow("D pragma platform;").Scan(&platform); err != nil {
+		return fmt.Errorf("failed to get platform: %w", err)
 	}
 
-	// Get initial free disk space:
-	before, err := GetFreeDiskSpace(extDir)
-	if err != nil {
-		return fmt.Errorf("failed to get initial free disk space for %s: %w", extDir, err)
+	// Retrieve DuckDB version info via pragma
+	var version, sourceId string
+	if err := db.QueryRow("D pragma version;").Scan(&version, &sourceId); err != nil {
+		return fmt.Errorf("failed to get version: %w", err)
 	}
 
-	// Install and load the httpfs and delta plugins.
-	_, err = db.Exec("INSTALL httpfs;LOAD httpfs; INSTALL delta;LOAD delta;")
-	if err != nil {
-		return fmt.Errorf("failed to download duckdb extensions: %w", err)
-	}
+	// Build extension URLs for httpfs and delta
+	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
+	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
 
-	// Get free disk space after installation:
-	after, err := GetFreeDiskSpace(homeDir)
-	if err != nil {
-		return fmt.Errorf("failed to get final free disk space for %s: %w", homeDir, err)
-	}
-	delta := int64(after) - int64(before)
+	log.Info().Msgf("Delta extension URL: %s", urlDelta)
+	log.Info().Msgf("httpfs extension URL: %s", urlHttpfs)
 
-	log.Info().Msgf("DuckDB extensions downloaded to: %s. Disk space changed by %d bytes", extDir, delta)
 	return nil
 }
 
