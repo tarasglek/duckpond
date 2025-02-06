@@ -7,7 +7,7 @@ if [ -t 0 ]; then
     exit 1
 fi
 # Parse the JSON from stdin into NAME=VALUE pairs. Note that we force values to strings.
-secrets=$(jq -r 'to_entries | map("\(.key)=\"\(.value|tostring)\"") | join(" ")')
+secrets=$(jq -r 'to_entries | map("\(.key)=\(.value|@json)") | join(" ")')
 if [ -z "$secrets" ]; then
     echo "Error: No secrets found in input" >&2
     exit 1
