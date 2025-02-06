@@ -59,7 +59,10 @@ func LoadExtensions(db *sql.DB) error {
 		return err
 	}
 	for _, ext := range exts {
-		// Use single quotes around the path
+		log.Debug().
+			Str("extension", ext.Extension).
+			Str("extension_path", ext.Path).
+			Msg("Loading extension")
 		if _, err := db.Exec(fmt.Sprintf("LOAD '%s';", ext.Path)); err != nil {
 			return fmt.Errorf("failed to load extension %s: %w", ext.Extension, err)
 		}
