@@ -48,8 +48,8 @@ func DownloadExtensions(db *sql.DB) error {
 	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
 	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
 
-	log.Info().Msgf("Delta extension URL: %s", urlDelta)
-	log.Info().Msgf("httpfs extension URL: %s", urlHttpfs)
+	log.Info().Str("extension_url", urlDelta).Msg("Delta extension URL")
+	log.Info().Str("extension_url", urlHttpfs).Msg("httpfs extension URL")
 
 	return nil
 }
