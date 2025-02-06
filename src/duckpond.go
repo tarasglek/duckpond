@@ -323,10 +323,10 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 		filteredQueries = SplitNonEmptyQueries(body)
 	} else {
 		// When query splitting is disabled, treat entire body as single query
-		filteredQueries = []string{body}
+		filteredQueries = []string{strings.TrimSpace(body)}
 	}
 
-	log.Debug().Strs("filteredQueries", filteredQueries).Msg("handleQuery")
+	log.Debug().Strs("filteredQueries", filteredQueries).Int("len", len(filteredQueries)).Msg("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
 
