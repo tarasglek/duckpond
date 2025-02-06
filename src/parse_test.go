@@ -49,6 +49,10 @@ func TestParser(t *testing.T) {
 
 		// Negative tests
 		{"UPDATE users", OpUnknown, ""},
+
+		// Drop table tests
+		{"DROP TABLE users", OpDropTable, "users"},
+		{"   DROP TABLE app.users", OpDropTable, "app.users"},
 	}
 
 	parser := NewParser()
