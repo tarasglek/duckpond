@@ -17,7 +17,20 @@ $DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | wh
 
     echo "Downloading extension '$extension' from $ext_url to $dest_path..."
     mkdir -p "$(dirname "$dest_path")"
-    wget -q -O "$dest_path" "$ext_url"
+    # Remove any existing destination file
+    rm -f "$dest_path"
+
+    # Create a temporary file to hold the downloaded gzipped data
+    tmp_file=$(mktemp)
+
+    # Download the extension file into the temporary file
+    wget -q -O "$tmp_file" "$ext_url"
+
+    # Gunzip the temporary file and write directly to the destination path
+    gunzip -c "$tmp_file" > "$dest_path"
+
+    # Remove the temporary file
+    rm -f "$tmp_file"
 done
 
 echo "All extensions downloaded successfully."
