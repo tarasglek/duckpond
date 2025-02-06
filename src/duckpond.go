@@ -389,7 +389,6 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 				}
 			}
 
-			// Duckdb doesn't actually support vacuum yet, so fake it
 			if op == OpDropTable {
 				dblog, err := ib.logByName(table)
 				if err != nil {
@@ -407,6 +406,7 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 				skipCurrentQuery = true
 				return
 			}
+			// Duckdb doesn't actually support vacuum yet, so fake it
 			if op == OpVacuum {
 				if table == "" {
 					handlerErr = fmt.Errorf("VACUUM requires a table name")
