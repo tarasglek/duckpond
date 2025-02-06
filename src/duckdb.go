@@ -63,8 +63,13 @@ func LoadExtensions(db *sql.DB) error {
 			Str("extension", ext.Extension).
 			Str("extension_path", ext.Path).
 			Msg("Loading extension")
+		// Try loading the extension using the file path
 		if _, err := db.Exec(fmt.Sprintf("LOAD '%s';", ext.Path)); err != nil {
-			return fmt.Errorf("failed to load extension %s: %w", ext.Extension, err)
+			log.Debug().Msgf("Failed to load extension via '%s', falling back to INSTALL/LOAD for %s: %v", ext.Path, ext.Extension, err)
+			// If loading via file path fails, attempt fallback using INSTALL and LOAD with the extension name.
+			if _, err := db.Exec(fmt.Sprintf("INSTALL %s; LOAD %s;", ext.Extension, ext.Extension)); err != nil {
+				return fmt.Errorf("failed to load extension %s using fallback: %w", ext.Extension, err)
+			}
 		}
 	}
 	log.Info().Msgf("DuckDB extensions loaded successfully")
