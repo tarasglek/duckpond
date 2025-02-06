@@ -9,6 +9,8 @@ RUN go mod download
 
 COPY ./src /src
 
+RUN apt-get update && apt-get install -y unzip
+
 RUN wget https://github.com/duckdb/duckdb/releases/download/v1.1.3/libduckdb-linux-amd64.zip -O /tmp/libduckdb.zip && \
     unzip /tmp/libduckdb.zip -d /tmp/libduckdb && \
     cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
