@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -50,6 +49,10 @@ func DownloadExtensions(db *sql.DB) error {
 	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
 	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
 	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
 	destDelta := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
 
