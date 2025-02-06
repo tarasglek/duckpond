@@ -346,7 +346,12 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 			}()
 
 			op, table := ib.parser.Parse(query)
-			log.Info().Msgf("%s(%d/%d): %s", op.String(), i+1, len(filteredQueries), query)
+			log.Info().
+				Str("operation", op.String()).
+				Int("query_index", i+1).
+				Int("total_queries", len(filteredQueries)).
+				Str("query", query).
+				Msg("Processing query")
 
 			var dblog *Log
 			if table != "" {
