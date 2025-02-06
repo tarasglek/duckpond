@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
 	"github.com/rs/zerolog/log"
@@ -36,6 +37,14 @@ func InitializeDuckDB() (*sql.DB, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(homeDir, &stat); err == nil {
+		available := stat.Bavail * uint64(stat.Bsize)
+		log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, available)
+	} else {
+		log.Warn().Msgf("Could not get disk space for %s: %v", homeDir, err)
 	}
 	extensionsDir := filepath.Join(homeDir, ".duckdb", "extensions")
 	if err := os.MkdirAll(extensionsDir, 0755); err != nil {
