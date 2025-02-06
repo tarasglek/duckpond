@@ -1,0 +1,7 @@
+version: "3.9"
+
+services:
+  duckpond:
+    build: .
+    ports:
+      - "8881:8080"
