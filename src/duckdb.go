@@ -19,66 +19,30 @@ type ExtensionInfo struct {
 	Path         string `json:"path"`
 }
 
-// getExtensionsInfo returns a slice of extension info as interface{} (each as ExtensionInfo).
-func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
-	// Get platform via DuckDB PRAGMA
-	var platform string
-	if err := db.QueryRow("pragma platform;").Scan(&platform); err != nil {
-		return nil, fmt.Errorf("failed to get platform: %w", err)
-	}
-
-	// Get version and sourceId via DuckDB PRAGMA
-	var version, sourceId string
-	if err := db.QueryRow("pragma version;").Scan(&version, &sourceId); err != nil {
-		return nil, fmt.Errorf("failed to get version: %w", err)
-	}
-
-	// Get home directory for destination paths
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	// "delta" seems broken in go bindin
+// ProcessExtensions handles loading or downloading DuckDB extensions
+func ProcessExtensions(db *sql.DB, download bool) error {
 	extensions := []string{"httpfs", "s3"}
-	var exts []ExtensionInfo
-
-	for _, extName := range extensions {
-		url := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, extName)
-		dest := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, fmt.Sprintf("%s.duckdb_extension", extName))
-		exts = append(exts, ExtensionInfo{
-			Extension:    extName,
-			ExtensionURL: url,
-			Path:         dest,
-		})
-	}
-	return exts, nil
-}
-
-// LoadExtensions loads each extension from its file path via sql LOAD '<ext.Path>';
-func LoadExtensions(db *sql.DB) error {
-	exts, err := getExtensionsInfo(db)
-	if err != nil {
-		return err
-	}
-	// log info that this currently doesn't work with golang bindin
-	log.Info().Msgf("FYI. Extension loading seems to not work in docker")
-	for _, ext := range exts {
-		log.Debug().
-			Str("extension", ext.Extension).
-			Str("extension_path", ext.Path).
-			Msg("Loading extension")
-		// Try loading the extension using the file path
-		if _, err := db.Exec(fmt.Sprintf("LOAD '%s';", ext.Path)); err != nil {
-			log.Debug().Msgf("Failed to load extension via path falling back to INSTALL/LOAD for %s: %v", ext.Extension, err)
-			// If loading via file path fails, attempt fallback using INSTALL and LOAD with the extension name.
-			if _, err := db.Exec(fmt.Sprintf("INSTALL %s; LOAD %s;", ext.Extension, ext.Extension)); err != nil {
-				return fmt.Errorf("failed to load extension %s using fallback: %w", ext.Extension, err)
+	
+	for _, ext := range extensions {
+		if download {
+			// Always install first when downloading extensions
+			if _, err := db.Exec(fmt.Sprintf("INSTALL %s;", ext)); err != nil {
+				return fmt.Errorf("failed to install extension %s: %w", ext, err)
+			}
+			if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
+				return fmt.Errorf("failed to load extension %s: %w", ext, err)
+			}
+		} else {
+			// Try LOAD first, fallback to INSTALL+LOAD if needed
+			if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
+				// Fallback: try INSTALL then LOAD
+				if _, err := db.Exec(fmt.Sprintf("INSTALL %s; LOAD %s;", ext, ext)); err != nil {
+					return fmt.Errorf("failed to load extension %s with fallback: %w", ext, err)
+				}
 			}
 		}
 	}
-	log.Info().Msgf("DuckDB extensions loaded successfully")
-
+	log.Info().Msg("DuckDB extensions processed successfully")
 	return nil
 }
 
