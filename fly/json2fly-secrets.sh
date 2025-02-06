@@ -14,4 +14,4 @@ if [ -z "$secrets" ]; then
 fi
 
 # Output the complete flyctl secrets set command
-echo "flyctl secrets set $* $secrets"
+eval flyctl secrets set "$@" $secrets
