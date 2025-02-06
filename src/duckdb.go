@@ -39,14 +39,39 @@ func DownloadExtensions(db *sql.DB) error {
 	}
 	extDir := filepath.Join(homeDir, ".duckdb", "extensions")
 
+	// Get initial free disk space:
+	before, err := GetFreeDiskSpace(homeDir)
+	if err != nil {
+		log.Warn().Msgf("Could not get initial free disk space for %s: %v", homeDir, err)
+	} else {
+		log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, before)
+	}
+
 	// Install and load the httpfs and delta plugins.
 	_, err = db.Exec("INSTALL httpfs;LOAD httpfs; INSTALL delta;LOAD delta;")
 	if err != nil {
 		return fmt.Errorf("failed to download duckdb extensions: %w", err)
 	}
 
+	// Get free disk space after installation:
+	after, err := GetFreeDiskSpace(homeDir)
+	if err != nil {
+		log.Warn().Msgf("Could not get final free disk space for %s: %v", homeDir, err)
+	} else {
+		delta := int64(after) - int64(before)
+		log.Info().Msgf("Disk space changed by %d bytes in %s", delta, homeDir)
+	}
+
 	log.Info().Msgf("DuckDB extensions downloaded to: %s", extDir)
 	return nil
+}
+
+func GetFreeDiskSpace(dir string) (uint64, error) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(dir, &stat); err != nil {
+		return 0, err
+	}
+	return stat.Bavail * uint64(stat.Bsize), nil
 }
 
 // InitializeDuckDB loads JSON extension and registers UUIDv7 UDFs
@@ -57,10 +82,9 @@ func InitializeDuckDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(homeDir, &stat); err == nil {
-		available := stat.Bavail * uint64(stat.Bsize)
-		log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, available)
+	freeDisk, err := GetFreeDiskSpace(homeDir)
+	if err == nil {
+		log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, freeDisk)
 	} else {
 		log.Warn().Msgf("Could not get disk space for %s: %v", homeDir, err)
 	}
