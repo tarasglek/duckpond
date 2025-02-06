@@ -38,6 +38,9 @@ func DownloadExtensions(db *sql.DB) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 	extDir := filepath.Join(homeDir, ".duckdb", "extensions")
+	if err := os.MkdirAll(extDir, 0755); err != nil {
+		return fmt.Errorf("failed to create DuckDB extensions directory '%s': %w", extDir, err)
+	}
 
 	// Get initial free disk space:
 	before, err := GetFreeDiskSpace(extDir)
@@ -83,10 +86,6 @@ func InitializeDuckDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to get disk space for %s: %w", homeDir, err)
 	}
 	log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, freeDisk)
-	extensionsDir := filepath.Join(homeDir, ".duckdb", "extensions")
-	if err := os.MkdirAll(extensionsDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create DuckDB extensions directory '%s': %w", extensionsDir, err)
-	}
 
 	// Open database connection
 	db, err := sql.Open("duckdb", "")
