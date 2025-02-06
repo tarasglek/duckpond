@@ -63,7 +63,7 @@ func WithQuerySplittingEnabled() IceBaseOption {
 	}
 }
 
-type IceBase struct {
+type DuckpondDB struct {
 	dataDB     *sql.DB
 	parser     *Parser
 	logs       map[string]*Log
@@ -72,7 +72,7 @@ type IceBase struct {
 	authToken  string
 }
 
-func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, error) {
+func (ib *DuckpondDB) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, error) {
 	start := time.Now()
 
 	// Initialize response with empty data slice
@@ -164,7 +164,7 @@ func (ib *IceBase) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse, e
 
 // DataDB returns the underlying DuckDB instance, initializing it if needed
 // This is an in-memory db
-func (ib *IceBase) DataDB() *sql.DB {
+func (ib *DuckpondDB) DataDB() *sql.DB {
 	if ib.dataDB == nil {
 		var err error
 		ib.dataDB, err = InitializeDuckDB()
@@ -175,7 +175,7 @@ func (ib *IceBase) DataDB() *sql.DB {
 	return ib.dataDB
 }
 
-func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
+func NewIceBase(opts ...IceBaseOption) (*DuckpondDB, error) {
 	// Set defaults
 	options := IceBaseOptions{
 		storageDir: "duckpond_tables",
@@ -187,7 +187,7 @@ func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 	}
 
 	authToken := os.Getenv("BEARER_TOKEN")
-	return &IceBase{
+	return &DuckpondDB{
 		parser:     NewParser(),
 		logs:       make(map[string]*Log),
 		options:    options,
@@ -196,7 +196,7 @@ func NewIceBase(opts ...IceBaseOption) (*IceBase, error) {
 	}, nil
 }
 
-func (ib *IceBase) logByName(tableName string) (*Log, error) {
+func (ib *DuckpondDB) logByName(tableName string) (*Log, error) {
 	if log, exists := ib.logs[tableName]; exists {
 		return log, nil
 	}
@@ -207,7 +207,7 @@ func (ib *IceBase) logByName(tableName string) (*Log, error) {
 	return log, nil
 }
 
-func (ib *IceBase) Close() error {
+func (ib *DuckpondDB) Close() error {
 	// Close all table logs
 	for _, log := range ib.logs {
 		if log.logDB != nil {
@@ -224,7 +224,7 @@ func (ib *IceBase) Close() error {
 }
 
 // Destroy completely removes all logs and associated data
-func (ib *IceBase) Destroy() error {
+func (ib *DuckpondDB) Destroy() error {
 	// Destroy all table logs (keep existing logic)
 	for tableName, log := range ib.logs {
 		if err := log.Destroy(); err != nil {
@@ -253,7 +253,7 @@ func (ib *IceBase) Destroy() error {
 	return nil
 }
 
-func (ib *IceBase) SerializeQuery(query string) (string, error) {
+func (ib *DuckpondDB) SerializeQuery(query string) (string, error) {
 	dataDB := ib.DataDB()
 
 	_, err := dataDB.Prepare(query)
@@ -306,7 +306,7 @@ func SplitNonEmptyQueries(body string) []string {
 	return filtered
 }
 
-func (ib *IceBase) handleQuery(body string) (string, error) {
+func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 	// Concise logging for query splitting and storage dir
 	log.Info().
 		Bool("query_splitting", ib.options.enableQuerySplitting).
@@ -443,7 +443,7 @@ func (ib *IceBase) handleQuery(body string) (string, error) {
 	return string(jsonData), nil
 }
 
-func (ib *IceBase) handleParse(body string) (string, error) {
+func (ib *DuckpondDB) handleParse(body string) (string, error) {
 	op, table := ib.parser.Parse(body)
 
 	response := struct {
@@ -461,7 +461,7 @@ func (ib *IceBase) handleParse(body string) (string, error) {
 	return string(jsonData), nil
 }
 
-func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
+func (ib *DuckpondDB) PostEndpoint(endpoint string, body string) (string, error) {
 	switch endpoint {
 	case "/query":
 		return ib.handleQuery(body)
@@ -472,7 +472,7 @@ func (ib *IceBase) PostEndpoint(endpoint string, body string) (string, error) {
 	}
 }
 
-func (ib *IceBase) RequestHandler() http.HandlerFunc {
+func (ib *DuckpondDB) RequestHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}

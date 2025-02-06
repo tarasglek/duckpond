@@ -73,7 +73,7 @@ func processAndCompare(t *testing.T, responseJSON, expectedJSON map[string]inter
 }
 
 // testQuery handles the core test logic for a single query file
-func testQuery(t *testing.T, ib *IceBase, queryFile string) {
+func testQuery(t *testing.T, ib *DuckpondDB, queryFile string) {
 	// Read and execute query_bytes
 	query_bytes, err := os.ReadFile(queryFile)
 	assert.NoError(t, err, "Failed to read query file")

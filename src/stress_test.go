@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +28,7 @@ const assertCommandPrefix = "-- ASSERT"
 //
 //	-- ASSERT COUNT_PARQUET mytable: 3;
 //	       ^ checks that table "mytable" has exactly 3 parquet files
-func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
+func handleAssertActionInComment(t *testing.T, ib *DuckpondDB, comment string) {
 	// Strip assertPrefix
 	assertionParts := strings.SplitN(strings.TrimPrefix(comment, assertCommandPrefix), ":", 2)
 	// fmt.Printf("------------------%v\n", assertionParts)
@@ -53,7 +54,7 @@ func handleAssertActionInComment(t *testing.T, ib *IceBase, comment string) {
 }
 
 // assertCountParquet checks that a table has the expected number of parquet files.
-func assertCountParquet(t *testing.T, ib *IceBase, args string, expected string) {
+func assertCountParquet(t *testing.T, ib *DuckpondDB, args string, expected string) {
 	tableName := args // args is the table name for COUNT_PARQUET
 	expectedCount, err := strconv.Atoi(expected)
 	assert.NoError(t, err, "Invalid expected count format: %s", expected)
