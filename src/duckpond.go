@@ -326,7 +326,7 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 		filteredQueries = []string{body}
 	}
 
-	log.Debug().Array("filteredQueries", filteredQueries).Msgf("handleQuery")
+	log.Debug().Strs("filteredQueries", filteredQueries).Msg("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
 
