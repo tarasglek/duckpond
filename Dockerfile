@@ -19,9 +19,16 @@ RUN set -xe; \
 
 FROM debian:bookworm-slim
 
+# Install dependencies for extension download script
+RUN apt-get update && apt-get install -y \
+    jq \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
 # /root includes .duckdb/extensions
 COPY --from=build /root /root 
 COPY --from=build /duckpond /duckpond
-RUN /duckpond -download-duckdb-extensions
+COPY download-extensions.sh /download-extensions.sh
+RUN chmod +x /download-extensions.sh && /download-extensions.sh /duckpond
 
 ENTRYPOINT [ "/duckpond", "-port", "8080" ]
