@@ -5,6 +5,8 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	_ "github.com/marcboeker/go-duckdb"
@@ -48,8 +50,20 @@ func DownloadExtensions(db *sql.DB) error {
 	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
 	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
 
-	log.Info().Str("extension", "delta").Str("extension_url", urlDelta).Msg("Delta extension URL")
-	log.Info().Str("extension", "httpfs").Str("extension_url", urlHttpfs).Msg("httpfs extension URL")
+	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
+	destDelta := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
+
+	log.Info().
+		Str("extension", "delta").
+		Str("extension_url", urlDelta).
+		Str("path", destDelta).
+		Msg("Delta extension URL")
+
+	log.Info().
+		Str("extension", "httpfs").
+		Str("extension_url", urlHttpfs).
+		Str("path", destHttpfs).
+		Msg("httpfs extension URL")
 
 	return nil
 }
