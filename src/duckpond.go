@@ -364,6 +364,24 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 					return
 				}
 			}
+			if op == OpDropTable {
+				dblog, err := ib.logByName(table)
+				if err != nil {
+					handlerErr = fmt.Errorf("failed to get log for DROP TABLE %s: %w", table, err)
+					return
+				}
+				if err := dblog.Destroy(); err != nil {
+					handlerErr = fmt.Errorf("DROP TABLE failed for %s: %w", table, err)
+					return
+				}
+				// Remove the table's log from the in-memory logs map
+				delete(ib.logs, table)
+				log.Debug().
+					Str("table", table).
+					Msgf("DROP TABLE response:%v", response)
+
+				return
+			}
 
 			if dblog != nil {
 				opExpectsTableToExist := op == OpSelect || op == OpVacuum
@@ -391,20 +409,6 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 				}
 			}
 
-			if op == OpDropTable {
-				dblog, err := ib.logByName(table)
-				if err != nil {
-					handlerErr = fmt.Errorf("failed to get log for DROP TABLE %s: %w", table, err)
-					return
-				}
-				if err := dblog.Destroy(); err != nil {
-					handlerErr = fmt.Errorf("DROP TABLE failed for %s: %w", table, err)
-					return
-				}
-				// Remove the table's log from the in-memory logs map
-				delete(ib.logs, table)
-				return
-			}
 			// Duckdb doesn't actually support vacuum yet, so fake it
 			if op == OpVacuum {
 				if table == "" {
@@ -462,6 +466,7 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 		log.Error().Err(err).Msg("Failed to marshal JSON response")
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
+	log.Debug().Msgf("Response: %s", jsonData)
 	return string(jsonData), nil
 }
 
