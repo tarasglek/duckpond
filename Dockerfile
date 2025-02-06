@@ -24,4 +24,4 @@ COPY --from=build /duckpond /duckpond
 COPY --from=build /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/
 COPY --from=build /lib64/ld-linux-x86-64.so.2 /lib64/
 
-ENTRYPOINT [ "/duckpond", "-port", '80' ]
+ENTRYPOINT [ "/duckpond", "-port", '8080' ]
