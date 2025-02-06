@@ -329,6 +329,7 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 	log.Debug().Strs("filteredQueries", filteredQueries).Int("total_queries", len(filteredQueries)).Msg("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
+		skipCurrentQuery := false
 
 		var handlerErr error
 		func() {
@@ -392,17 +393,19 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 			if op == OpDropTable {
 				dblog, err := ib.logByName(table)
 				if err != nil {
-					return "", fmt.Errorf("failed to get log for DROP TABLE %s: %w", table, err)
+					handlerErr = fmt.Errorf("failed to get log for DROP TABLE %s: %w", table, err)
+					return
 				}
 				if err := dblog.Destroy(); err != nil {
-					return "", fmt.Errorf("DROP TABLE failed for %s: %w", table, err)
+					handlerErr = fmt.Errorf("DROP TABLE failed for %s: %w", table, err)
+					return
 				}
 				// Remove the table's log from the in-memory logs map
 				delete(ib.logs, table)
 				// Return an empty response (or a success message as desired)
 				response = &QueryResponse{Data: make([][]interface{}, 0)}
-				// Continue to the next query without further processing
-				continue
+				skipCurrentQuery = true
+				return
 			}
 			if op == OpVacuum {
 				if table == "" {
@@ -450,6 +453,9 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 			// No commit because log handles data persistence above
 		}()
 
+		if skipCurrentQuery {
+			continue
+		}
 		if handlerErr != nil {
 			return "", handlerErr
 		}
