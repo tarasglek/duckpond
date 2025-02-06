@@ -504,7 +504,7 @@ func (ib *DuckpondDB) RequestHandler() http.HandlerFunc {
 				Int("bytes", lrw.bytesWritten).
 				Str("referer", r.Referer()).
 				Str("user_agent", r.UserAgent()).
-				Dur("elapsed", elapsed).
+				Dur("elapsed_ns", elapsed).
 				Msg("Request completed")
 		}()
 
