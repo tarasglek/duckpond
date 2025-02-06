@@ -33,21 +33,23 @@ func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
 		return nil, fmt.Errorf("failed to get version: %w", err)
 	}
 
-	// Build URLs for extensions
-	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
-	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
-
-	// Get home directory for destination path
+	// Get home directory for destination paths
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
-	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
-	destDelta := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
 
-	exts := []ExtensionInfo{
-		{Extension: "delta", ExtensionURL: urlDelta, Path: destDelta},
-		{Extension: "httpfs", ExtensionURL: urlHttpfs, Path: destHttpfs},
+	extensions := []string{"delta", "httpfs"}
+	var exts []ExtensionInfo
+
+	for _, extName := range extensions {
+		url := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, extName)
+		dest := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, fmt.Sprintf("%s.duckdb_extension", extName))
+		exts = append(exts, ExtensionInfo{
+			Extension:    extName,
+			ExtensionURL: url,
+			Path:         dest,
+		})
 	}
 	return exts, nil
 }
