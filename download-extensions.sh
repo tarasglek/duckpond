@@ -8,9 +8,16 @@ fi
 
 DUCKPOND="$1"
 
-echo "Collecting DuckDB extension info from $DUCKPOND..."
-# Run duckpond to print extension info, then filter json lines that contain an "extension" field.
-$DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | while IFS= read -r line; do
+# Create a temporary file for the JSON output
+tmp_json=$(mktemp)
+# Set a trap to remove the temporary JSON file on exit
+trap "rm -f '${tmp_json}'" EXIT
+
+echo "Collecting DuckDB extension info from $DUCKPOND into ${tmp_json}..."
+$DUCKPOND -print-duckdb-extension-info > "${tmp_json}"
+
+# Process only valid JSON lines from the temp file
+grep -E '^\{' "${tmp_json}" | jq -c 'select(.extension != null)' | while IFS= read -r line; do
     extension=$(echo "$line" | jq -r '.extension')
     ext_url=$(echo "$line" | jq -r '.extension_url')
     dest_path=$(echo "$line" | jq -r '.path')
@@ -22,7 +29,7 @@ $DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | wh
 
     # Create a temporary file to hold the downloaded gzipped data
     tmp_file=$(mktemp)
-    # Set up a trap to remove the temporary file on exit from this iteration
+    # Set a trap (scoped to this loop iteration) to remove the temporary file on exit
     trap "rm -f '${tmp_file}'" EXIT
 
     # Download the extension file into the temporary file
@@ -31,8 +38,12 @@ $DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | wh
     # Gunzip the temporary file and write directly to the destination path
     gunzip -c "$tmp_file" > "$dest_path"
 
-    # Disable the trap now that we've successfully used the temporary file
+    # Disable the trap for this iteration
     trap - EXIT
 done
+
+# Remove the temporary JSON file explicitly (if the trap hasn't done it already)
+rm -f "${tmp_json}"
+trap - EXIT
 
 echo "All extensions downloaded successfully."
