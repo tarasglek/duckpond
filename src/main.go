@@ -17,7 +17,22 @@ func main() {
 	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	downloadExt := flag.Bool("download-duckdb-extensions", false, "download and install DuckDB extensions")
+	loadExtFlag := flag.Bool("load-extensions", false, "load DuckDB extensions from extension paths")
 	flag.Parse()
+
+	if *loadExtFlag {
+		db, err := InitializeDuckDB()
+		if err != nil {
+			log.Fatal().Msgf("Failed to initialize DuckDB: %v", err)
+		}
+		defer db.Close()
+
+		if err := LoadExtensions(db); err != nil {
+			log.Fatal().Msgf("Failed to load extensions: %v", err)
+		}
+		fmt.Println("DuckDB extensions loaded successfully")
+		return
+	}
 
 	if *downloadExt {
 		// Initialize a standalone DuckDB connection

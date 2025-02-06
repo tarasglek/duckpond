@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,60 @@ import (
 	_ "github.com/marcboeker/go-duckdb"
 	"github.com/rs/zerolog/log"
 )
+
+type ExtensionInfo struct {
+	Extension    string `json:"extension"`
+	ExtensionURL string `json:"extension_url"`
+	Path         string `json:"path"`
+}
+
+// getExtensionsInfo returns a slice of extension info as interface{} (each as ExtensionInfo).
+func getExtensionsInfo(db *sql.DB) ([]ExtensionInfo, error) {
+	// Get platform via DuckDB PRAGMA
+	var platform string
+	if err := db.QueryRow("pragma platform;").Scan(&platform); err != nil {
+		return nil, fmt.Errorf("failed to get platform: %w", err)
+	}
+	
+	// Get version and sourceId via DuckDB PRAGMA
+	var version, sourceId string
+	if err := db.QueryRow("pragma version;").Scan(&version, &sourceId); err != nil {
+		return nil, fmt.Errorf("failed to get version: %w", err)
+	}
+
+	// Build URLs for extensions
+	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
+	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
+
+	// Get home directory for destination path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
+	destDelta  := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
+	
+	exts := []ExtensionInfo{
+		{Extension: "delta", ExtensionURL: urlDelta, Path: destDelta},
+		{Extension: "httpfs", ExtensionURL: urlHttpfs, Path: destHttpfs},
+	}
+	return exts, nil
+}
+
+// LoadExtensions loads each extension from its file path via sql LOAD '<ext.Path>';
+func LoadExtensions(db *sql.DB) error {
+	exts, err := getExtensionsInfo(db)
+	if err != nil {
+		return err
+	}
+	for _, ext := range exts {
+		// Use single quotes around the path
+		if _, err := db.Exec(fmt.Sprintf("LOAD '%s';", ext.Path)); err != nil {
+			return fmt.Errorf("failed to load extension %s: %w", ext.Extension, err)
+		}
+	}
+	return nil
+}
 
 //go:embed duckdb-uuidv7/uuidv7.sql
 var uuid_v7_macro string
@@ -31,43 +86,20 @@ func loadMacros(db *sql.DB) error {
 	return nil
 }
 
-// DownloadExtensions installs and loads required DuckDB extensions
+// DownloadExtensions outputs extension information as JSONL
 func DownloadExtensions(db *sql.DB) error {
-	// Retrieve platform info via DuckDB pragma
-	var platform string
-	if err := db.QueryRow("pragma platform;").Scan(&platform); err != nil {
-		return fmt.Errorf("failed to get platform: %w", err)
-	}
-
-	// Retrieve DuckDB version info via pragma
-	var version, sourceId string
-	if err := db.QueryRow("pragma version;").Scan(&version, &sourceId); err != nil {
-		return fmt.Errorf("failed to get version: %w", err)
-	}
-
-	// Build extension URLs for httpfs and delta
-	urlHttpfs := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "httpfs")
-	urlDelta := fmt.Sprintf("http://extensions.duckdb.org/%s/%s/%s.duckdb_extension.gz", version, platform, "delta")
-
-	homeDir, err := os.UserHomeDir()
+	exts, err := getExtensionsInfo(db)
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return err
 	}
-	destHttpfs := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "httpfs.duckdb_extension")
-	destDelta := filepath.Join(homeDir, ".duckdb", "extensions", version, platform, "delta.duckdb_extension")
-
-	log.Info().
-		Str("extension", "delta").
-		Str("extension_url", urlDelta).
-		Str("path", destDelta).
-		Msg("Delta extension URL")
-
-	log.Info().
-		Str("extension", "httpfs").
-		Str("extension_url", urlHttpfs).
-		Str("path", destHttpfs).
-		Msg("httpfs extension URL")
-
+	for _, ext := range exts {
+		data, err := json.Marshal(ext)
+		if err != nil {
+			return fmt.Errorf("failed to marshal extension info: %w", err)
+		}
+		// Print one JSON object per line
+		fmt.Println(string(data))
+	}
 	return nil
 }
 
