@@ -150,7 +150,7 @@ func (ib *DuckpondDB) ExecuteQuery(query string, dataTx *sql.Tx) (*QueryResponse
 		}
 	} else {
 		if err.Error() != "empty query" {
-			return nil, fmt.Errorf("query error: %w", err)
+			return nil, fmt.Errorf("query error: %w. %s", err, query)
 		}
 	}
 
@@ -302,7 +302,6 @@ func SplitNonEmptyQueries(body string) []string {
 		separateComments(q)
 	}
 
-	// fmt.Printf("Filtered queries: %v\n", strings.Join(filtered, "\n\n"))
 	return filtered
 }
 
@@ -324,9 +323,10 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 		filteredQueries = SplitNonEmptyQueries(body)
 	} else {
 		// When query splitting is disabled, treat entire body as single query
-		filteredQueries = []string{strings.TrimSpace(body)}
+		filteredQueries = []string{body}
 	}
 
+	log.Debug().Array("filteredQueries", filteredQueries).Msgf("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
 
