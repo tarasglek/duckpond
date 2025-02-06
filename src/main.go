@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	port := flag.Int("port", 8080, "port to listen on")
+	port := flag.Int("port", 0, "port to listen on (if not provided, the HTTP server will not start)")
 	postEndpoint := flag.String("post", "", "send POST request to specified endpoint e.g.: echo 'select now()' | ./duckpond -post /query")
 	querySplitting := flag.Bool("query-splitting", false, "enable semicolon query splitting")
 	logLevel := flag.String("log-level", "info", "set the logging level (debug, info, warn, error); can also be set via LOG_LEVEL env var")
@@ -81,15 +81,18 @@ func main() {
 		return
 	}
 
-	// Start server
-	addr := fmt.Sprintf(":%d", *port)
-	log.Info().Msgf("Starting server on %s", addr)
-	handler := ib.RequestHandler()
-	http.HandleFunc("/query", handler)
-	http.HandleFunc("/parse", handler)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Error().Msgf("Error starting server: %v", err)
-		flag.Usage()
-		os.Exit(1)
+	if *port != 0 {
+		addr := fmt.Sprintf(":%d", *port)
+		log.Info().Msgf("Starting server on %s", addr)
+		handler := ib.RequestHandler()
+		http.HandleFunc("/query", handler)
+		http.HandleFunc("/parse", handler)
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			log.Error().Msgf("Error starting server: %v", err)
+			flag.Usage()
+			os.Exit(1)
+		}
+	} else {
+		log.Info().Msg("No port provided; HTTP server is not started.")
 	}
 }
