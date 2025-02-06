@@ -12,6 +12,7 @@ const (
 	OpSelect
 	OpAlterTable
 	OpVacuum
+	OpDropTable
 	OpUnknown
 )
 
@@ -27,6 +28,8 @@ func (o Operation) String() string {
 		return "alter_table"
 	case OpVacuum:
 		return "vacuum"
+	case OpDropTable:
+		return "drop_table"
 	default:
 		return "unknown"
 	}
@@ -38,6 +41,7 @@ type Parser struct {
 	selectRe *regexp.Regexp
 	alterRe  *regexp.Regexp
 	vacuumRe *regexp.Regexp
+	dropRe   *regexp.Regexp
 }
 
 func NewParser() *Parser {
@@ -47,6 +51,7 @@ func NewParser() *Parser {
 		selectRe: regexp.MustCompile(`(?i)^\s*SELECT\s+.*?(?:\s+FROM\s+([.\w]+))?[\s;]*$`),
 		alterRe:  regexp.MustCompile(`(?i)^\s*ALTER\s+TABLE\s+([.\w]+)`),
 		vacuumRe: regexp.MustCompile(`(?i)^\s*VACUUM(?:\s+(\S+))?`),
+		dropRe:   regexp.MustCompile(`(?i)^\s*DROP\s+TABLE\s+([.\w]+)`),
 	}
 }
 
@@ -73,6 +78,9 @@ func (p *Parser) Parse(query string) (Operation, string) {
 			table = matches[1]
 		}
 		return OpVacuum, table
+	}
+	if matches := p.dropRe.FindStringSubmatch(query); matches != nil {
+		return OpDropTable, matches[1]
 	}
 	return OpUnknown, ""
 }
