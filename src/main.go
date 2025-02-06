@@ -78,6 +78,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		log.Info().Msg("No port provided; HTTP server is not started.")
+		flag.Usage()
+		return
 	}
 }
