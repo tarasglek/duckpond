@@ -22,6 +22,8 @@ $DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | wh
 
     # Create a temporary file to hold the downloaded gzipped data
     tmp_file=$(mktemp)
+    # Set up a trap to remove the temporary file on exit from this iteration
+    trap "rm -f '${tmp_file}'" EXIT
 
     # Download the extension file into the temporary file
     wget -q -O "$tmp_file" "$ext_url"
@@ -29,8 +31,8 @@ $DUCKPOND -print-duckdb-extension-info | jq -c 'select(.extension != null)' | wh
     # Gunzip the temporary file and write directly to the destination path
     gunzip -c "$tmp_file" > "$dest_path"
 
-    # Remove the temporary file
-    rm -f "$tmp_file"
+    # Disable the trap now that we've successfully used the temporary file
+    trap - EXIT
 done
 
 echo "All extensions downloaded successfully."
