@@ -329,7 +329,6 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 	log.Debug().Strs("filteredQueries", filteredQueries).Int("total_queries", len(filteredQueries)).Msg("handleQuery")
 	for i, q := range filteredQueries {
 		query := q // Already trimmed and filtered
-		skipCurrentQuery := false
 
 		var handlerErr error
 		func() {
@@ -353,6 +352,9 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 				Str("table", table).
 				Str("query", query).
 				Msg("Processing query")
+
+			// reset to empty response
+			response = &QueryResponse{Data: make([][]interface{}, 0)}
 
 			var dblog *Log
 			if table != "" {
@@ -401,9 +403,6 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 				}
 				// Remove the table's log from the in-memory logs map
 				delete(ib.logs, table)
-				// Return an empty response (or a success message as desired)
-				response = &QueryResponse{Data: make([][]interface{}, 0)}
-				skipCurrentQuery = true
 				return
 			}
 			// Duckdb doesn't actually support vacuum yet, so fake it
@@ -453,9 +452,6 @@ func (ib *DuckpondDB) handleQuery(body string) (string, error) {
 			// No commit because log handles data persistence above
 		}()
 
-		if skipCurrentQuery {
-			continue
-		}
 		if handlerErr != nil {
 			return "", handlerErr
 		}
