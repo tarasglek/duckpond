@@ -42,7 +42,7 @@ func DownloadExtensions(db *sql.DB) error {
 	// Get initial free disk space:
 	before, err := GetFreeDiskSpace(extDir)
 	if err != nil {
-		log.Warn().Msgf("Could not get initial free disk space for %s: %v", homeDir, err)
+		return fmt.Errorf("failed to get initial free disk space for %s: %w", extDir, err)
 	}
 
 	// Install and load the httpfs and delta plugins.
@@ -54,7 +54,7 @@ func DownloadExtensions(db *sql.DB) error {
 	// Get free disk space after installation:
 	after, err := GetFreeDiskSpace(homeDir)
 	if err != nil {
-		log.Warn().Msgf("Could not get final free disk space for %s: %v", homeDir, err)
+		return fmt.Errorf("failed to get final free disk space for %s: %w", homeDir, err)
 	}
 	delta := int64(after) - int64(before)
 
@@ -79,11 +79,10 @@ func InitializeDuckDB() (*sql.DB, error) {
 	}
 
 	freeDisk, err := GetFreeDiskSpace(homeDir)
-	if err == nil {
-		log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, freeDisk)
-	} else {
-		log.Warn().Msgf("Could not get disk space for %s: %v", homeDir, err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get disk space for %s: %w", homeDir, err)
 	}
+	log.Info().Msgf("Available disk space in %s: %d bytes", homeDir, freeDisk)
 	extensionsDir := filepath.Join(homeDir, ".duckdb", "extensions")
 	if err := os.MkdirAll(extensionsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create DuckDB extensions directory '%s': %w", extensionsDir, err)
