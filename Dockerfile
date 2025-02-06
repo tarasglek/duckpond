@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y unzip
 
 RUN wget https://github.com/duckdb/duckdb/releases/download/v1.1.3/libduckdb-linux-amd64.zip -O /tmp/libduckdb.zip && \
     unzip /tmp/libduckdb.zip -d /tmp/libduckdb && \
-    cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
+    cp /tmp/libduckdb/libduckdb.so /usr/lib/
 
-RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" go build -tags "duckdb_use_lib netgo" -o /duckpond /src/...
+RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/lib" go build -tags "duckdb_use_lib netgo" -o /duckpond /src/...
 
 RUN /duckpond -load-extensions
 
@@ -30,8 +30,8 @@ RUN apt-get update && apt-get install -y \
 # /root includes .duckdb/extensions
 COPY --from=build /root /root
 COPY --from=build /duckpond /duckpond
-COPY --from=build /usr/local/lib/libduckdb.so /usr/local/lib/libduckdb.so
+COPY --from=build /usr/lib/libduckdb.so /usr/lib/libduckdb.so
 
-ENV LD_LIBRARY_PATH=/usr/local/lib
+ENV LD_LIBRARY_PATH=/usr/lib
 
 ENTRYPOINT [ "/duckpond", "-port", "8080", "-load-extensions"]
