@@ -29,6 +29,9 @@ func ProcessExtensions(db *sql.DB, install bool) error {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
 			extDir := filepath.Join(homeDir, ".duckdb", "extensions")
+			if err := os.MkdirAll(extDir, 0755); err != nil {
+				return fmt.Errorf("failed to create extension directory %s: %w", extDir, err)
+			}
 			freeBefore, err := GetFreeDiskSpace(extDir)
 			if err != nil {
 				return fmt.Errorf("failed to get free disk space before installing extension %s: %w", ext, err)
