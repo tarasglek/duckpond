@@ -23,11 +23,27 @@ func ProcessExtensions(db *sql.DB, install bool) error {
 
 	for _, ext := range extensions {
 		if install {
-			// Always install first when downloading extensions
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			extDir := homeDir + "/.duckdb/extensions"
+			freeBefore, err := GetFreeDiskSpace(extDir)
+			if err != nil {
+				log.Warn().Msgf("Could not get free disk space before installing extension %s: %v", ext, err)
+			}
+			
 			if _, err := db.Exec(fmt.Sprintf("INSTALL %s;", ext)); err != nil {
 				return fmt.Errorf("failed to install extension %s: %w", ext, err)
 			}
-
+			
+			freeAfter, err := GetFreeDiskSpace(extDir)
+			if err != nil {
+				log.Warn().Msgf("Could not get free disk space after installing extension %s: %v", ext, err)
+			} else {
+				diff := freeAfter - freeBefore
+				log.Info().Msgf("Extension %s installed, free disk space changed by %d bytes", ext, diff)
+			}
 		}
 		// Try LOAD first, fallback to INSTALL+LOAD if needed
 		if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
