@@ -157,11 +157,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		return err
 	}
 
-	if err := l.Export(); err != nil {
-		return fmt.Errorf("export failed: %w", err)
-	}
-
-	return nil
+	return l.Export();
 }
 
 //go:embed json_from_create_table_event.sql
@@ -517,9 +513,16 @@ func (l *Log) Destroy() error {
 		l.logDB = nil
 	}
 
+	// deal with stale tigris cache by writing a new empty entry...
+	// delete it again
 	if l.storage.GetEndpoint() inludes tigris {
 		l.logDB = l.initLogDB()
-		
+		l.Export()
+		// Delete JSON log file
+	if err := l.storage.Delete(l.delta_log_json); err != nil {
+		return fmt.Errorf("failed to delete log: %w", err)
+	}
+		// close db connection again as above
 	}
 	
 
