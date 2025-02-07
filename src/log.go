@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -514,17 +515,34 @@ func (l *Log) Destroy() error {
 	}
 
 	// deal with stale tigris cache by writing a new empty entry...
-	// delete it again
-	if l.storage.GetEndpoint() inludes tigris {
-		l.logDB = l.initLogDB()
-		l.Export()
-		// Delete JSON log file
-	if err := l.storage.Delete(l.delta_log_json); err != nil {
-		return fmt.Errorf("failed to delete log: %w", err)
+	// then delete it again
+	if strings.Contains(l.storage.GetEndpoint(), "tigris") {
+		db, err := l.initLogDB()
+		if err != nil {
+			return fmt.Errorf("failed to reinitialize database for tigris cache update: %w", err)
+		}
+
+		// Clear the log table to force an empty entry
+		if _, err := db.Exec("DELETE FROM log_json;"); err != nil {
+			return fmt.Errorf("failed to clear log table for tigris cache update: %w", err)
+		}
+
+		// Export the cleared (empty) log state to storage
+		if err := l.Export(); err != nil {
+			return fmt.Errorf("failed to export empty log for tigris cache update: %w", err)
+		}
+
+		// Delete the JSON log file from storage
+		if err := l.storage.Delete(l.delta_log_json); err != nil {
+			return fmt.Errorf("failed to delete log during tigris cache update: %w", err)
+		}
+
+		// Close the temporary database connection and mark it as nil
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("failed to close database after tigris cache update: %w", err)
+		}
+		l.logDB = nil
 	}
-		// close db connection again as above
-	}
-	
 
 	return nil
 }
