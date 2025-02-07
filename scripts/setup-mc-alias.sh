@@ -32,13 +32,17 @@ if [ -z "${S3_ENDPOINT}" ]; then
   exit 1
 fi
 
-echo "Setting mc alias '$ALIAS_NAME' with endpoint: ${S3_ENDPOINT}"
+echo "Setting rclone alias '$ALIAS_NAME' with endpoint: ${S3_ENDPOINT}"
 set -x
-mc alias set "${ALIAS_NAME}" "${S3_ENDPOINT}" "${AWS_ACCESS_KEY_ID}" "${AWS_SECRET_ACCESS_KEY}"
+rclone config create "${ALIAS_NAME}" s3 \
+  provider AWS \
+  access_key_id "${AWS_ACCESS_KEY_ID}" \
+  secret_access_key "${AWS_SECRET_ACCESS_KEY}" \
+  endpoint "${S3_ENDPOINT}"
 
 if [ $? -eq 0 ]; then
-  echo "mc alias '$ALIAS_NAME' set successfully."
+  echo "rclone alias '$ALIAS_NAME' set successfully."
 else
-  echo "Error: Failed to set mc alias '$ALIAS_NAME'."
+  echo "Error: Failed to set rclone alias '$ALIAS_NAME'."
   exit 1
 fi
