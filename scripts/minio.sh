@@ -27,7 +27,10 @@ start_server() {
     echo "API Port: $MINIO_API_PORT"
     echo "Console Port: $MINIO_CONSOLE_PORT"
 
-    # Start trace logging concurrently with a simpler loop
+    # Call setup_client before starting trace logging
+    setup_client
+
+    # Start trace logging concurrently with a simpler until loop
     (
       trap "exit" INT
       sleep 1
