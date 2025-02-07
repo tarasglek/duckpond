@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -408,9 +407,10 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 	for i, file := range files {
 		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(filepath.Join(l.tableName, file)))
 	}
-	createView := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet([%s])",
-		l.tableName, strings.Join(paths, ", "))
-	log.Debug().Msgf("createView: %s", createView)
+	duckPath := l.storage.ToDuckDBReadPath(l.tableName)
+	// load delta ext here in case it wasn't loaded yet
+	createView := fmt.Sprintf("LOAD delta; CREATE VIEW %s AS SELECT * FROM delta_scan('%s');", l.tableName, duckPath)
+	log.Debug().Str("duckPath", duckPath).Msgf("createView: %s", createView)
 	_, err = dataTx.Exec(createView)
 	return err
 }
