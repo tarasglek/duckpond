@@ -31,10 +31,8 @@ start_server() {
     (
       trap "exit" INT
       sleep 1
-      until mc admin trace --call s3 s3 --no-color; do sleep 1; done
+      until mc admin trace --call s3 s3 --no-color --json; do sleep 1; done
     ) &
-    TRACE_PID=$!
-    trap "kill $TRACE_PID; exit" INT
 
     minio server "$MINIO_DATA_DIR" \
         --address ":${MINIO_API_PORT}" \
