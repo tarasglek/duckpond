@@ -517,6 +517,12 @@ func (l *Log) Destroy() error {
 		l.logDB = nil
 	}
 
+	if l.storage.GetEndpoint() inludes tigris {
+		l.logDB = l.initLogDB()
+		
+	}
+	
+
 	return nil
 }
 
