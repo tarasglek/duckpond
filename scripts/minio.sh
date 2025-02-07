@@ -77,16 +77,11 @@ case "$1" in
         shift  # Remove 'client' from args
         reset_bucket "$@"
         ;;
-    "all")
-        shift  # Remove 'all' from args
-        start_server "$@"
-        reset_bucket "$@"
-        ;;
     *)
         if [ $# -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
             echo "MinIO Management Script"
             echo
-            echo "Usage: $0 {server|reset_bucket|all} [additional arguments...]"
+            echo "Usage: $0 {server|reset_bucket} [additional arguments...]"
             echo
             echo "Standard Options:"
             echo "  --help, -h       Show this help message"
