@@ -99,6 +99,7 @@ type Storage interface {
 	ToDuckDBReadPath(path string) string
 	List(prefix string) ([]string, error)
 	ToDuckDBSecret(secretName string) string
+	GetEndpoint() string
 }
 
 // FSConfig holds configuration for local filesystem storage
@@ -366,6 +367,10 @@ func (s *S3Storage) ToDuckDBReadPath(path string) string {
 	return s.ToDuckDBWritePath(path)
 }
 
+func (s *S3Storage) GetEndpoint() string {
+	return s.config.Endpoint
+}
+
 func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 	if s.config.AccessKey == "" || s.config.SecretKey == "" {
 		return ""
@@ -613,4 +618,8 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 
 func (fs *FSStorage) ToDuckDBSecret(secretName string) string {
 	return "" // No secret for filesystem storage
+}
+
+func (fs *FSStorage) GetEndpoint() string {
+	return "fs"
 }
