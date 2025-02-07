@@ -116,10 +116,10 @@ func (l *Log) getLogDBAfterImport() (*sql.DB, error) {
 }
 
 // Exports log state to a JSON file and returns the current etag
-func (l *Log) Export() ([]byte, string, error) {
+func (l *Log) Export() error {
 	db, err := l.getLogDBAfterImport()
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get database: %w", err)
+		return fmt.Errorf("failed to get database: %w", err)
 	}
 
 	// Get and log etag in one operation
@@ -134,9 +134,15 @@ func (l *Log) Export() ([]byte, string, error) {
 	var dl_events string
 	err = db.QueryRow(exportDeltaLakeLogSQL).Scan(&dl_events)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get delta lake events: %w", err)
+		return fmt.Errorf("failed to get delta lake events: %w", err)
 	}
-	return []byte(dl_events), etag, err
+
+	// Write the new state to storage
+	if writeErr := l.storage.Write(l.delta_log_json, []byte(dl_events), WithIfMatch(etag)); writeErr != nil {
+		return fmt.Errorf("failed to write %s: %w", l.delta_log_json, writeErr)
+	}
+
+	return nil
 }
 
 // Runs callback that does SQL while properly persisting it via log
@@ -151,14 +157,8 @@ func (l *Log) withPersistedLog(op func() error) error {
 		return err
 	}
 
-	// Export and write new state
-	if dl_events, etag, exportErr := l.Export(); exportErr != nil {
-		return fmt.Errorf("export failed: %w", exportErr)
-	} else {
-		writeErr := l.storage.Write(l.delta_log_json, dl_events, WithIfMatch(etag))
-		if writeErr != nil {
-			return fmt.Errorf("failed to write %s: %w", l.delta_log_json, writeErr)
-		}
+	if err := l.Export(); err != nil {
+		return fmt.Errorf("export failed: %w", err)
 	}
 
 	return nil
