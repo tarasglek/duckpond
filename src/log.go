@@ -559,6 +559,13 @@ func (l *Log) importPersistedLog() (err error) {
 		return nil
 	}
 
+	if !strings.Contains(string(data), "metaData") &&
+		!strings.Contains(string(data), "add") &&
+		!strings.Contains(string(data), "remove") {
+		log.Debug().Msgf("importPersistedLog: %s does not contain 'metaData', 'add', or 'remove', skipping import", l.delta_log_json)
+		return nil
+	}
+
 	defer func() {
 		if err != nil {
 			log.Error().Msgf("importPersistedLog(%s) failed: %v", l.delta_log_json, err)
