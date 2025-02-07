@@ -150,7 +150,10 @@ func (s *S3Storage) List(prefix string) ([]string, error) {
 	fullPrefix := s.fullKey(prefix)
 	var objects []string
 
-	log.Debug().Msgf("Listing objects in bucket=%s prefix=%s", s.config.Bucket, fullPrefix)
+	log.Debug().
+		Str("bucket", s.config.Bucket).
+		Str("prefix", fullPrefix).
+		Msg("Listing objects")
 
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.config.Bucket),
@@ -189,11 +192,20 @@ func (s *S3Storage) Read(path string) ([]byte, *s3FileInfo, error) {
 			status = fmt.Sprintf("error: %v", err)
 		}
 		if fileInfo != nil {
-			log.Debug().Msgf("S3 Read operation: bucket=%s key=%s size=%d etag=%s mod_time=%s status=%s",
-				s.config.Bucket, fullKey, fileInfo.size, fileInfo.etag, fileInfo.modTime.Format(time.RFC3339), status)
+			log.Debug().
+				Str("bucket", s.config.Bucket).
+				Str("key", fullKey).
+				Int64("size", fileInfo.size).
+				Str("etag", fileInfo.etag).
+				Str("mod_time", fileInfo.modTime.Format(time.RFC3339)).
+				Str("status", status).
+				Msg("S3 Read operation")
 		} else {
-			log.Debug().Msgf("S3 Read operation: bucket=%s key=%s status=%s",
-				s.config.Bucket, fullKey, status)
+			log.Debug().
+				Str("bucket", s.config.Bucket).
+				Str("key", fullKey).
+				Str("status", status).
+				Msg("S3 Read operation")
 		}
 	}()
 
@@ -236,8 +248,13 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	var etag string
 	defer func() {
 		etagClean := strings.Trim(etag, `"`)
-		log.Info().Msgf("Writing object to S3: bucket=%s key=%s size=%d etag=%s cfg=%+v",
-			s.config.Bucket, fullKey, len(data), etagClean, cfg)
+		log.Info().
+			Str("bucket", s.config.Bucket).
+			Str("key", fullKey).
+			Int("size", len(data)).
+			Str("etag", etagClean).
+			Interface("config", cfg).
+			Msg("Writing object to S3")
 	}()
 
 	putInput := &s3.PutObjectInput{
@@ -248,7 +265,9 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 
 	if cfg.ifMatch != "" {
 		putInput.IfMatch = aws.String(cfg.ifMatch)
-		log.Debug().Msgf("Conditional write with IfMatch: %s", cfg.ifMatch)
+		log.Debug().
+			Str("if_match", cfg.ifMatch).
+			Msg("Conditional write (IfMatch)")
 	}
 
 	resp, err := s.client.PutObject(context.Background(), putInput)
@@ -309,7 +328,10 @@ func (s *S3Storage) Stat(path string) (*s3FileInfo, error) {
 
 func (s *S3Storage) Delete(path string) error {
 	fullKey := s.fullKey(path)
-	log.Info().Msgf("Deleting object: bucket=%s key=%s", s.config.Bucket, fullKey)
+	log.Info().
+		Str("bucket", s.config.Bucket).
+		Str("key", fullKey).
+		Msg("Deleting object")
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fullKey),
@@ -327,14 +349,18 @@ func (s *S3Storage) Delete(path string) error {
 
 func (s *S3Storage) ToDuckDBWritePath(path string) string {
 	ret := "s3://" + filepath.Join(s.config.Bucket, s.config.rootDir, path)
-	log.Debug().Msgf("ToDuckDBWritePath: %s", ret)
+	log.Debug().
+		Str("write_path", ret).
+		Msg("Generated DuckDB write path")
 	return ret
 }
 
 func (s *S3Storage) ToDuckDBReadPath(path string) string {
 	if s.config.PublicURLPrefix != "" {
 		ret := s.config.PublicURLPrefix + "/" + filepath.Join(s.config.rootDir, path)
-		log.Debug().Msgf("ToDuckDBReadPath: %s", ret)
+		log.Debug().
+			Str("read_path", ret).
+			Msg("Generated DuckDB read path")
 		return ret
 	}
 	return s.ToDuckDBWritePath(path)
@@ -355,7 +381,9 @@ func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 		// Parse endpoint to extract host:port without protocol
 		endpointURL, err := url.Parse(s.config.Endpoint)
 		if err != nil {
-			log.Error().Msgf("Invalid endpoint URL: %v", err)
+			log.Error().
+				Err(err).
+				Msg("Invalid endpoint URL")
 			return ""
 		}
 
@@ -394,7 +422,9 @@ func (s *S3Storage) ToDuckDBSecret(secretName string) string {
 		strings.Join(redactedParts, ",\n    "),
 	)
 
-	log.Debug().Msgf("Generated DuckDB secret (redacted):\n%s", redactedSecret)
+	log.Debug().
+		Str("secret", redactedSecret).
+		Msg("Generated DuckDB secret (redacted)")
 	return secret
 }
 
@@ -475,8 +505,10 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		if fi.ETag() != cfg.ifMatch {
 			return fmt.Errorf("IfMatch: ETag mismatch (current: %s)", fi.ETag())
 		}
-		log.Debug().Msgf("FS.Write(ETag=%s) etag as expected in pre-existing file %s",
-			fi.ETag(), fullPath)
+		log.Debug().
+			Str("expected_etag", fi.ETag()).
+			Str("file", fullPath).
+			Msg("FS.Write: ETag as expected")
 	}
 
 	err := os.WriteFile(fullPath, data, 0644)
@@ -493,7 +525,9 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 
 func (fs *FSStorage) CreateDir(path string) error {
 	absPath := fs.fullPath(path)
-	log.Debug().Msgf("CreateDir %s", absPath)
+	log.Debug().
+		Str("path", absPath).
+		Msg("CreateDir")
 	return os.MkdirAll(absPath, 0755)
 }
 
@@ -544,7 +578,10 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 
 	err := filepath.WalkDir(fullPrefix, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			log.Error().Msgf("FSStorage.List: Error accessing path %q: %v", path, err)
+			log.Error().
+				Str("path", path).
+				Err(err).
+				Msg("FSStorage.List: error accessing path")
 			if os.IsNotExist(err) {
 				return nil
 			}
@@ -552,7 +589,10 @@ func (fs *FSStorage) List(prefix string) ([]string, error) {
 		}
 		relPath, err := filepath.Rel(fs.config.rootDir, path)
 		if err != nil {
-			log.Error().Msgf("FSStorage.List: Error converting path %q to relative: %v", path, err)
+			log.Error().
+				Str("path", path).
+				Err(err).
+				Msg("FSStorage.List: error converting path to relative")
 			return err
 		}
 		if d.IsDir() || relPath == "." {
