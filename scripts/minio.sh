@@ -56,6 +56,20 @@ setup_client() {
 case "$1" in
     "server")
         shift  # Remove 'server' from args
+        (
+          trap "exit" INT                           # Exit sub-shell on Ctrl+C
+          sleep 1                                   # Wait a second before starting logging
+          while true; do
+            mc admin trace --call s3 s3 --no-color || true  # Retry if the command fails
+            sleep 1                                 # Wait before retrying
+          done
+        ) &                                         # Run in background
+        TRACE_PID=$!                                # Save background process PID
+
+        # Setup a trap to kill the background trace process on Ctrl+C in the main shell:
+        trap "kill $TRACE_PID; exit" INT
+
+        # Now call start_server (as originally done)
         start_server "$@"
         ;;
     "client")
