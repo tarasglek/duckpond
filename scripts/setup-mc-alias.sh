@@ -33,12 +33,22 @@ if [ -z "${S3_ENDPOINT}" ]; then
 fi
 
 echo "Setting rclone alias '$ALIAS_NAME' with endpoint: ${S3_ENDPOINT}"
-set -x
-rclone config create "${ALIAS_NAME}" s3 \
-  provider AWS \
-  access_key_id "${AWS_ACCESS_KEY_ID}" \
-  secret_access_key "${AWS_SECRET_ACCESS_KEY}" \
-  endpoint "${S3_ENDPOINT}"
+if [[ "${S3_ENDPOINT}" =~ [Cc]loudflare ]]; then
+  set -x
+  rclone config create "${ALIAS_NAME}" s3 \
+    provider Cloudflare \
+    access_key_id "${AWS_ACCESS_KEY_ID}" \
+    secret_access_key "${AWS_SECRET_ACCESS_KEY}" \
+    endpoint "${S3_ENDPOINT}" \
+    acl private
+else
+  set -x
+  rclone config create "${ALIAS_NAME}" s3 \
+    provider AWS \
+    access_key_id "${AWS_ACCESS_KEY_ID}" \
+    secret_access_key "${AWS_SECRET_ACCESS_KEY}" \
+    endpoint "${S3_ENDPOINT}"
+fi
 
 if [ $? -eq 0 ]; then
   echo "rclone alias '$ALIAS_NAME' set successfully."
