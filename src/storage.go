@@ -79,12 +79,12 @@ func (c *S3Config) LoadAWSConfig() (aws.Config, error) {
 type WriteOption func(*writeConfig)
 
 type writeConfig struct {
-	ifMatch string
+	etag string
 }
 
 func WithIfMatch(etag string) WriteOption {
 	return func(c *writeConfig) {
-		c.ifMatch = etag
+		c.etag = etag
 	}
 }
 
@@ -253,9 +253,9 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 			Str("bucket", s.config.Bucket).
 			Str("key", fullKey).
 			Int("size", len(data)).
-			Str("etag", etagClean).
-			Interface("config", cfg).
-			Msg("Writing object to S3")
+			Str("return-etag", etagClean).
+			Str("ifMatch-etag", cfg.etag).
+			Msgf("Writing object to S3")
 	}()
 
 	putInput := &s3.PutObjectInput{
@@ -264,17 +264,29 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 		Body:   bytes.NewReader(data),
 	}
 
-	if cfg.ifMatch != "" {
-		putInput.IfMatch = aws.String(cfg.ifMatch)
+	if cfg.etag != "" {
+		putInput.IfMatch = aws.String(cfg.etag)
 		log.Debug().
-			Str("if_match", cfg.ifMatch).
+			Str("ifMatch-etag", cfg.etag).
 			Msg("Conditional write (IfMatch)")
 	}
-
 	resp, err := s.client.PutObject(context.Background(), putInput)
 	if err != nil {
-		log.Error().Msgf("Error writing object: %v", err)
-		return err
+		if cfg.etag != "" && strings.Contains(err.Error(), "PreconditionFailed") {
+			// Precondition failed due to IfMatch; retry with IfNoneMatch to check if the object is absent.
+			log.Debug().Msg("PreconditionFailed encountered. Retrying with IfNoneMatch: ''")
+			putInput.IfMatch = nil
+			putInput.IfNoneMatch = aws.String("")
+			retryResp, retryErr := s.client.PutObject(context.Background(), putInput)
+			if retryErr != nil {
+				log.Error().Msgf("Retry error writing object: %v", err)
+				return err
+			}
+			resp = retryResp
+		} else {
+			log.Error().Msgf("Error writing object: %v", err)
+			return err
+		}
 	}
 
 	// Capture ETag from response
@@ -501,13 +513,13 @@ func (fs *FSStorage) Write(path string, data []byte, opts ...WriteOption) error 
 		opt(&cfg)
 	}
 
-	if cfg.ifMatch != "" {
+	if cfg.etag != "" {
 		fi, err := fs.Stat(path)
 		if err != nil {
 			// complain that path does not exist
 			return fmt.Errorf("failed to check etag, %s does not exist: %w", path, err)
 		}
-		if fi.ETag() != cfg.ifMatch {
+		if fi.ETag() != cfg.etag {
 			return fmt.Errorf("IfMatch: ETag mismatch (current: %s)", fi.ETag())
 		}
 		log.Debug().

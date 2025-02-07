@@ -30,6 +30,8 @@ CREATE TABLE log_json(
     )
 );
 
+SET VARIABLE log_json_etag = '';
+
 -- Initial protocol version entry
 INSERT INTO log_json (protocol)
 VALUES (struct_pack(

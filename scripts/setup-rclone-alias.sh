@@ -1,34 +1,16 @@
 #!/bin/bash
-#
-# setup-mc-alias.sh
-# This script configures an mc alias using environment variables.
-#
-# Required env vars:
-#   AWS_ACCESS_KEY_ID
-#   AWS_SECRET_ACCESS_KEY
-#   S3_ENDPOINT
-#
-# Optional env vars:
-#   AWS_ENDPOINT_URL_IAM
-#   AWS_REGION
-#   S3_BUCKET
-#   S3_PUBLIC_URL_PREFIX
 
 if [ $# -lt 1 ]; then
   cat <<EOF
 Usage: $0 <alias-name>
 
-This script configures an mc alias using environment variables.
+This script configures an rclone alias using environment variables.
 
 Required environment variables:
   AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY
   S3_ENDPOINT
 
-Optional environment variables:
-  AWS_ENDPOINT_URL_IAM
-  AWS_REGION
-  S3_BUCKET
   S3_PUBLIC_URL_PREFIX
 EOF
   exit 1
