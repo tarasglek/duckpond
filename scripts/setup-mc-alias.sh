@@ -32,21 +32,8 @@ if [ -z "${S3_ENDPOINT}" ]; then
   exit 1
 fi
 
-# Optional variables for logging/verification
-if [ -n "${AWS_REGION}" ]; then
-  echo "Using AWS_REGION: ${AWS_REGION}"
-fi
-if [ -n "${AWS_ENDPOINT_URL_IAM}" ]; then
-  echo "Using AWS_ENDPOINT_URL_IAM: ${AWS_ENDPOINT_URL_IAM}"
-fi
-if [ -n "${S3_BUCKET}" ]; then
-  echo "Default S3_BUCKET: ${S3_BUCKET}"
-fi
-if [ -n "${S3_PUBLIC_URL_PREFIX}" ]; then
-  echo "Using S3_PUBLIC_URL_PREFIX: ${S3_PUBLIC_URL_PREFIX}"
-fi
-
 echo "Setting mc alias '$ALIAS_NAME' with endpoint: ${S3_ENDPOINT}"
+set -x
 mc alias set "${ALIAS_NAME}" "${S3_ENDPOINT}" "${AWS_ACCESS_KEY_ID}" "${AWS_SECRET_ACCESS_KEY}"
 
 if [ $? -eq 0 ]; then
