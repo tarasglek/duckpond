@@ -27,7 +27,7 @@ start_server() {
     echo "API Port: $MINIO_API_PORT"
     echo "Console Port: $MINIO_CONSOLE_PORT"
 
-    # Call setup_client before starting trace logging
+    # Call reset_bucket before starting trace logging
     reset_bucket
 
     # Start trace logging concurrently with a simpler until loop
@@ -43,7 +43,7 @@ start_server() {
         "$@"
 }
 
-# Function to reset the bucket
+# Function to setup mc client and ensure an empty bucket
 reset_bucket() {
     echo "Configuring MinIO Client..."
     mc alias set s3 \
@@ -73,7 +73,7 @@ case "$1" in
         shift  # Remove 'server' from args
         start_server "$@"
         ;;
-    "client")
+    "reset_bucket")
         shift  # Remove 'client' from args
         reset_bucket "$@"
         ;;
@@ -86,7 +86,7 @@ case "$1" in
         if [ $# -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
             echo "MinIO Management Script"
             echo
-            echo "Usage: $0 {server|client|all} [additional arguments...]"
+            echo "Usage: $0 {server|reset_bucket|all} [additional arguments...]"
             echo
             echo "Standard Options:"
             echo "  --help, -h       Show this help message"
