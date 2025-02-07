@@ -27,14 +27,11 @@ start_server() {
     echo "API Port: $MINIO_API_PORT"
     echo "Console Port: $MINIO_CONSOLE_PORT"
 
-    # Start trace logging concurrently
+    # Start trace logging concurrently with a simpler loop
     (
       trap "exit" INT
       sleep 1
-      while true; do
-        mc admin trace --call s3 s3 --no-color || true
-        sleep 1
-      done
+      until mc admin trace --call s3 s3 --no-color; do sleep 1; done
     ) &
     TRACE_PID=$!
     trap "kill $TRACE_PID; exit" INT
