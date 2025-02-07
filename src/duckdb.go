@@ -21,40 +21,44 @@ type ExtensionInfo struct {
 // ProcessExtensions handles loading or downloading DuckDB extensions
 func ProcessExtensions(db *sql.DB, install bool) error {
 	extensions := []string{"httpfs", "s3", "delta"}
+	freeBefore := uint64(0)
+	if install {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		extDir := filepath.Join(homeDir, ".duckdb", "extensions")
+		if err := os.MkdirAll(extDir, 0755); err != nil {
+			return fmt.Errorf("failed to create extension directory %s: %w", extDir, err)
+		}
+		freeBefore, err = GetFreeDiskSpace(extDir)
+		if err != nil {
+			return fmt.Errorf("failed to get free disk space before installing extensions: %w", err)
+		}
+
+		defer func() {
+			freeAfter, err := GetFreeDiskSpace(extDir)
+			if err != nil {
+				log.Err(err).Msgf("failed to get free disk space after installing extensions")
+			} else {
+				diff := freeAfter - freeBefore
+				log.Info().Strs("extensions", extensions).Msgf("Extension installed, free disk space changed by %d bytes", diff)
+			}
+		}()
+	}
 
 	for _, ext := range extensions {
 		if install {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get user home directory: %w", err)
-			}
-			extDir := filepath.Join(homeDir, ".duckdb", "extensions")
-			if err := os.MkdirAll(extDir, 0755); err != nil {
-				return fmt.Errorf("failed to create extension directory %s: %w", extDir, err)
-			}
-			freeBefore, err := GetFreeDiskSpace(extDir)
-			if err != nil {
-				return fmt.Errorf("failed to get free disk space before installing extension %s: %w", ext, err)
-			}
-			
 			if _, err := db.Exec(fmt.Sprintf("INSTALL %s;", ext)); err != nil {
 				return fmt.Errorf("failed to install extension %s: %w", ext, err)
 			}
-			
-			freeAfter, err := GetFreeDiskSpace(extDir)
-			if err != nil {
-				return fmt.Errorf("failed to get free disk space after installing extension %s: %w", ext, err)
-			}
-			diff := freeAfter - freeBefore
-			log.Info().Msgf("Extension %s installed, free disk space changed by %d bytes", ext, diff)
 		}
-		// Try LOAD first, fallback to INSTALL+LOAD if needed
 		if _, err := db.Exec(fmt.Sprintf("LOAD %s;", ext)); err != nil {
 			return fmt.Errorf("failed to load extension %s: %w", ext, err)
 
 		}
 	}
-	log.Info().Msg("DuckDB extensions processed successfully")
+	log.Info().Msg("DuckDB extensions loaded successfully")
 	return nil
 }
 

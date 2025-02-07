@@ -17,7 +17,8 @@ RUN wget https://github.com/duckdb/duckdb/releases/download/v1.1.3/libduckdb-lin
 
 RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/lib" go build -tags "duckdb_use_lib netgo" -o /duckpond /src/...
 
-RUN /duckpond -load-extensions
+RUN /duckpond -install-extensions
+
 
 FROM debian:bookworm-slim
 
@@ -31,7 +32,5 @@ RUN apt-get update && apt-get install -y \
 COPY --from=build /root /root
 COPY --from=build /duckpond /duckpond
 COPY --from=build /usr/lib/libduckdb.so /usr/lib/libduckdb.so
-
-ENV LD_LIBRARY_PATH=/usr/lib
 
 ENTRYPOINT [ "/duckpond", "-port", "8080", "-load-extensions"]
