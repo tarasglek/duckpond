@@ -28,7 +28,7 @@ start_server() {
     echo "Console Port: $MINIO_CONSOLE_PORT"
 
     # Call setup_client before starting trace logging
-    setup_client
+    reset_bucket
 
     # Start trace logging concurrently with a simpler until loop
     (
@@ -43,21 +43,25 @@ start_server() {
         "$@"
 }
 
-# Function to configure MinIO client
-setup_client() {
+# Function to reset the bucket
+reset_bucket() {
     echo "Configuring MinIO Client..."
     mc alias set s3 \
         "http://${MINIO_HOST}:${MINIO_API_PORT}" \
         "$MINIO_ROOT_USER" \
         "$MINIO_ROOT_PASSWORD"
 
-    # Create default bucket if it doesn't exist
-    if ! mc stat s3/"$S3_BUCKET" &>/dev/null; then
-        echo "Creating default bucket: $S3_BUCKET"
-        mc mb s3/"$S3_BUCKET"
+    # If the bucket exists, delete it forcefully
+    if mc stat s3/"$S3_BUCKET" &>/dev/null; then
+        echo "Bucket exists, deleting bucket forcefully: $S3_BUCKET"
+        mc rb s3/"$S3_BUCKET" --force
     fi
 
-    # Pass remaining arguments to mc if any
+    # Recreate the default bucket
+    echo "Creating default bucket: $S3_BUCKET"
+    mc mb s3/"$S3_BUCKET"
+
+    # If additional arguments are passed, forward them to mc
     if [ $# -gt 0 ]; then
         mc "$@"
     fi
@@ -71,12 +75,12 @@ case "$1" in
         ;;
     "client")
         shift  # Remove 'client' from args
-        setup_client "$@"
+        reset_bucket "$@"
         ;;
     "all")
         shift  # Remove 'all' from args
         start_server "$@"
-        setup_client "$@"
+        reset_bucket "$@"
         ;;
     *)
         if [ $# -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
