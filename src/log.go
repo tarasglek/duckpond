@@ -66,17 +66,20 @@ func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func() error) error {
 	return cb()
 }
 
-// initLogDB should only be called from getLogDBAfterImport
+// initLogDB should only be called from getLogDBAfterImport, from Destroy for tigris
 // and from Import
 func (l *Log) initLogDB() (*sql.DB, error) {
 	if l.logDB != nil {
 		return l.logDB, nil
 	}
 
+	log.Debug().Msgf("log.initLogDB()")
+
 	logDB, err := InitializeDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
+	l.logDB = logDB
 
 	secretSQL := l.storage.ToDuckDBSecret("duckpond_log_s3_secret")
 	if secretSQL != "" {
@@ -92,7 +95,6 @@ func (l *Log) initLogDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to initialize Delta Lake log: %w", err)
 	}
 
-	l.logDB = logDB
 	return l.logDB, nil
 }
 
@@ -117,7 +119,7 @@ func (l *Log) getLogDBAfterImport() (*sql.DB, error) {
 }
 
 // Exports log state to a JSON file and returns the current etag
-func (l *Log) Export() error {
+func (l *Log) Export(force bool) error {
 	db, err := l.getLogDBAfterImport()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
@@ -137,9 +139,18 @@ func (l *Log) Export() error {
 	if err != nil {
 		return fmt.Errorf("failed to get delta lake events: %w", err)
 	}
+	log.Debug().Bool("force", force).Str("etag", etag).Msgf("log.Export: (err=%v)", err)
 
 	// Write the new state to storage
-	if writeErr := l.storage.Write(l.delta_log_json, []byte(dl_events), WithIfMatch(etag)); writeErr != nil {
+	var writeErr error
+	if force {
+		log.Debug().Msgf("log.Export: force writing %s", l.delta_log_json)
+		writeErr = l.storage.Write(l.delta_log_json, []byte(dl_events))
+	} else {
+		writeErr = l.storage.Write(l.delta_log_json, []byte(dl_events), WithIfMatch(etag))
+
+	}
+	if writeErr != nil {
 		return fmt.Errorf("failed to write %s: %w", l.delta_log_json, writeErr)
 	}
 
@@ -158,7 +169,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		return err
 	}
 
-	return l.Export();
+	return l.Export(false)
 }
 
 //go:embed json_from_create_table_event.sql
@@ -463,8 +474,8 @@ func (l *Log) Import(tmpFilename string, etag string) error {
 	}
 
 	// Set and log etag in one operation
-	_, err = logdb.Exec("SET VARIABLE log_json_etag = $1", etag)
 	log.Debug().Msgf("Import: setting etag=%v (err=%v)", etag, err)
+	_, err = logdb.Exec("SET VARIABLE log_json_etag = $1", etag)
 	if err != nil {
 		return fmt.Errorf("failed to set log_json_etag: %w", err)
 	}
@@ -501,11 +512,6 @@ func (l *Log) Destroy() error {
 		}
 	}
 
-	// Delete JSON log file
-	if err := l.storage.Delete(l.delta_log_json); err != nil {
-		return fmt.Errorf("failed to delete log.json: %w", err)
-	}
-
 	// Close database connection if open
 	if l.logDB != nil {
 		if err := l.logDB.Close(); err != nil {
@@ -514,7 +520,8 @@ func (l *Log) Destroy() error {
 		l.logDB = nil
 	}
 
-	// deal with stale tigris cache by writing a new empty entry...
+	log.Debug().Msgf("log.Destroy()ing")
+	// deal with stale tigris cache by writing a new blank log
 	// then delete it again
 	if strings.Contains(strings.ToLower(l.storage.GetEndpoint()), "tigris") {
 		db, err := l.initLogDB()
@@ -522,19 +529,9 @@ func (l *Log) Destroy() error {
 			return fmt.Errorf("failed to reinitialize database for tigris cache update: %w", err)
 		}
 
-		// Clear the log table to force an empty entry
-		if _, err := db.Exec("DELETE FROM log_json;"); err != nil {
-			return fmt.Errorf("failed to clear log table for tigris cache update: %w", err)
-		}
-
-		// Export the cleared (empty) log state to storage
-		if err := l.Export(); err != nil {
+		// Overwrite log with with one featuring empty log state to deal with crappy tigris cache
+		if err := l.Export(true); err != nil {
 			return fmt.Errorf("failed to export empty log for tigris cache update: %w", err)
-		}
-
-		// Delete the JSON log file from storage
-		if err := l.storage.Delete(l.delta_log_json); err != nil {
-			return fmt.Errorf("failed to delete log during tigris cache update: %w", err)
 		}
 
 		// Close the temporary database connection and mark it as nil
@@ -542,6 +539,11 @@ func (l *Log) Destroy() error {
 			return fmt.Errorf("failed to close database after tigris cache update: %w", err)
 		}
 		l.logDB = nil
+	}
+
+	// Delete JSON log file
+	if err := l.storage.Delete(l.delta_log_json); err != nil {
+		return fmt.Errorf("failed to delete log.json: %w", err)
 	}
 
 	return nil
