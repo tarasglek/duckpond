@@ -516,7 +516,7 @@ func (l *Log) Destroy() error {
 
 	// deal with stale tigris cache by writing a new empty entry...
 	// then delete it again
-	if strings.Contains(l.storage.GetEndpoint(), "tigris") {
+	if strings.Contains(strings.ToLower(l.storage.GetEndpoint()), "tigris") {
 		db, err := l.initLogDB()
 		if err != nil {
 			return fmt.Errorf("failed to reinitialize database for tigris cache update: %w", err)
