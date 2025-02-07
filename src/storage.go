@@ -339,7 +339,7 @@ func (s *S3Storage) Delete(path string) error {
 	if err != nil {
 		// Ignore error if it indicates the object was not found
 		if strings.Contains(err.Error(), "NotFound") {
-			log.Debug().Msgf("Error deleting object: %v", err)
+			log.Debug().Msgf("Ignoring NotFound during deleting of object: %v", err)
 			return nil
 		}
 		log.Error().Msgf("Error deleting object: %v", err)
