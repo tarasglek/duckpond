@@ -409,13 +409,8 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 		log.Debug().Msgf("CreateViewOfParquet: ErrNoParquetFilesInTable")
 		return ErrNoParquetFilesInTable
 	}
-
-	// Map files to DuckDB paths
-	paths := make([]string, len(files))
-	for i, file := range files {
-		paths[i] = fmt.Sprintf("'%s'", l.storage.ToDuckDBReadPath(filepath.Join(l.tableName, file)))
-	}
-	duckPath := l.storage.ToDuckDBReadPath(l.tableName)
+	// delta extension requires _last_checkpoint which requires a parquet ver of log
+	duckPath := l.storage.ToDuckDBWritePath(l.tableName)
 	// load delta ext here in case it wasn't loaded yet
 	createView := fmt.Sprintf("LOAD delta; CREATE VIEW %s AS SELECT * FROM delta_scan('%s');", l.tableName, duckPath)
 	log.Debug().Str("duckPath", duckPath).Msgf("createView: %s", createView)
