@@ -1,0 +1,9 @@
+# caddy run --config Caddyfile
+:8881 {
+  reverse_proxy https://duckpond-cloudflare.glek.net {
+    header_up Host duckpond-cloudflare.glek.net
+  }
+  log {
+    output stdout
+  }
+}
