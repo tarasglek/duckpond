@@ -96,6 +96,7 @@ type Storage interface {
 	Stat(path string) (*s3FileInfo, error)
 	Delete(path string) error
 	ToDuckDBWritePath(path string) string
+	// ToDuckDBReadPath may return http instead of s3 path when public URL is set on bucket
 	ToDuckDBReadPath(path string) string
 	List(prefix string) ([]string, error)
 	ToDuckDBSecret(secretName string) string
@@ -272,21 +273,8 @@ func (s *S3Storage) Write(path string, data []byte, opts ...WriteOption) error {
 	}
 	resp, err := s.client.PutObject(context.Background(), putInput)
 	if err != nil {
-		if cfg.etag != "" && strings.Contains(err.Error(), "PreconditionFailed") {
-			// Precondition failed due to IfMatch; retry with IfNoneMatch to check if the object is absent.
-			log.Debug().Msg("PreconditionFailed encountered. Retrying with IfNoneMatch: ''")
-			putInput.IfMatch = nil
-			putInput.IfNoneMatch = aws.String("")
-			retryResp, retryErr := s.client.PutObject(context.Background(), putInput)
-			if retryErr != nil {
-				log.Error().Msgf("Retry error writing object: %v", err)
-				return err
-			}
-			resp = retryResp
-		} else {
-			log.Error().Msgf("Error writing object: %v", err)
-			return err
-		}
+		log.Error().Msgf("Error writing object: %v", err)
+		return err
 	}
 
 	// Capture ETag from response

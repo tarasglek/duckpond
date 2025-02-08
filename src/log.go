@@ -66,7 +66,7 @@ func (l *Log) WithDuckDBSecret(dataTx *sql.Tx, cb func() error) error {
 	return cb()
 }
 
-// initLogDB should only be called from getLogDBAfterImport, from Destroy for tigris
+// initLogDB should only be called from getLogDBAfterImport
 // and from Import
 func (l *Log) initLogDB() (*sql.DB, error) {
 	if l.logDB != nil {
@@ -119,7 +119,7 @@ func (l *Log) getLogDBAfterImport() (*sql.DB, error) {
 }
 
 // Exports log state to a JSON file and returns the current etag
-func (l *Log) Export(force bool) error {
+func (l *Log) Export() error {
 	db, err := l.getLogDBAfterImport()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
@@ -128,7 +128,8 @@ func (l *Log) Export(force bool) error {
 	// Get and log etag in one operation
 	var etag string
 	err = db.QueryRow("SELECT COALESCE(getvariable('log_json_etag'), '')").Scan(&etag)
-	log.Debug().Msgf("Export: etag=%v (err=%v)", etag, err)
+	log.Debug().Str("etag", etag).Err(err).Msgf("log.Export")
+
 	if err != nil {
 		etag = ""
 	}
@@ -139,17 +140,10 @@ func (l *Log) Export(force bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to get delta lake events: %w", err)
 	}
-	log.Debug().Bool("force", force).Str("etag", etag).Msgf("log.Export: (err=%v)", err)
 
 	// Write the new state to storage
-	var writeErr error
-	if force {
-		log.Debug().Msgf("log.Export: force writing %s", l.delta_log_json)
-		writeErr = l.storage.Write(l.delta_log_json, []byte(dl_events))
-	} else {
-		writeErr = l.storage.Write(l.delta_log_json, []byte(dl_events), WithIfMatch(etag))
+	writeErr := l.storage.Write(l.delta_log_json, []byte(dl_events), WithIfMatch(etag))
 
-	}
 	if writeErr != nil {
 		return fmt.Errorf("failed to write %s: %w", l.delta_log_json, writeErr)
 	}
@@ -169,7 +163,7 @@ func (l *Log) withPersistedLog(op func() error) error {
 		return err
 	}
 
-	return l.Export(false)
+	return l.Export()
 }
 
 //go:embed json_from_create_table_event.sql
@@ -401,17 +395,19 @@ func (l *Log) CreateViewOfParquet(dataTx *sql.Tx) error {
 		// Note we don't drop secret here as the view lifetime persists past this function
 	}
 
-	files, err := l.listFiles(filesLive)
+	parquetFiles, err := l.listFiles(filesLive)
 	if err != nil {
 		return fmt.Errorf("failed to list live parquet files: %w", err)
 	}
-	if len(files) == 0 {
+	if len(parquetFiles) == 0 {
 		log.Debug().Msgf("CreateViewOfParquet: ErrNoParquetFilesInTable")
 		return ErrNoParquetFilesInTable
 	}
 	// delta extension requires _last_checkpoint which requires a parquet ver of log
 	duckPath := l.storage.ToDuckDBWritePath(l.tableName)
 	// load delta ext here in case it wasn't loaded yet
+	// can do this read without delta lake using read_parquet(parquetFiles)
+	// but then we wont benefit from deltalake/duckdb filter pushdowns
 	createView := fmt.Sprintf("LOAD delta; CREATE VIEW %s AS SELECT * FROM delta_scan('%s');", l.tableName, duckPath)
 	log.Debug().Str("duckPath", duckPath).Msgf("createView: %s", createView)
 	_, err = dataTx.Exec(createView)
@@ -492,6 +488,10 @@ func (l *Log) Close() error {
 	return nil
 }
 
+func (l *Log) tigrisStaleCacheWorkaround() bool {
+	return strings.Contains(strings.ToLower(l.storage.GetEndpoint()), "tigris")
+}
+
 func (l *Log) Destroy() error {
 	// Get all files (including tombstoned ones)
 	files, err := l.listFiles(filesAll)
@@ -507,31 +507,17 @@ func (l *Log) Destroy() error {
 		}
 	}
 
+	log.Debug().Msgf("log.Destroy()ing")
+	// deal with stale tigris cache by writing a blank log, so after when reading stale cache(while recreating table with same name), we don't have table metadata in it
+	if l.logDB != nil && l.tigrisStaleCacheWorkaround() {
+		log.Debug().Msgf("Writing a blank log to deal with tigris bug that likes to return stale read cache")
+		l.storage.Write(l.delta_log_json, []byte(`{}`))
+	}
+
 	// Close database connection if open
 	if l.logDB != nil {
 		if err := l.logDB.Close(); err != nil {
 			return fmt.Errorf("failed to close database: %w", err)
-		}
-		l.logDB = nil
-	}
-
-	log.Debug().Msgf("log.Destroy()ing")
-	// deal with stale tigris cache by writing a new blank log
-	// then delete it again
-	if strings.Contains(strings.ToLower(l.storage.GetEndpoint()), "tigris") {
-		db, err := l.initLogDB()
-		if err != nil {
-			return fmt.Errorf("failed to reinitialize database for tigris cache update: %w", err)
-		}
-
-		// Overwrite log with with one featuring empty log state to deal with crappy tigris cache
-		if err := l.Export(true); err != nil {
-			return fmt.Errorf("failed to export empty log for tigris cache update: %w", err)
-		}
-
-		// Close the temporary database connection and mark it as nil
-		if err := db.Close(); err != nil {
-			return fmt.Errorf("failed to close database after tigris cache update: %w", err)
 		}
 		l.logDB = nil
 	}
@@ -554,10 +540,8 @@ func (l *Log) importPersistedLog() (err error) {
 		return nil
 	}
 
-	if !strings.Contains(string(data), "metaData") &&
-		!strings.Contains(string(data), "add") &&
-		!strings.Contains(string(data), "remove") {
-		log.Debug().Msgf("importPersistedLog: %s does not contain 'metaData', 'add', or 'remove', skipping import", l.delta_log_json)
+	if fileInfo.Size() <= 2 && l.tigrisStaleCacheWorkaround() {
+		log.Debug().Msgf("importPersistedLog(%s) empty or invalid json, assuming empty table on tigris", l.delta_log_json)
 		return nil
 	}
 
