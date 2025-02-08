@@ -58,5 +58,6 @@ write_data(batch2, "append")
 # Perform delete operation
 dt = DeltaTable(path, storage_options=storage_options)
 dt.delete("id = 1")
+dt.create_checkpoint()
 
 print(f"Data written to Delta Lake at '{path}' in two batches successfully!")
