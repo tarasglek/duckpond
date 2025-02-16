@@ -82,3 +82,4 @@ Example output:
 * https://github.com/kylebarron/parquet-wasm
 * https://www.tigrisdata.com/blog/tigris-vs-s3-cloudfront/
 * https://duckdb.org/docs/guides/sql_features/query_and_query_table_functions.html
+* https://youtu.be/zpgV0SPILmQ?si=bxWNhS3KR1W_vIZe
